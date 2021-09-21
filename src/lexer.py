@@ -3,7 +3,7 @@
 from __future__ import annotations
 from typing import *
 
-from .util import StringView, Location
+from .util import StringView, Location, ParseException
 
 TAB_WIDTH = 4
 
@@ -55,7 +55,7 @@ def eat_whitespace(stream: StringView, loc: Location) -> Tuple[StringView, Locat
 
 	return stream, loc
 
-def read_string_literal(stream: StringView) -> Tuple[str, StringView, int]:
+def read_string_literal(stream: StringView, loc: Location) -> Tuple[str, StringView, int]:
 	"""
 	reads a string literal.
 	params:  input stream
@@ -66,7 +66,7 @@ def read_string_literal(stream: StringView) -> Tuple[str, StringView, int]:
 
 	def read_one_char(stream: StringView, index: int, msg: str) -> Tuple[int, str]:
 		if index + 1 == stream.size():
-			raise RuntimeError(f"unterminated string literal, {msg}")
+			raise ParseException(loc, f"unterminated string literal, {msg}")
 
 		return (index + 1, chr(stream[index + 1]))
 
@@ -130,7 +130,7 @@ def read_string_literal(stream: StringView) -> Tuple[str, StringView, int]:
 
 				is_hex, sub = is_hex_digit(next)
 				if not is_hex:
-					raise RuntimeError(f"invalid hexadecimal digit '{next}' found in '\\x' escape")
+					raise ParseException(loc, f"invalid hexadecimal digit '{next}' found in '\\x' escape")
 
 				esc = ord(next) - sub
 				idx, next = read_one_char(stream, idx, "expected digits after '\\x'")
@@ -145,9 +145,9 @@ def read_string_literal(stream: StringView) -> Tuple[str, StringView, int]:
 				continue
 
 			elif next == "\r" or next == "\n":
-				raise RuntimeError("unescaped newline in string literal")
+				raise ParseException(loc, "unescaped newline in string literal")
 			else:
-				raise RuntimeError(f"invalid escape sequence '\\{next}' in string literal")
+				raise ParseException(loc, f"invalid escape sequence '\\{next}' in string literal")
 
 		elif stream[idx] == ord('"'):
 			return value, stream.drop(idx + 1), idx + 1
@@ -156,7 +156,7 @@ def read_string_literal(stream: StringView) -> Tuple[str, StringView, int]:
 
 		idx += 1
 
-	raise RuntimeError(f"unterminated string literal, expected '\"'")
+	raise ParseException(loc, f"unterminated string literal, expected '\"'")
 
 
 def read_identifier(stream: StringView) -> Tuple[str, StringView]:
@@ -204,7 +204,7 @@ def read_token(stream: StringView, loc: Location) -> Tuple[Token, StringView, Lo
 		return Token(stream.take_prefix(2), "LogicalOr", loc), stream, loc.advancing(2)
 
 	elif stream.starts_with('"'):
-		string, rest, n = read_string_literal(stream)
+		string, rest, n = read_string_literal(stream, loc)
 		return Token(string, "string_literal", loc), rest, loc.advancing(n)
 
 	elif stream.starts_with_one_of(b"0123456789"):
@@ -226,7 +226,7 @@ def read_token(stream: StringView, loc: Location) -> Tuple[Token, StringView, Lo
 				copy.remove_prefix(2)
 			elif copy.starts_with("*/"):
 				if nesting == 0:
-					raise RuntimeError("mismatched '*/' in line comment")
+					raise ParseException(loc, "mismatched '*/' in line comment")
 				else:
 					nesting -= 1
 					copy.remove_prefix(2)
@@ -234,7 +234,7 @@ def read_token(stream: StringView, loc: Location) -> Tuple[Token, StringView, Lo
 				copy.remove_prefix(1)
 
 		if nesting != 0:
-			raise RuntimeError("expected '*/' to match an opening '/*'")
+			raise ParseException(loc, "expected '*/' to match an opening '/*'")
 
 		return Token(line, "comment", loc), stream.drop(line.size()), loc.advancing(line.size())
 
@@ -242,24 +242,31 @@ def read_token(stream: StringView, loc: Location) -> Tuple[Token, StringView, Lo
 		copy = stream.clone().remove_prefix(2)
 		nesting = 1
 
+		new_loc: Location = loc
 		while nesting > 0 and not copy.empty():
 			if copy.starts_with("/*"):
+				new_loc = new_loc.advancing(2)
 				copy.remove_prefix(2)
 				nesting += 1
 			elif copy.starts_with("*/"):
+				new_loc = new_loc.advancing(2)
 				copy.remove_prefix(2)
 				nesting -= 1
 			else:
-				copy.remove_prefix(1)
+				if copy.starts_with_one_of("\r\n\t "):
+					copy, new_loc = eat_whitespace(copy, new_loc)
+				else:
+					new_loc = new_loc.advancing(1)
+					copy.remove_prefix(1)
 
 		if nesting > 0:
-			raise RuntimeError("unexpected end of input (expected '*/')")
+			raise ParseException(loc, "unexpected end of input (expected '*/')")
 
 		content: StringView = stream.drop_last(copy.size())
-		return Token(content, "comment", loc), stream.drop(content.size()), loc.advancing(content.size())
+		return Token(content, "comment", loc), stream.drop(content.size()), new_loc
 
 	elif stream.starts_with("*/"):
-		raise RuntimeError("illegal unpaired '*/'")
+		raise ParseException(loc, "illegal unpaired '*/'")
 
 	elif stream.starts_with_one_of("abcdefghijklmnopqrstuvwxyz"):
 		ident, rest = read_identifier(stream)
@@ -306,6 +313,6 @@ def read_token(stream: StringView, loc: Location) -> Tuple[Token, StringView, Lo
 		elif first_char == ',': tok_type = "Comma"
 		elif first_char == '=': tok_type = "Equal"
 		elif first_char == '!': tok_type = "Exclamation"
-		else:                   raise RuntimeError(f"invalid token '{first_char}'")
+		else:                   raise ParseException(loc, f"invalid token '{first_char}'")
 
 		return Token(first_char, tok_type, loc), stream.drop(1), loc.advancing(1)

@@ -14,7 +14,7 @@ Void main(Int i, Int a, Int b,Int d){
  Int t2;
 
  Compute help;
-
+%
  /*
 
  help = new Compute();
@@ -69,7 +69,7 @@ Bool j;
       }
 	c = this.getCompute();
 
-    }    
+    }
     return this.getCompute().square(-3);
     return i ;
 
@@ -78,6 +78,6 @@ Bool j;
 Compute getCompute() {
 
    // c = new Compute();
-   return c; 
+   return c;
 }
 }
