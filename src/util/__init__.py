@@ -1,3 +1,3 @@
 
 from .StringView import *
-from .file import *
+from .util import *

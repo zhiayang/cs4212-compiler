@@ -1,10 +1,12 @@
 #!/usr/bin/env python
 
+from __future__ import annotations
+from typing import *
+
 from . import ast
 
 from .lexer import *
 from .util import StringView
-from .util.file import Location
 
 class ParserState:
 	def __init__(self, filename: str, s: StringView):
@@ -21,8 +23,29 @@ class ParserState:
 		self.loc = l
 		return tok
 
-a: ast.Stmt
+	def empty(self) -> bool:
+		return self.stream.empty()
 
 
-# def parse_program():
+
+
+
+
+
+
+
+
+
+
+
+def parse_class(state: ParserState) -> ast.ClassDefn:
+	pass
+
+
+def parse_program(state: ParserState) -> ast.Program:
+	classes: List[ast.ClassDefn] = []
+	while not state.empty():
+		classes.append(parse_class(state))
+
+	return ast.Program(classes)
 
