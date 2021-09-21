@@ -88,9 +88,8 @@ def read_string_literal(stream: StringView, loc: Location) -> Tuple[str, StringV
 			elif next == "r":
 				value += "\r"
 
+			# TODO: enforce this to be 3 digits
 			elif ord('0') <= ord(next) <= ord('9'):
-				# TODO: check whether this is really octal or not.
-				# TODO: check whether this needs to have exactly 3 digits or not
 				esc: int = ord(next) - ord('0')
 				err_msg = "expected '\"'"
 				idx, next = read_one_char(stream, idx, err_msg)
@@ -109,12 +108,14 @@ def read_string_literal(stream: StringView, loc: Location) -> Tuple[str, StringV
 				elif next == '"':
 					continue
 
-				# TODO: some input validation (eg. should we cap to 127?)
+				if esc > 127:
+					raise ParseException(loc, f"invalid ASCII escape; maximum value is 127, got {esc}")
+
 				value += chr(esc)
 				continue
 
 			elif next == 'x':
-				# TODO: check whether this needs to have exactly 2 digits or not
+				# TODO: enforce this to be 2 digits exactly
 				idx, next = read_one_char(stream, idx, "expected digits after '\\x'")
 				esc = 0
 
@@ -140,6 +141,9 @@ def read_string_literal(stream: StringView, loc: Location) -> Tuple[str, StringV
 					esc = 0x10 * esc + (ord(next) - sub)
 					# read another one
 					idx, next = read_one_char(stream, idx, "expected '\"'")
+
+				if esc > 127:
+					raise ParseException(loc, f"invalid ASCII escape; maximum value is 127, got {esc}")
 
 				value += chr(esc)
 				continue
@@ -209,9 +213,11 @@ def read_token(stream: StringView, loc: Location) -> Tuple[Token, StringView, Lo
 
 	elif stream.starts_with_one_of(b"0123456789"):
 		nums = stream.take_while(lambda x: ord('0') <= ord(x) <= ord('9'))
-		return Token(nums, "NumLiteral", loc), stream.drop(nums.size()), loc.advancing(nums.size())
+		return Token(nums, "IntegerLiteral", loc), stream.drop(nums.size()), loc.advancing(nums.size())
 
 	elif stream.starts_with("//"):
+		# TODO: check if this is actually what wongwf wants, or whether there's a typo in the pdf.
+		# this part right now ensures that /* and */ are still paired correctly even within line comments.
 		line: StringView = stream.take_while(lambda x: x != "\n" and x != "\r")
 		if not ("/*" in line.string() or "*/" in line.string()):
 			return Token(line, "Comment", loc), stream.drop(line.size()), loc.advancing(line.size())
@@ -311,6 +317,8 @@ def read_token(stream: StringView, loc: Location) -> Tuple[Token, StringView, Lo
 		elif first_char == ')': tok_type = "RParen"
 		elif first_char == '{': tok_type = "LBrace"
 		elif first_char == '}': tok_type = "RBrace"
+		elif first_char == '<': tok_type = "LAngle"
+		elif first_char == '>': tok_type = "RAngle"
 		elif first_char == ';': tok_type = "Semicolon"
 		elif first_char == ',': tok_type = "Comma"
 		elif first_char == '=': tok_type = "Equal"

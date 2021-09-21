@@ -29,6 +29,12 @@ class ParserState:
 			if tok.type != "Comment":
 				return tok
 
+	def next_if(self, tok_type: str) -> Optional[Token]:
+		if self.peek().type == tok_type:
+			return self.next()
+		else:
+			return None
+
 	def empty(self) -> bool:
 		return self.peek().type == "EOF"
 
@@ -50,25 +56,216 @@ class ParserState:
 		else:
 			return tok
 
+	def expect_semicolon(self):
+		self.expect("Semicolon", "expected ';' after statement")
+
 
 def is_typename(tok: Token) -> bool:
 	return tok.type in ["kw_Int", "kw_Bool", "kw_Void", "kw_String", "ClassName"]
 
+def get_precedence(tok: Token) -> int:
+	if tok.type == "Period":
+		return 420
+	elif tok.type in ["Asterisk", "Slash"]:
+		return 69
+	elif tok.type in ["Plus", "Minus"]:
+		return 68
+	elif tok.type in ["LAngle", "RAngle", "LessThanEqual", "GreaterEqual", "EqualsTo", "NotEqual"]:
+		return 67
+	elif tok.type == "LogicalAnd":
+		return 66
+	elif tok.type == "LogicalOr":
+		return 65
+	elif tok.type == "Equal":
+		return 1
+	else:
+		return -1
+
+
+
+
+
+def parse_primary(ps: ParserState) -> ast.Expr:
+	if ps.next_if("kw_true"):
+		return ast.BooleanLit(True)
+
+	elif ps.next_if("kw_false"):
+		return ast.BooleanLit(False)
+
+	elif ps.next_if("kw_null"):
+		return ast.NullLit()
+
+	elif ps.next_if("kw_this"):
+		return ast.ThisLit()
+
+	elif (str_lit := ps.next_if("StringLiteral")):
+		return ast.StringLit(str_lit.text)
+
+	elif (int_lit := ps.next_if("IntegerLiteral")):
+		return ast.IntegerLit(int(int_lit.text))
+
+	elif (var_name := ps.next_if("Identifier")):
+		return ast.VarRef(var_name.text)
+
+	elif ps.next_if("LParen"):
+		inside: ast.Expr = parse_expr(ps)
+		ps.expect("RParen")
+		return inside
+
+	else:
+		raise ParseException(ps.loc, f"unexpected token '{ps.peek().text}' in expression")
+
+
+def parse_unary(ps: ParserState) -> ast.Expr:
+	if ps.next_if("Exclamation"):
+		return ast.UnaryOp(parse_expr(ps), '!')
+
+	elif ps.next_if("Minus"):
+		return ast.UnaryOp(parse_expr(ps), '-')
+
+	else:
+		return parse_primary(ps)
+
+
+def parse_rhs(ps: ParserState, lhs: ast.Expr, prio: int) -> ast.Expr:
+	if ps.empty():
+		return lhs
+
+	while True:
+		if ps.next_if("LParen"):
+			arg_list: List[ast.Expr] = []
+			while not ps.empty() and ps.peek().type != "RParen":
+				arg_list.append(parse_expr(ps))
+
+				if ps.peek().type == "RParen":
+					break
+				elif ps.next_if("Comma"):
+					pass
+				else:
+					raise ParseException(ps.loc, f"unexpected token '{ps.peek().text}'")
+
+			ps.expect("RParen")
+			lhs = ast.FuncCallExpr(lhs, arg_list)
+			continue
+
+		prec: int = get_precedence(ps.peek())
+		if prec < prio:
+			return lhs
+
+		op: str = ps.next().text
+
+		if op == "=" and prio == 0:
+			# a wee bit of a hack, since this should really be an AssignStmt, but that isn't an Expr
+			# and we don't really want to make it one.
+			return ast.BinaryOp(lhs, parse_expr(ps), "=")
+
+		rhs: ast.Expr = parse_unary(ps)
+
+		# note: there is no right-associative operator here, so this works fine without special-casing that
+		next: int = get_precedence(ps.peek())
+		if next > prec:
+			rhs = parse_rhs(ps, rhs, prec + 1)
+
+		if op == ".":
+			lhs = ast.DotOp(lhs, rhs)
+		else:
+			lhs = ast.BinaryOp(lhs, rhs, op)
+
+
+def parse_expr(ps: ParserState) -> ast.Expr:
+	return parse_rhs(ps, parse_unary(ps), 0)
+
+
+
+def parse_stmt_list(ps: ParserState) -> List[ast.Stmt]:
+	stmts: List[ast.Stmt] = []
+	while not ps.empty():
+		# while not strictly necessary, check for a typename here and give a nicer error message
+		if is_typename(ps.peek()):
+			raise ParseException(ps.loc, "variable declarations must be at the top of the method body")
+
+		elif ps.peek().type == "RBrace":
+			break;
+
+		stmts.append(parse_stmt(ps))
+
+	return stmts
+
+
+def parse_block(ps: ParserState) -> ast.Block:
+	ps.expect("LBrace", "expected '{' to start a block")
+	stmts = parse_stmt_list(ps)
+	ps.expect("RBrace", "expected '}' to end a block")
+	return ast.Block(stmts)
+
 
 def parse_if_stmt(ps: ParserState) -> ast.IfStmt:
-	raise NotImplementedError()
+	ps.expect("kw_if")
+	ps.expect("LParen", lambda t: f"expected '(' after 'if', found '{t.text}' instead")
+
+	condition = parse_expr(ps)
+
+	ps.expect("RParen", lambda t: f"expected ')' after if condition, found '{t.text}' instead")
+
+	true_case = parse_block(ps)
+	if len(true_case.stmts) == 0:
+		raise ParseException(ps.loc, "if statement cannot have an empty block")
+
+	ps.expect("kw_else", "'else' clause is mandatory in if statements")
+
+	else_case = parse_block(ps)
+	if len(else_case.stmts) == 0:
+		raise ParseException(ps.loc, "if statement cannot have an empty block")
+
+	return ast.IfStmt(condition, true_case, else_case)
+
+
 
 def parse_while_loop(ps: ParserState) -> ast.WhileLoop:
-	raise NotImplementedError()
+	ps.expect("kw_while")
+	ps.expect("LParen", lambda t: f"expected '(' after 'while', found '{t.text}' instead")
+
+	condition = parse_expr(ps)
+
+	ps.expect("RParen", lambda t: f"expected ')' after while condition, found '{t.text}' instead")
+
+	body = parse_block(ps)
+	if len(body.stmts) == 0:
+		raise ParseException(ps.loc, "while loop cannot have an empty block")
+
+	return ast.WhileLoop(condition, body)
+
 
 def parse_readln(ps: ParserState) -> ast.ReadLnCall:
-	raise NotImplementedError()
+	ps.expect("kw_readln")
+	ps.expect("LParen", lambda t: f"expected '(' after 'readln', found '{t.text}' instead")
+
+	ident = ps.expect("Identifier", "expected identifier in argument to 'readln'").text
+
+	ps.expect("RParen")
+	ps.expect_semicolon()
+	return ast.ReadLnCall(ident)
 
 def parse_println(ps: ParserState) -> ast.PrintLnCall:
-	raise NotImplementedError()
+	ps.expect("kw_println")
+	ps.expect("LParen", lambda t: f"expected '(' after 'println', found '{t.text}' instead")
+
+	ret = ast.PrintLnCall(parse_expr(ps))
+	ps.expect("RParen")
+	ps.expect_semicolon()
+	return ret
 
 def parse_return_stmt(ps: ParserState) -> ast.ReturnStmt:
-	raise NotImplementedError()
+	ps.expect("kw_return")
+
+	if ps.next_if("Semicolon"):
+		return ast.ReturnStmt(None)
+
+	expr = parse_expr(ps)
+	ps.expect_semicolon()
+
+	return ast.ReturnStmt(expr)
+
 
 
 
@@ -92,23 +289,26 @@ def parse_stmt(ps: ParserState) -> ast.Stmt:
 		return parse_return_stmt(ps)
 
 	else:
-		# TODO: assigns, calls
-		raise ParseException(ps.loc, f"unexpected token '{tok.text}'")
+		# this is a little weird, but for normal languages where expressions
+		# are statements in-and-of-themselves, we would be parsing a statement here.
+		# so do that, but only allow certain kinds of expressions, namely calls and assigns.
+		expr: ast.Expr = parse_expr(ps)
+		ps.expect_semicolon()
 
+		if isinstance(expr, ast.FuncCallExpr):
+			call = cast(ast.FuncCallExpr, expr)
 
-def parse_stmt_list(ps: ParserState) -> List[ast.Stmt]:
-	stmts: List[ast.Stmt] = []
-	while not ps.empty():
-		# while not strictly necessary, check for a typename here and give a nicer error message
-		if is_typename(ps.peek()):
-			raise ParseException(ps.loc, "variable declarations must be at the top of the method body")
+			return ast.FuncCallStmt(call.func, call.args)
 
-		elif ps.peek().type == "RBrace":
-			break;
+		elif isinstance(expr, ast.BinaryOp):
+			binop = cast(ast.BinaryOp, expr)
+			if binop.op != "=":
+				raise ParseException(ps.loc, "expressions are not statements (1)")
 
-		stmts.append(parse_stmt(ps))
+			return ast.AssignStmt(binop.lhs, binop.rhs)
 
-	return stmts
+		raise ParseException(ps.loc, "expressions are not statements")
+
 
 
 def parse_typed_name(ps: ParserState) -> Tuple[str, str]:
@@ -144,9 +344,12 @@ def parse_method_body(ps: ParserState) -> Tuple[List[ast.VarDecl], List[ast.Stmt
 		if is_typename(ps.peek()):
 			ty, name = parse_typed_name(ps)
 			var_decls.append(ast.VarDecl(name, ty))
-			ps.expect("Semicolon", lambda _: "expected ';' after variable declaration")
+			ps.expect("Semicolon", "expected ';' after variable declaration")
 		else:
 			stmts = parse_stmt_list(ps)
+
+	if len(stmts) == 0:
+		raise ParseException(ps.loc, "method body cannot be empty")
 
 	ps.expect("RBrace")
 	return var_decls, stmts

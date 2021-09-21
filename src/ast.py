@@ -4,6 +4,10 @@ from __future__ import annotations
 from typing import *
 from abc import ABC, abstractmethod
 
+def indent_lines(x: str) -> str:
+	return "\n".join(map(lambda s: "    " + s, x.split("\n")))
+
+
 class Expr(ABC):
 	@abstractmethod
 	def __str__(self) -> str: ...
@@ -13,12 +17,12 @@ class Stmt(ABC):
 	def __str__(self) -> str: ...
 
 class FuncCall:
-	def __init__(self, name: str, args: List[Expr]) -> None:
-		self.name: str = name
+	def __init__(self, func: Expr, args: List[Expr]) -> None:
+		self.func: Expr = func
 		self.args: List[Expr] = args
 
 	def __str__(self) -> str:
-		return f"{self.name}({','.join(map(str, self.args))})"
+		return f"{self.func}({','.join(map(str, self.args))})"
 
 class BinaryOp(Expr):
 	def __init__(self, left: Expr, right: Expr, op: str) -> None:
@@ -45,8 +49,8 @@ class VarRef(Expr):
 		return f"{self.name}"
 
 class FuncCallExpr(FuncCall, Expr):
-	def __init__(self, name: str, args: List[Expr]) -> None:
-		super().__init__(name, args)
+	def __init__(self, func: Expr, args: List[Expr]) -> None:
+		super().__init__(func, args)
 
 	def __str__(self) -> str:
 		return super().__str__()
@@ -103,8 +107,8 @@ class DotOp(Expr):
 		return f"{self.lhs}.{self.rhs}"
 
 class FuncCallStmt(FuncCall, Stmt):
-	def __init__(self, name: str, args: List[Expr]) -> None:
-		super().__init__(name, args)
+	def __init__(self, func: Expr, args: List[Expr]) -> None:
+		super().__init__(func, args)
 
 	def __str__(self) -> str:
 		return f"{super().__str__()};"
@@ -160,7 +164,7 @@ class IfStmt(Stmt):
 		self.else_case: Block = else_case
 
 	def __str__(self) -> str:
-		return f"if({self.condition})\n{self.true_case}\nelse\n{self.else_case}"
+		return f"if({self.condition})\n{indent_lines(str(self.true_case))}\nelse\n{indent_lines(str(self.else_case))}"
 
 class WhileLoop(Stmt):
 	def __init__(self, condition: Expr, body: Block) -> None:
@@ -168,7 +172,7 @@ class WhileLoop(Stmt):
 		self.body: Block = body
 
 	def __str__(self) -> str:
-		return f"while({self.condition})\n{self.body}"
+		return f"while({self.condition})\n{indent_lines(str(self.body))}"
 
 class MethodDefn:
 	def __init__(self, name: str, parent: ClassDefn, args: List[VarDecl], return_type: str, vars: List[VarDecl], body: Block) -> None:
@@ -181,8 +185,9 @@ class MethodDefn:
 
 	def __str__(self) -> str:
 		return f"{self.return_type} {self.name}({','.join(map(lambda x: str(x)[:-1], self.args))})" \
-			+ "\n    {\n" + "\n".join(map(lambda x: "        " + str(x), self.vars)) \
-			+ "\n".join(map(lambda x: "        " + str(x), self.body.stmts)) \
+			+ "\n    {\n" + "\n".join(map(lambda x: "    " + indent_lines(str(x)), self.vars)) \
+			+ ("\n" if len(self.vars) > 0 else "") \
+			+ "\n".join(map(lambda x: "    " + indent_lines(str(x)), self.body.stmts)) \
 			+ "\n    }"
 
 class ClassDefn:
@@ -193,8 +198,9 @@ class ClassDefn:
 
 	def __str__(self) -> str:
 		return f"class {self.name}\n" + "{\n" \
-			+ "\n".join(map(lambda x: "    " + str(x), self.fields)) + ("\n" if len(self.fields) > 0 else "") \
-			+ "\n".join(map(lambda x: "    " + str(x), self.methods)) + "\n}"
+			+ "\n".join(map(lambda x: indent_lines(str(x)), self.fields)) \
+			+ ("\n" if len(self.fields) > 0 else "") \
+			+ "\n".join(map(lambda x: indent_lines(str(x)), self.methods)) + "\n}"
 
 class Program:
 	def __init__(self, classes: List[ClassDefn]) -> None:

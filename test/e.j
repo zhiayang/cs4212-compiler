@@ -20,11 +20,9 @@ class Dummy {
    Int dummy() {
 
       Bool i;
-
       Bool j;
-/*
-      return i ;
-      */
+      return;
+
    }
 
 }
