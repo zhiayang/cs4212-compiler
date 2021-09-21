@@ -1,5 +1,7 @@
 #!/usr/bin/env python
 
+from . import ast
+
 from .lexer import *
 from .util import StringView
 from .util.file import Location
@@ -18,6 +20,8 @@ class ParserState:
 		self.stream = rest
 		self.loc = l
 		return tok
+
+a: ast.Stmt
 
 
 # def parse_program():
