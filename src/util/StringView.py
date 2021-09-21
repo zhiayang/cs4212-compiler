@@ -32,6 +32,9 @@ class StringView:
 	def drop(self, n: int) -> StringView:
 		return StringView(self.buffer[n:])
 
+	def drop_last(self, n: int) -> StringView:
+		return StringView(self.buffer[:max(0, self.size() - n)])
+
 	def take(self, n: int) -> StringView:
 		return StringView(self.buffer[:n])
 
@@ -71,9 +74,20 @@ class StringView:
 		if self.empty():
 			return False
 
-		for c in s:
-			if self.buffer[0] == (ord(c) if isinstance(s, str) else c):
-				return True
+		# for c in s:
+		# 	if self.buffer[0] == (ord(c) if isinstance(s, str) else c):
+		# 		return True
+		if isinstance(s, str):
+			for c in s:
+				if self.buffer[0] == ord(c):
+					return True
+		elif isinstance(s, bytes):
+			for x in s:
+				if self.buffer[0] == x:
+					return True
+		else:
+			raise TypeError(f"invalid type {type(s)}")
+
 		return False
 
 	def clone(self) -> StringView:
