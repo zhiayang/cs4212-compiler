@@ -14,7 +14,7 @@ Void main(Int i, Int a, Int b,Int d){
  Int t2;
 
  Compute help;
-%
+
  /*
 
  help = new Compute();

@@ -205,16 +205,16 @@ def read_token(stream: StringView, loc: Location) -> Tuple[Token, StringView, Lo
 
 	elif stream.starts_with('"'):
 		string, rest, n = read_string_literal(stream, loc)
-		return Token(string, "string_literal", loc), rest, loc.advancing(n)
+		return Token(string, "StringLiteral", loc), rest, loc.advancing(n)
 
 	elif stream.starts_with_one_of(b"0123456789"):
 		nums = stream.take_while(lambda x: ord('0') <= ord(x) <= ord('9'))
-		return Token(nums, "num_literal", loc), stream.drop(nums.size()), loc.advancing(nums.size())
+		return Token(nums, "NumLiteral", loc), stream.drop(nums.size()), loc.advancing(nums.size())
 
 	elif stream.starts_with("//"):
 		line: StringView = stream.take_while(lambda x: x != "\n" and x != "\r")
 		if not ("/*" in line.string() or "*/" in line.string()):
-			return Token(line, "comment", loc), stream.drop(line.size()), loc.advancing(line.size())
+			return Token(line, "Comment", loc), stream.drop(line.size()), loc.advancing(line.size())
 
 		nesting: int = 0
 		copy: StringView = line.clone()
@@ -236,7 +236,7 @@ def read_token(stream: StringView, loc: Location) -> Tuple[Token, StringView, Lo
 		if nesting != 0:
 			raise ParseException(loc, "expected '*/' to match an opening '/*'")
 
-		return Token(line, "comment", loc), stream.drop(line.size()), loc.advancing(line.size())
+		return Token(line, "Comment", loc), stream.drop(line.size()), loc.advancing(line.size())
 
 	elif stream.starts_with("/*"):
 		copy = stream.clone().remove_prefix(2)
@@ -263,7 +263,7 @@ def read_token(stream: StringView, loc: Location) -> Tuple[Token, StringView, Lo
 			raise ParseException(loc, "unexpected end of input (expected '*/')")
 
 		content: StringView = stream.drop_last(copy.size())
-		return Token(content, "comment", loc), stream.drop(content.size()), new_loc
+		return Token(content, "Comment", loc), stream.drop(content.size()), new_loc
 
 	elif stream.starts_with("*/"):
 		raise ParseException(loc, "illegal unpaired '*/'")
@@ -271,14 +271,16 @@ def read_token(stream: StringView, loc: Location) -> Tuple[Token, StringView, Lo
 	elif stream.starts_with_one_of("abcdefghijklmnopqrstuvwxyz"):
 		ident, rest = read_identifier(stream)
 
-		tok_type: str = "identifier"
+		tok_type: str = "Identifier"
 		if ident == "if":           tok_type = "kw_if"
 		elif ident == "new":        tok_type = "kw_new"
 		elif ident == "null":       tok_type = "kw_null"
+		elif ident == "main":       tok_type = "kw_main"
 		elif ident == "else":       tok_type = "kw_else"
 		elif ident == "this":       tok_type = "kw_this"
 		elif ident == "true":       tok_type = "kw_true"
 		elif ident == "false":      tok_type = "kw_false"
+		elif ident == "class":      tok_type = "kw_class"
 		elif ident == "while":      tok_type = "kw_while"
 		elif ident == "return":     tok_type = "kw_return"
 		elif ident == "readln":     tok_type = "kw_readln"
@@ -289,7 +291,7 @@ def read_token(stream: StringView, loc: Location) -> Tuple[Token, StringView, Lo
 	elif stream.starts_with_one_of("ABCDEFGHIJKLMNOPQRSTUVWXYZ"):
 		ident, rest = read_identifier(stream)
 
-		tok_type = "class_name"
+		tok_type = "ClassName"
 		if ident == "Int":      tok_type = "kw_Int"
 		elif ident == "Void":   tok_type = "kw_Void"
 		elif ident == "Bool":   tok_type = "kw_Bool"
