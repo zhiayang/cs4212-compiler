@@ -164,7 +164,7 @@ class IfStmt(Stmt):
 		self.else_case: Block = else_case
 
 	def __str__(self) -> str:
-		return f"if({self.condition})\n{indent_lines(str(self.true_case))}\nelse\n{indent_lines(str(self.else_case))}"
+		return f"if({self.condition})\n{indent_lines(str(self.true_case))}\n    else\n{indent_lines(str(self.else_case))}"
 
 class WhileLoop(Stmt):
 	def __init__(self, condition: Expr, body: Block) -> None:
@@ -198,9 +198,9 @@ class ClassDefn:
 
 	def __str__(self) -> str:
 		return f"class {self.name}\n" + "{\n" \
-			+ "\n".join(map(lambda x: indent_lines(str(x)), self.fields)) \
+			+ "\n".join(map(lambda x: "    " + str(x), self.fields)) \
 			+ ("\n" if len(self.fields) > 0 else "") \
-			+ "\n".join(map(lambda x: indent_lines(str(x)), self.methods)) + "\n}"
+			+ "\n".join(map(lambda x: "    " + str(x), self.methods)) + "\n}"
 
 class Program:
 	def __init__(self, classes: List[ClassDefn]) -> None:
