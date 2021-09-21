@@ -181,9 +181,9 @@ class MethodDefn:
 
 	def __str__(self) -> str:
 		return f"{self.return_type} {self.name}({','.join(map(lambda x: str(x)[:-1], self.args))})" \
-			+ "\n{\n" + "\n".join(map(lambda x: "    " + str(x), self.vars)) \
-			+ "\n" + "\n".join(map(lambda x: "    " + str(x), self.body.stmts)) \
-			+ "\n}"
+			+ "\n    {\n" + "\n".join(map(lambda x: "        " + str(x), self.vars)) \
+			+ "\n".join(map(lambda x: "        " + str(x), self.body.stmts)) \
+			+ "\n    }"
 
 class ClassDefn:
 	def __init__(self, name: str, fields: List[VarDecl], methods: List[MethodDefn]) -> None:
@@ -193,7 +193,7 @@ class ClassDefn:
 
 	def __str__(self) -> str:
 		return f"class {self.name}\n" + "{\n" \
-			+ "\n".join(map(lambda x: "    " + str(x), self.fields)) + "\n" \
+			+ "\n".join(map(lambda x: "    " + str(x), self.fields)) + ("\n" if len(self.fields) > 0 else "") \
 			+ "\n".join(map(lambda x: "    " + str(x), self.methods)) + "\n}"
 
 class Program:
