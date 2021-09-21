@@ -107,6 +107,13 @@ def parse_primary(ps: ParserState) -> ast.Expr:
 	elif (var_name := ps.next_if("Identifier")):
 		return ast.VarRef(var_name.text)
 
+	elif ps.next_if("kw_new"):
+		cls_name = ps.expect("ClassName", "expected class name after 'new'").text
+		ps.expect("LParen")
+		ps.expect("RParen")
+
+		return ast.NewExpr(cls_name)
+
 	elif ps.next_if("LParen"):
 		inside: ast.Expr = parse_expr(ps)
 		ps.expect("RParen")
