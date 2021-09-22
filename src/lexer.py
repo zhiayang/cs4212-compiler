@@ -64,7 +64,7 @@ def read_string_literal(stream: StringView, loc: Location) -> Tuple[str, StringV
 
 	def read_one_char(stream: StringView, index: int, msg: str) -> Tuple[int, str]:
 		if index + 1 == stream.size():
-			raise ParseException(loc, f"unterminated string literal, {msg}")
+			raise ParseException(loc.advancing(index), f"unterminated string literal, {msg}")
 
 		return (index + 1, chr(stream[index + 1]))
 
@@ -86,70 +86,71 @@ def read_string_literal(stream: StringView, loc: Location) -> Tuple[str, StringV
 			elif next == "r":
 				value += "\r"
 
-			# TODO: enforce this to be 3 digits
-			elif ord('0') <= ord(next) <= ord('9'):
-				esc: int = ord(next) - ord('0')
-				err_msg = "expected '\"'"
-				idx, next = read_one_char(stream, idx, err_msg)
+			elif next.isdigit():
+				for i in range(0, 3):
+					if idx + i >= stream.size() or chr(stream[idx + i]) == '"':
+						raise ParseException(loc.advancing(idx + i),
+							f"premature end of string literal; decimal escapes must be 3 digits long")
 
-				if ord('0') <= ord(next) <= ord('9'):
-					esc = esc * 10 + (ord(next) - ord('0'))
-					idx, next = read_one_char(stream, idx, err_msg)
+					elif not (digit := chr(stream[idx + i])).isdigit():
+						raise ParseException(loc.advancing(idx + i),
+							f"invalid digit '{digit}' found in escape (which must be 3 digits long)")
 
-					if ord('0') <= ord(next) <= ord('9'):
-						esc = esc * 10 + (ord(next) - ord('0'))
-						idx, next = read_one_char(stream, idx, err_msg)
-
-					elif next == '"':
-						continue
-
-				elif next == '"':
-					continue
+				esc = int(stream[idx:idx+3].string())
+				idx += 3
 
 				if esc > 127:
-					raise ParseException(loc, f"invalid ASCII escape; maximum value is 127, got {esc}")
+					raise ParseException(loc.advancing(idx), f"invalid ASCII escape; maximum value is 127, got {esc}")
 
 				value += chr(esc)
 				continue
 
 			elif next == 'x':
-				# TODO: enforce this to be 2 digits exactly
-				idx, next = read_one_char(stream, idx, "expected digits after '\\x'")
+				idx, ch1 = read_one_char(stream, idx, "expected digits after '\\x'")
 				esc = 0
 
 				def is_hex_digit(d: str) -> Tuple[bool, int]:
-					if ord('0') <= ord(d) <= ord('9'):
+					if d.isdigit():
 						return (True, ord('0'))
 					elif ord('a') <= ord(d) <= ord('f'):
-						return (True, ord('a'))
+						return (True, ord('a') - 10)
 					elif ord('A') <= ord(d) <= ord('F'):
-						return (True, ord('A'))
+						return (True, ord('A') - 10)
 					else:
 						return (False, 0)
 
-				is_hex, sub = is_hex_digit(next)
-				if not is_hex:
-					raise ParseException(loc, f"invalid hexadecimal digit '{next}' found in '\\x' escape")
+				is_hex, sub1 = is_hex_digit(ch1)
+				if not is_hex and ch1 == '"':
+					raise ParseException(loc.advancing(idx),
+						f"premature end of string literal; hexadecimal escapes must be 2 digits long")
+				elif not is_hex:
+					raise ParseException(loc.advancing(idx),
+						f"invalid hexadecimal digit '{ch1}' found in '\\x' escape (which must be 2 digits long)")
 
-				esc = ord(next) - sub
-				idx, next = read_one_char(stream, idx, "expected digits after '\\x'")
+				idx, ch2 = read_one_char(stream, idx, "hexadecimal escapes must be 2 digits long")
+				is_hex, sub2 = is_hex_digit(ch2)
+				if not is_hex and ch2 == '"':
+					raise ParseException(loc.advancing(idx),
+						f"premature end of string literal; hexadecimal escapes must be 2 digits long")
+				elif not is_hex:
+					raise ParseException(loc.advancing(idx),
+						f"invalid hexadecimal digit '{ch2}' found in '\\x' escape (which must be 2 digits long)")
 
-				is_hex, sub = is_hex_digit(next)
-				if is_hex:
-					esc = 0x10 * esc + (ord(next) - sub)
-					# read another one
-					idx, next = read_one_char(stream, idx, "expected '\"'")
+
+				esc = 0x10 * (ord(ch1) - sub1) + (ord(ch2) - sub2)
 
 				if esc > 127:
-					raise ParseException(loc, f"invalid ASCII escape; maximum value is 127, got {esc}")
+					raise ParseException(loc.advancing(idx), f"invalid ASCII escape; maximum value is 127, got {esc}")
 
 				value += chr(esc)
 				continue
 
 			elif next == "\r" or next == "\n":
-				raise ParseException(loc, "unescaped newline in string literal")
+				raise ParseException(loc.advancing(idx), "unescaped newline in string literal")
+
 			else:
-				raise ParseException(loc, f"invalid escape sequence '\\{next}' in string literal")
+				raise ParseException(loc.advancing(idx), f"invalid escape sequence '\\{next}' in string literal")
+
 
 		elif stream[idx] == ord('"'):
 			return value, stream.drop(idx + 1), idx + 1
@@ -158,7 +159,7 @@ def read_string_literal(stream: StringView, loc: Location) -> Tuple[str, StringV
 
 		idx += 1
 
-	raise ParseException(loc, f"unterminated string literal, expected '\"'")
+	raise ParseException(loc.advancing(idx), f"unterminated string literal, expected '\"'")
 
 
 def read_identifier(stream: StringView) -> Tuple[str, StringView]:

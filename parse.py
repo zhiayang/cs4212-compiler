@@ -14,7 +14,7 @@ def parse_file(filename) -> ast.Program:
 
 if __name__ == "__main__":
 	if len(sys.argv) < 2:
-		print(f"usage: ./lex.py <source_file>")
+		print(f"usage: ./parse.py <source_file>")
 		sys.exit(1)
 
 	prog = parse_file(sys.argv[1])
