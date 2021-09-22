@@ -1,3 +1,4 @@
 *.sublime-*
 .venv*
 __pycache__
+deploy
