@@ -20,6 +20,7 @@ class Main
 				a.b(69);
 				a.b.foo(bar)(1)(abcdef);
 
+				foo = "this is a \x66string\065with\041escapes\099";
 				while(69)
 				{
 					asdf = 134;
