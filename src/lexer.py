@@ -216,32 +216,7 @@ def read_token(stream: StringView, loc: Location) -> Tuple[Token, StringView, Lo
 		return Token(nums, "IntegerLiteral", loc), stream.drop(nums.size()), loc.advancing(nums.size())
 
 	elif stream.starts_with("//"):
-		# TODO: check if this is actually what wongwf wants, or whether there's a typo in the pdf.
-		# this part right now ensures that /* and */ are still paired correctly even within line comments.
 		line: StringView = stream.take_while(lambda x: x != "\n" and x != "\r")
-		if not ("/*" in line.string() or "*/" in line.string()):
-			return Token(line, "Comment", loc), stream.drop(line.size()), loc.advancing(line.size())
-
-		nesting: int = 0
-		copy: StringView = line.clone()
-
-		# TODO: think of a better algorithm for this
-		while not copy.empty():
-			if copy.starts_with("/*"):
-				nesting += 1
-				copy.remove_prefix(2)
-			elif copy.starts_with("*/"):
-				if nesting == 0:
-					raise ParseException(loc, "mismatched '*/' in line comment")
-				else:
-					nesting -= 1
-					copy.remove_prefix(2)
-			else:
-				copy.remove_prefix(1)
-
-		if nesting != 0:
-			raise ParseException(loc, "expected '*/' to match an opening '/*'")
-
 		return Token(line, "Comment", loc), stream.drop(line.size()), loc.advancing(line.size())
 
 	elif stream.starts_with("/*"):
