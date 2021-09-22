@@ -22,6 +22,8 @@ class Main
 				if(true)
 				{
 					f = new Bar();
+					a.b = 30;
+					(x + y) = 40;
 					if(1) { b = 0; } else { a = 1; }
 				}
 				else
