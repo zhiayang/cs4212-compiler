@@ -48,13 +48,12 @@ class ParseException(Exception):
 		# we have the filename, so just read the file again
 		offending_code: str = open(self.loc.filename, "rb").read().splitlines()[self.loc.line].decode("utf-8")
 		offending_code = offending_code.replace('\t', ' ' * TAB_WIDTH)
+		trimmed_code = offending_code.lstrip()
 
-		trimmed_code = "    " + offending_code.lstrip()
-
-		arrow = "    " + (' ' * (self.loc.column - len(offending_code) - len(trimmed_code))) + '^'
+		arrow = "    " + (' ' * (self.loc.column - (len(offending_code) - len(trimmed_code)))) + '^'
 
 		print(f"{' ' * (gutter_width - 2)}| ")
-		print(f" {1 + self.loc.line} | {trimmed_code}")
+		print(     f" {1 + self.loc.line} |     {trimmed_code}")
 		print(f"{' ' * (gutter_width - 2)}| {colourise(arrow, '1;31m')}")
 		sys.exit(1)
 

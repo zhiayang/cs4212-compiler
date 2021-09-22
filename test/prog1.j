@@ -22,7 +22,6 @@ class Main
 
 				while(69)
 				{
-					420 = 69;
 					asdf = 134;
 				}
 
@@ -38,6 +37,7 @@ class Main
 				else
 				{
 					g = new Foo();
+					return g + 420 * 8;
 				}
 			}
 			/*
