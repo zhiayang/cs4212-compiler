@@ -10,6 +10,23 @@ def read_entire_file(filename: str) -> str:
 	with open(filename, "rb") as f:
 		return f.read().decode("utf-8")
 
+def escape_string(s: str) -> str:
+	out: str = ""
+	for c in s:
+		if 32 <= ord(c) <= 126:
+			out += c
+		elif c == '\n':
+			out += "\\n"
+		elif c == '\r':
+			out += "\\r"
+		elif c == '\t':
+			out += "\\t"
+		else:
+			out += ("\\x%02x" % ord(c))
+
+	return out
+
+
 class Location:
 	def __init__(self, filename: str, l: int, col: int):
 		self.filename: str = filename
@@ -46,14 +63,17 @@ class ParseException(Exception):
 		gutter_width = 4 + len(str(1 + self.loc.line))
 
 		# we have the filename, so just read the file again
-		offending_code: str = open(self.loc.filename, "rb").read().splitlines()[self.loc.line].decode("utf-8")
-		offending_code = offending_code.replace('\t', ' ' * TAB_WIDTH)
-		trimmed_code = offending_code.lstrip()
+		file_lines = open(self.loc.filename, "rb").read().splitlines()
+		if len(file_lines) > self.loc.line:
+			offending_code: str = file_lines[self.loc.line].decode("utf-8")
+			offending_code = offending_code.replace('\t', ' ' * TAB_WIDTH)
+			trimmed_code = offending_code.lstrip()
 
-		arrow = "    " + (' ' * (self.loc.column - (len(offending_code) - len(trimmed_code)))) + '^'
+			arrow = "    " + (' ' * (self.loc.column - (len(offending_code) - len(trimmed_code)))) + '^'
 
-		print(f"{' ' * (gutter_width - 2)}| ")
-		print(     f" {1 + self.loc.line} |     {trimmed_code}")
-		print(f"{' ' * (gutter_width - 2)}| {colourise(arrow, '1;31m')}")
+			print(f"{' ' * (gutter_width - 2)}| ")
+			print(     f" {1 + self.loc.line} |     {trimmed_code}")
+			print(f"{' ' * (gutter_width - 2)}| {colourise(arrow, '1;31m')}")
+
 		sys.exit(1)
 

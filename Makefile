@@ -8,4 +8,4 @@ lexer:
 
 parser:
 	@mypy parse.py
-	@python parse.py test/prog1.j
+	@python parse.py test/prog6.j

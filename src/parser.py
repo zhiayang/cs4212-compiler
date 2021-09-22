@@ -68,9 +68,7 @@ def is_typename(tok: Token) -> bool:
 	return tok.type in ["kw_Int", "kw_Bool", "kw_Void", "kw_String", "ClassName"]
 
 def get_precedence(tok: Token) -> int:
-	if tok.type == "Period":
-		return 420
-	elif tok.type in ["Asterisk", "Slash"]:
+	if tok.type in ["Asterisk", "Slash"]:
 		return 69
 	elif tok.type in ["Plus", "Minus"]:
 		return 68
@@ -80,13 +78,39 @@ def get_precedence(tok: Token) -> int:
 		return 66
 	elif tok.type == "LogicalOr":
 		return 65
-	elif tok.type == "Equal":
-		return 1
 	else:
 		return -1
 
 
+# expects the head to be '('
+def parse_func_call(ps: ParserState, callee: ast.Expr) -> ast.FuncCall:
+	ps.expect("LParen", f"expected '(' for function call")
 
+	arg_list: List[ast.Expr] = []
+	while not ps.empty() and ps.peek().type != "RParen":
+		arg_list.append(parse_expr(ps))
+
+		if ps.peek().type == "RParen":
+			break
+		elif ps.next_if("Comma"):
+			pass
+		else:
+			raise ParseException(ps.loc, f"unexpected token '{ps.peek().text}'")
+
+	ps.expect("RParen")
+	return ast.FuncCall(callee.loc, callee, arg_list)
+
+
+def parse_atom_chain(ps: ParserState, lhs: ast.Expr) -> ast.Expr:
+	if tok := ps.next_if("Period"):
+		ident = ps.expect("Identifier", f"expected identifier after '.'")
+		return parse_atom_chain(ps, ast.DotOp(tok.loc, lhs, ast.VarRef(ident.loc, ident.text)))
+
+	elif ps.peek().type == "LParen":
+		return parse_atom_chain(ps, parse_func_call(ps, lhs))
+
+	else:
+		return lhs
 
 
 def parse_primary(ps: ParserState) -> ast.Expr:
@@ -108,9 +132,6 @@ def parse_primary(ps: ParserState) -> ast.Expr:
 	elif (int_lit := ps.next_if("IntegerLiteral")):
 		return ast.IntegerLit(int_lit.loc, int(int_lit.text))
 
-	elif (var_name := ps.next_if("Identifier")):
-		return ast.VarRef(var_name.loc, var_name.text)
-
 	elif tok := ps.next_if("kw_new"):
 		cls_name = ps.expect("ClassName", "expected class name after 'new'").text
 		ps.expect("LParen")
@@ -121,18 +142,23 @@ def parse_primary(ps: ParserState) -> ast.Expr:
 	elif ps.next_if("LParen"):
 		inside: ast.Expr = parse_expr(ps)
 		ps.expect("RParen")
-		return inside
+		return ast.ParenExpr(inside)
+
+	elif (var_name := ps.next_if("Identifier")):
+		vr = ast.VarRef(var_name.loc, var_name.text)
+		return parse_atom_chain(ps, vr)
 
 	else:
 		raise ParseException(ps.loc, f"unexpected token '{ps.peek().text}' in expression")
 
 
+
 def parse_unary(ps: ParserState) -> ast.Expr:
 	if tok := ps.next_if("Exclamation"):
-		return ast.UnaryOp(tok.loc, parse_expr(ps), '!')
+		return ast.UnaryOp(tok.loc, parse_unary(ps), '!')
 
 	elif tok := ps.next_if("Minus"):
-		return ast.UnaryOp(tok.loc, parse_expr(ps), '-')
+		return ast.UnaryOp(tok.loc, parse_unary(ps), '-')
 
 	else:
 		return parse_primary(ps)
@@ -145,28 +171,8 @@ def parse_rhs(ps: ParserState, lhs: ast.Expr, prio: int) -> ast.Expr:
 		return lhs
 
 	while True:
-		if ps.next_if("LParen"):
-			arg_list: List[ast.Expr] = []
-			while not ps.empty() and ps.peek().type != "RParen":
-				arg_list.append(parse_expr(ps))
-
-				if ps.peek().type == "RParen":
-					break
-				elif ps.next_if("Comma"):
-					pass
-				else:
-					raise ParseException(ps.loc, f"unexpected token '{ps.peek().text}'")
-
-			ps.expect("RParen")
-
-			# do some "tree-rewriting" here. we want to parse dotop method calls into
-			# (a.b).c(...), and not ((a.b).c)(...). of course this is only applicable if the
-			# right-hand-side of the dotop is not already a method call; this prevents us from
-			# falsely rewriting a.b(1)(2)(3) into a.[b(1)(2)], and keeps it as [a.b(1)](2)
-			if isinstance(lhs, ast.DotOp) and isinstance(lhs.rhs, ast.VarRef):
-				lhs = ast.DotOp(lhs.loc, lhs.lhs, ast.FuncCall(lhs.rhs.loc, lhs.rhs, arg_list))
-			else:
-				lhs = ast.FuncCall(lhs.loc, lhs, arg_list)
+		if ps.peek().type == "Period":
+			lhs = parse_atom_chain(ps, lhs)
 			continue
 
 		prec: int = get_precedence(ps.peek())
@@ -176,28 +182,14 @@ def parse_rhs(ps: ParserState, lhs: ast.Expr, prio: int) -> ast.Expr:
 		op_loc = ps.loc
 		op: str = ps.next().text
 
-		if op == "=" and prio == 0:
-			if not isinstance(lhs, ast.DotOp) and not isinstance(lhs, ast.VarRef):
-				raise ParseException(lhs.loc, "left-hand operand of assignment must be an identifier or a dotop")
+		rhs = parse_unary(ps)
 
-			# a wee bit of a hack, since this should really be an AssignStmt, but that isn't an Expr
-			# and we don't really want to make it one.
-			return ast.BinaryOp(op_loc, lhs, parse_expr(ps), "=")
+		# note: there is no right-associative operator here, so this works fine without special-casing that
+		next: int = get_precedence(ps.peek())
+		if next > prec:
+			rhs = parse_rhs(ps, rhs, prec + 1)
 
-		elif op == ".":
-			id_tok = ps.expect("Identifier", "expected identifier after '.'")
-			rhs: ast.Expr = ast.VarRef(id_tok.loc, id_tok.text)
-			lhs = ast.DotOp(op_loc, lhs, rhs)
-
-		else:
-			rhs = parse_unary(ps)
-
-			# note: there is no right-associative operator here, so this works fine without special-casing that
-			next: int = get_precedence(ps.peek())
-			if next > prec:
-				rhs = parse_rhs(ps, rhs, prec + 1)
-
-			lhs = ast.BinaryOp(op_loc, lhs, rhs, op)
+		lhs = ast.BinaryOp(op_loc, lhs, rhs, op)
 
 
 def parse_expr(ps: ParserState) -> ast.Expr:
@@ -321,16 +313,23 @@ def parse_stmt(ps: ParserState) -> ast.Stmt:
 		# are statements in-and-of-themselves, we would be parsing a statement here.
 		# so do that, but only allow certain kinds of expressions, namely calls and assigns.
 		expr: ast.Expr = parse_expr(ps)
+
+		# if this is an assignment, do it directly.
+		if tmp := ps.next_if("Equal"):
+			if not isinstance(expr, ast.DotOp) and not isinstance(expr, ast.VarRef):
+				raise ParseException(expr.loc, "left-hand operand of assignment must be an identifier or a dotop")
+
+			elif isinstance(expr, ast.DotOp) and isinstance(expr.rhs, ast.FuncCall):
+				raise ParseException(expr.loc, "cannot assign to a function call")
+
+			assign = ast.AssignStmt(tmp.loc, expr, parse_expr(ps));
+			ps.expect_semicolon()
+			return assign
+
+
 		ps.expect_semicolon()
-
-		if isinstance(expr, ast.FuncCall):
-			return ast.ExprStmt(expr.loc, expr)
-
-		elif isinstance(expr, ast.BinaryOp) and expr.op == "=":
-			return ast.AssignStmt(expr.loc, expr.lhs, expr.rhs)
-
-		elif isinstance(expr, ast.DotOp) and isinstance(expr.rhs, ast.FuncCall):
-			return ast.ExprStmt(expr.loc, expr)
+		if isinstance(expr, ast.FuncCall) or (isinstance(expr, ast.DotOp) and isinstance(expr.rhs, ast.FuncCall)):
+			return ast.ExprStmt(expr)
 
 		# here we'd raise the error on the semicolon, which i think is fine...
 		raise ParseException(ps.loc, "expressions are not statements")
@@ -452,6 +451,9 @@ def parse_program(ps: ParserState) -> ast.Program:
 	try:
 		while not ps.empty():
 			classes.append(parse_class(ps, is_first = len(classes) == 0))
+
+		if len(classes) == 0:
+			raise ParseException(ps.loc, "at least one class (containing the main method) must be defined")
 
 	except ParseException as e:
 		e.throw()

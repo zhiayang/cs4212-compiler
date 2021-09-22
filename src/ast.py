@@ -4,7 +4,7 @@ from __future__ import annotations
 from typing import *
 from abc import ABC, abstractmethod
 
-from .util import Location
+from .util import Location, escape_string
 
 def indent_lines(x: str) -> str:
 	return "\n".join(map(lambda s: "    " + s, x.split("\n")))
@@ -27,8 +27,8 @@ class Stmt(ABC):
 # since expressions are not explicitly statements, we need a way to represent
 # things that *could be* expressions and *also* statements -- namely function calls.
 class ExprStmt(Stmt):
-	def __init__(self, loc: Location, expr: Expr) -> None:
-		super().__init__(loc)
+	def __init__(self, expr: Expr) -> None:
+		super().__init__(expr.loc)
 		self.expr: Expr = expr
 
 	def __str__(self) -> str:
@@ -41,7 +41,7 @@ class FuncCall(Expr):
 		self.args: List[Expr] = args
 
 	def __str__(self) -> str:
-		return f"{self.func}({','.join(map(str, self.args))})"
+		return f"{self.func}({', '.join(map(str, self.args))})"
 
 class BinaryOp(Expr):
 	def __init__(self, loc: Location, left: Expr, right: Expr, op: str) -> None:
@@ -85,7 +85,7 @@ class StringLit(Expr):
 
 	# TODO: this should re-escape the string literal
 	def __str__(self) -> str:
-		return f"\"{self.value}\""
+		return f"\"{escape_string(self.value)}\""
 
 class BooleanLit(Expr):
 	def __init__(self, loc: Location, value: bool) -> None:
@@ -116,6 +116,18 @@ class ThisLit(Expr):
 
 	def __str__(self) -> str:
 		return "this"
+
+class ParenExpr(Expr):
+	def __init__(self, expr: Expr) -> None:
+		super().__init__(expr.loc)
+		self.expr: Expr = expr
+
+	def __str__(self) -> str:
+		# don't insert useless parens, since BinaryOp already surrounds itself with ()
+		if isinstance(self.expr, BinaryOp):
+			return f"{self.expr}"
+		else:
+			return f"({self.expr})"
 
 class DotOp(Expr):
 	def __init__(self, loc: Location, lhs: Expr, rhs: Expr) -> None:
@@ -206,7 +218,7 @@ class MethodDefn:
 		self.body: Block = body
 
 	def __str__(self) -> str:
-		return f"{self.return_type} {self.name}({','.join(map(lambda x: str(x)[:-1], self.args))})" \
+		return f"{self.return_type} {self.name}({', '.join(map(lambda x: str(x)[:-1], self.args))})" \
 			+ "\n    {\n" + "\n".join(map(lambda x: "    " + indent_lines(str(x)), self.vars)) \
 			+ ("\n" if len(self.vars) > 0 else "") \
 			+ "\n".join(map(lambda x: "    " + indent_lines(str(x)), self.body.stmts)) \

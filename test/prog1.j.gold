@@ -1,0 +1,9 @@
+class Mainclass
+{
+    Void main()
+    {
+        println("Hello, world!\n");
+        foozle();
+        a = b;
+    }
+}

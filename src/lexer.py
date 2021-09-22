@@ -96,53 +96,42 @@ def read_string_literal(stream: StringView, loc: Location) -> Tuple[str, StringV
 						raise ParseException(loc.advancing(idx + i),
 							f"invalid digit '{digit}' found in escape (which must be 3 digits long)")
 
-				esc = int(stream[idx:idx+3].string())
+				esc = int(stream[idx:(idx + 3)].string())
 				idx += 3
 
 				if esc > 127:
 					raise ParseException(loc.advancing(idx), f"invalid ASCII escape; maximum value is 127, got {esc}")
 
 				value += chr(esc)
+
+				# we incremented idx manually, so skip
 				continue
 
 			elif next == 'x':
-				idx, ch1 = read_one_char(stream, idx, "expected digits after '\\x'")
-				esc = 0
+				for i in range(1, 3):
+					if idx + i >= stream.size() or chr(stream[idx + i]) == '"':
+						raise ParseException(loc.advancing(idx + i),
+							f"premature end of string literal; hexadecimal escapes must be 2 digits long")
 
-				def is_hex_digit(d: str) -> Tuple[bool, int]:
-					if d.isdigit():
-						return (True, ord('0'))
-					elif ord('a') <= ord(d) <= ord('f'):
-						return (True, ord('a') - 10)
-					elif ord('A') <= ord(d) <= ord('F'):
-						return (True, ord('A') - 10)
-					else:
-						return (False, 0)
+					digit = chr(stream[idx + i]).lower()
+					if not (digit.isdigit() or ord('a') <= ord(digit) <= ord('f')):
+						raise ParseException(loc.advancing(idx + i),
+							f"invalid digit '{digit}' found in hexadecimal escape (which must be 2 digits long)")
 
-				is_hex, sub1 = is_hex_digit(ch1)
-				if not is_hex and ch1 == '"':
-					raise ParseException(loc.advancing(idx),
-						f"premature end of string literal; hexadecimal escapes must be 2 digits long")
-				elif not is_hex:
-					raise ParseException(loc.advancing(idx),
-						f"invalid hexadecimal digit '{ch1}' found in '\\x' escape (which must be 2 digits long)")
+				ch1 = ord(chr(stream[idx + 1]).lower())
+				ch2 = ord(chr(stream[idx + 2]).lower())
+				ch1 -= (ord('a') - 10) if chr(ch1).isalpha() else ord('0')
+				ch2 -= (ord('a') - 10) if chr(ch2).isalpha() else ord('0')
 
-				idx, ch2 = read_one_char(stream, idx, "hexadecimal escapes must be 2 digits long")
-				is_hex, sub2 = is_hex_digit(ch2)
-				if not is_hex and ch2 == '"':
-					raise ParseException(loc.advancing(idx),
-						f"premature end of string literal; hexadecimal escapes must be 2 digits long")
-				elif not is_hex:
-					raise ParseException(loc.advancing(idx),
-						f"invalid hexadecimal digit '{ch2}' found in '\\x' escape (which must be 2 digits long)")
-
-
-				esc = 0x10 * (ord(ch1) - sub1) + (ord(ch2) - sub2)
+				esc = (16 * ch1) + ch2
+				idx += 3
 
 				if esc > 127:
 					raise ParseException(loc.advancing(idx), f"invalid ASCII escape; maximum value is 127, got {esc}")
 
 				value += chr(esc)
+
+				# we incremented idx manually, so skip
 				continue
 
 			elif next == "\r" or next == "\n":
@@ -268,6 +257,9 @@ def read_token(stream: StringView, loc: Location) -> Tuple[Token, StringView, Lo
 		elif ident == "readln":     tok_type = "kw_readln"
 		elif ident == "println":    tok_type = "kw_println"
 
+		# lowercase the rest of the identififer
+		ident = ident[0] + "".join(map(str.lower, ident[1:]))
+
 		return Token(ident, tok_type, loc), stream.drop(len(ident)), loc.advancing(len(ident))
 
 	elif stream.starts_with_one_of("ABCDEFGHIJKLMNOPQRSTUVWXYZ"):
@@ -278,6 +270,9 @@ def read_token(stream: StringView, loc: Location) -> Tuple[Token, StringView, Lo
 		elif ident == "Void":   tok_type = "kw_Void"
 		elif ident == "Bool":   tok_type = "kw_Bool"
 		elif ident == "String": tok_type = "kw_String"
+
+		# lowercase the rest of the identififer
+		ident = ident[0] + "".join(map(str.lower, ident[1:]))
 
 		return Token(ident, tok_type, loc), stream.drop(len(ident)), loc.advancing(len(ident))
 
