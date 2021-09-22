@@ -4,20 +4,39 @@ from __future__ import annotations
 from typing import *
 from abc import ABC, abstractmethod
 
+from .util import Location
+
 def indent_lines(x: str) -> str:
 	return "\n".join(map(lambda s: "    " + s, x.split("\n")))
 
-
 class Expr(ABC):
+	def __init__(self, loc: Location) -> None:
+		self.loc: Location = loc
+
 	@abstractmethod
 	def __str__(self) -> str: ...
 
 class Stmt(ABC):
+	def __init__(self, loc: Location) -> None:
+		self.loc: Location = loc
+
 	@abstractmethod
 	def __str__(self) -> str: ...
 
-class FuncCall:
-	def __init__(self, func: Expr, args: List[Expr]) -> None:
+
+# since expressions are not explicitly statements, we need a way to represent
+# things that *could be* expressions and *also* statements -- namely function calls.
+class ExprStmt(Stmt):
+	def __init__(self, loc: Location, expr: Expr) -> None:
+		super().__init__(loc)
+		self.expr: Expr = expr
+
+	def __str__(self) -> str:
+		return f"{self.expr};"
+
+class FuncCall(Expr):
+	def __init__(self, loc: Location, func: Expr, args: List[Expr]) -> None:
+		super().__init__(loc)
 		self.func: Expr = func
 		self.args: List[Expr] = args
 
@@ -25,7 +44,8 @@ class FuncCall:
 		return f"{self.func}({','.join(map(str, self.args))})"
 
 class BinaryOp(Expr):
-	def __init__(self, left: Expr, right: Expr, op: str) -> None:
+	def __init__(self, loc: Location, left: Expr, right: Expr, op: str) -> None:
+		super().__init__(loc)
 		self.lhs: Expr = left
 		self.rhs: Expr = right
 		self.op: str = op
@@ -34,7 +54,8 @@ class BinaryOp(Expr):
 		return f"({self.lhs} {self.op} {self.rhs})"
 
 class UnaryOp(Expr):
-	def __init__(self, expr: Expr, op: str) -> None:
+	def __init__(self, loc: Location, expr: Expr, op: str) -> None:
+		super().__init__(loc)
 		self.expr: Expr = expr
 		self.op: str = op
 
@@ -42,28 +63,24 @@ class UnaryOp(Expr):
 		return f"{self.op}{self.expr}"
 
 class VarRef(Expr):
-	def __init__(self, name: str) -> None:
+	def __init__(self, loc: Location, name: str) -> None:
+		super().__init__(loc)
 		self.name: str = name
 
 	def __str__(self) -> str:
 		return f"{self.name}"
 
-class FuncCallExpr(FuncCall, Expr):
-	def __init__(self, func: Expr, args: List[Expr]) -> None:
-		super().__init__(func, args)
-
-	def __str__(self) -> str:
-		return super().__str__()
-
 class NewExpr(Expr):
-	def __init__(self, class_name: str) -> None:
+	def __init__(self, loc: Location, class_name: str) -> None:
+		super().__init__(loc)
 		self.class_name: str = class_name
 
 	def __str__(self) -> str:
 		return f"new {self.class_name}()"
 
 class StringLit(Expr):
-	def __init__(self, value: str) -> None:
+	def __init__(self, loc: Location, value: str) -> None:
+		super().__init__(loc)
 		self.value: str = value
 
 	# TODO: this should re-escape the string literal
@@ -71,71 +88,71 @@ class StringLit(Expr):
 		return f"\"{self.value}\""
 
 class BooleanLit(Expr):
-	def __init__(self, value: bool) -> None:
+	def __init__(self, loc: Location, value: bool) -> None:
+		super().__init__(loc)
 		self.value: bool = value
 
 	def __str__(self) -> str:
 		return f"{'true' if self.value else 'false'}"
 
 class IntegerLit(Expr):
-	def __init__(self, value: int) -> None:
+	def __init__(self, loc: Location, value: int) -> None:
+		super().__init__(loc)
 		self.value: int = value
 
 	def __str__(self) -> str:
 		return f"{self.value}"
 
 class NullLit(Expr):
-	def __init__(self) -> None:
-		pass
+	def __init__(self, loc: Location) -> None:
+		super().__init__(loc)
 
 	def __str__(self) -> str:
 		return "null"
 
 class ThisLit(Expr):
-	def __init__(self) -> None:
-		pass
+	def __init__(self, loc: Location) -> None:
+		super().__init__(loc)
 
 	def __str__(self) -> str:
 		return "this"
 
 class DotOp(Expr):
-	def __init__(self, lhs: Expr, rhs: Expr) -> None:
+	def __init__(self, loc: Location, lhs: Expr, rhs: Expr) -> None:
+		super().__init__(loc)
 		self.lhs: Expr = lhs
 		self.rhs: Expr = rhs
 
 	def __str__(self) -> str:
-		return f"{self.lhs}.{self.rhs}"
-
-class FuncCallStmt(FuncCall, Stmt):
-	def __init__(self, func: Expr, args: List[Expr]) -> None:
-		super().__init__(func, args)
-
-	def __str__(self) -> str:
-		return f"{super().__str__()};"
+		return f"[{self.lhs}.{self.rhs}]"
 
 class ReadLnCall(Stmt):
-	def __init__(self, var: str) -> None:
+	def __init__(self, loc: Location, var: str) -> None:
+		super().__init__(loc)
 		self.var: str = var
 
 	def __str__(self) -> str:
 		return f"readln({self.var});"
 
 class PrintLnCall(Stmt):
-	def __init__(self, expr: Expr) -> None:
+	def __init__(self, loc: Location, expr: Expr) -> None:
+		super().__init__(loc)
 		self.expr: Expr = expr
 
 	def __str__(self) -> str:
 		return f"println({self.expr});"
 
 class ReturnStmt(Stmt):
-	def __init__(self, value: Optional[Expr]) -> None:
+	def __init__(self, loc: Location, value: Optional[Expr]) -> None:
+		super().__init__(loc)
 		self.value: Optional[Expr] = value
 
 	def __str__(self) -> str:
 		return f"return{'' if self.value is None else (' ' + str(self.value))};"
 
 class AssignStmt(Stmt):
-	def __init__(self, lhs: Expr, rhs: Expr) -> None:
+	def __init__(self, loc: Location, lhs: Expr, rhs: Expr) -> None:
+		super().__init__(loc)
 		self.lhs: Expr = lhs
 		self.rhs: Expr = rhs
 
@@ -143,7 +160,8 @@ class AssignStmt(Stmt):
 		return f"{self.lhs} = {self.rhs};"
 
 class VarDecl:
-	def __init__(self, name: str, type: str) -> None:
+	def __init__(self, loc: Location, name: str, type: str) -> None:
+		self.loc: Location = loc
 		self.name: str = name
 		self.type: str = type
 
@@ -158,7 +176,8 @@ class Block:
 		return "{\n" + "\n".join(map(lambda x: "    " + str(x), self.stmts)) + "\n}"
 
 class IfStmt(Stmt):
-	def __init__(self, condition: Expr, true_case: Block, else_case: Block) -> None:
+	def __init__(self, loc: Location, condition: Expr, true_case: Block, else_case: Block) -> None:
+		super().__init__(loc)
 		self.condition: Expr = condition
 		self.true_case: Block = true_case
 		self.else_case: Block = else_case
@@ -167,7 +186,8 @@ class IfStmt(Stmt):
 		return f"if({self.condition})\n{indent_lines(str(self.true_case))}\n    else\n{indent_lines(str(self.else_case))}"
 
 class WhileLoop(Stmt):
-	def __init__(self, condition: Expr, body: Block) -> None:
+	def __init__(self, loc: Location, condition: Expr, body: Block) -> None:
+		super().__init__(loc)
 		self.condition: Expr = condition
 		self.body: Block = body
 
@@ -175,7 +195,9 @@ class WhileLoop(Stmt):
 		return f"while({self.condition})\n{indent_lines(str(self.body))}"
 
 class MethodDefn:
-	def __init__(self, name: str, parent: ClassDefn, args: List[VarDecl], return_type: str, vars: List[VarDecl], body: Block) -> None:
+	def __init__(self, loc: Location, name: str, parent: ClassDefn, args: List[VarDecl], return_type: str,
+				 vars: List[VarDecl], body: Block) -> None:
+		self.loc: Location = loc
 		self.name: str = name
 		self.parent: ClassDefn = parent
 		self.args: List[VarDecl] = args
@@ -191,7 +213,8 @@ class MethodDefn:
 			+ "\n    }"
 
 class ClassDefn:
-	def __init__(self, name: str, fields: List[VarDecl], methods: List[MethodDefn]) -> None:
+	def __init__(self, loc: Location, name: str, fields: List[VarDecl], methods: List[MethodDefn]) -> None:
+		self.loc: Location = loc
 		self.name: str = name
 		self.fields: List[VarDecl] = fields
 		self.methods: List[MethodDefn] = methods
