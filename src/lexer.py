@@ -3,6 +3,7 @@
 from __future__ import annotations
 from typing import *
 
+from copy import copy
 from .util import StringView, Location, ParseException
 
 TAB_WIDTH = 4
@@ -42,14 +43,13 @@ def eat_whitespace(stream: StringView, loc: Location) -> Tuple[StringView, Locat
 	while True:
 		if stream.starts_with_one_of(" \r"):
 			stream.remove_prefix(1)
-			loc.column += 1
+			loc = loc.advancing(1)
 		elif stream.starts_with("\t"):
 			stream.remove_prefix(1)
-			loc.column += TAB_WIDTH
+			loc = loc.advancing(TAB_WIDTH)
 		elif stream.starts_with("\n"):
 			stream.remove_prefix(1)
-			loc.line += 1
-			loc.column = 0
+			loc = loc.advancing_line()
 		else:
 			break
 
@@ -220,31 +220,33 @@ def read_token(stream: StringView, loc: Location) -> Tuple[Token, StringView, Lo
 		return Token(line, "Comment", loc), stream.drop(line.size()), loc.advancing(line.size())
 
 	elif stream.starts_with("/*"):
-		copy = stream.clone().remove_prefix(2)
+		comment: StringView = stream.clone()
+
+		stream.remove_prefix(2)
 		nesting = 1
 
 		new_loc: Location = loc
-		while nesting > 0 and not copy.empty():
-			if copy.starts_with("/*"):
+		while nesting > 0 and not stream.empty():
+			if stream.starts_with("/*"):
 				new_loc = new_loc.advancing(2)
-				copy.remove_prefix(2)
+				stream.remove_prefix(2)
 				nesting += 1
-			elif copy.starts_with("*/"):
+			elif stream.starts_with("*/"):
 				new_loc = new_loc.advancing(2)
-				copy.remove_prefix(2)
+				stream.remove_prefix(2)
 				nesting -= 1
 			else:
-				if copy.starts_with_one_of("\r\n\t "):
-					copy, new_loc = eat_whitespace(copy, new_loc)
+				if chr(stream[0]) in ['\r', '\n', '\t', ' ' ]:
+					stream, new_loc = eat_whitespace(stream, new_loc)
 				else:
 					new_loc = new_loc.advancing(1)
-					copy.remove_prefix(1)
+					stream.remove_prefix(1)
 
 		if nesting > 0:
 			raise ParseException(loc, "unexpected end of input (expected '*/')")
 
-		content: StringView = stream.drop_last(copy.size())
-		return Token(content, "Comment", loc), stream.drop(content.size()), new_loc
+		content: StringView = comment.drop_last(stream.size())
+		return Token(content, "Comment", loc), stream, new_loc
 
 	elif stream.starts_with("*/"):
 		raise ParseException(loc, "illegal unpaired '*/'")
