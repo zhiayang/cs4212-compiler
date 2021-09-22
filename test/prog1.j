@@ -1,3 +1,8 @@
+/*
+	this is
+	/* a block comment
+	*/ probably
+*/
 class Main
 {
 	Void main()
@@ -23,16 +28,22 @@ class Main
 				{
 					f = new Bar();
 					a.b = 30;
-					(x + y) = 40;
+					(x + y).f = 40;
 					if(1) { b = 0; } else { a = 1; }
+
+					// this is a line comment
 				}
 				else
 				{
 					g = new Foo();
 				}
 			}
+			/*
+			this is a /* nested */ block comment
+
 			println(69 + 420 * (3 - 5) / 6 + asdf);
 			x = 69;
+			*/
 		}
 
 		return;

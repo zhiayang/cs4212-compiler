@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 from typing import *
+from copy import *
 
 from . import ast
 
@@ -14,8 +15,8 @@ class ParserState:
 		self.loc: Location = Location(filename, 0, 0)
 
 	def peek(self) -> Token:
-		s = self.stream
-		l = self.loc
+		s = self.stream.clone()
+		l = deepcopy(self.loc)
 		while True:
 			tok, s, l = read_token(s, l)
 			if tok.type != "Comment":
@@ -23,9 +24,7 @@ class ParserState:
 
 	def next(self) -> Token:
 		while True:
-			tok, rest, l = read_token(self.stream, self.loc)
-			self.stream = rest
-			self.loc = l
+			tok, self.stream, self.loc = read_token(self.stream, self.loc)
 			if tok.type != "Comment":
 				return tok
 
@@ -57,7 +56,7 @@ class ParserState:
 			return tok
 
 	def expect_semicolon(self):
-		self.expect("Semicolon", "expected ';' after statement")
+		self.expect("Semicolon", lambda t: f"expected ';' after statement, found '{t.text}' instead")
 
 
 def is_typename(tok: Token) -> bool:
@@ -131,14 +130,8 @@ def parse_unary(ps: ParserState) -> ast.Expr:
 		return ast.UnaryOp(parse_expr(ps), '-')
 
 	else:
-		return parse_primary(ps)
+		prim: ast.Expr = parse_primary(ps)
 
-
-def parse_rhs(ps: ParserState, lhs: ast.Expr, prio: int) -> ast.Expr:
-	if ps.empty():
-		return lhs
-
-	while True:
 		if ps.next_if("LParen"):
 			arg_list: List[ast.Expr] = []
 			while not ps.empty() and ps.peek().type != "RParen":
@@ -152,9 +145,18 @@ def parse_rhs(ps: ParserState, lhs: ast.Expr, prio: int) -> ast.Expr:
 					raise ParseException(ps.loc, f"unexpected token '{ps.peek().text}'")
 
 			ps.expect("RParen")
-			lhs = ast.FuncCallExpr(lhs, arg_list)
-			continue
+			prim = ast.FuncCallExpr(prim, arg_list)
 
+		return prim
+
+
+
+
+def parse_rhs(ps: ParserState, lhs: ast.Expr, prio: int) -> ast.Expr:
+	if ps.empty():
+		return lhs
+
+	while True:
 		prec: int = get_precedence(ps.peek())
 		if prec < prio:
 			return lhs
@@ -162,20 +164,25 @@ def parse_rhs(ps: ParserState, lhs: ast.Expr, prio: int) -> ast.Expr:
 		op: str = ps.next().text
 
 		if op == "=" and prio == 0:
+			if not isinstance(lhs, ast.DotOp) and not isinstance(lhs, ast.VarRef):
+				raise ParseException(ps.loc, "left-hand operand of assignment must be an identifier or a dotop")
+
 			# a wee bit of a hack, since this should really be an AssignStmt, but that isn't an Expr
 			# and we don't really want to make it one.
 			return ast.BinaryOp(lhs, parse_expr(ps), "=")
 
-		rhs: ast.Expr = parse_unary(ps)
-
-		# note: there is no right-associative operator here, so this works fine without special-casing that
-		next: int = get_precedence(ps.peek())
-		if next > prec:
-			rhs = parse_rhs(ps, rhs, prec + 1)
-
-		if op == ".":
+		elif op == ".":
+			rhs: ast.Expr = ast.VarRef(ps.expect("Identifier", "expected identifier after '.'").text)
 			lhs = ast.DotOp(lhs, rhs)
+
 		else:
+			rhs = parse_unary(ps)
+
+			# note: there is no right-associative operator here, so this works fine without special-casing that
+			next: int = get_precedence(ps.peek())
+			if next > prec:
+				rhs = parse_rhs(ps, rhs, prec + 1)
+
 			lhs = ast.BinaryOp(lhs, rhs, op)
 
 

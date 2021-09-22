@@ -18,6 +18,9 @@ class Location:
 	def advancing(self, n: int) -> Location:
 		return Location(self.filename, self.line, self.column + n)
 
+	def advancing_line(self) -> Location:
+		return Location(self.filename, self.line + 1, 0)
+
 	def __str__(self) -> str:
 		return f"{self.filename}:{self.line + 1}:{self.column + 1}"
 
