@@ -4,9 +4,7 @@ from __future__ import annotations
 from typing import *
 
 from copy import copy
-from .util import StringView, Location, ParseException
-
-TAB_WIDTH = 4
+from .util import StringView, Location, ParseException, TAB_WIDTH
 
 class Token:
 	@overload

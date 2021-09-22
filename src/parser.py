@@ -173,7 +173,7 @@ def parse_rhs(ps: ParserState, lhs: ast.Expr, prio: int) -> ast.Expr:
 
 		if op == "=" and prio == 0:
 			if not isinstance(lhs, ast.DotOp) and not isinstance(lhs, ast.VarRef):
-				raise ParseException(op_loc, "left-hand operand of assignment must be an identifier or a dotop")
+				raise ParseException(lhs.loc, "left-hand operand of assignment must be an identifier or a dotop")
 
 			# a wee bit of a hack, since this should really be an AssignStmt, but that isn't an Expr
 			# and we don't really want to make it one.
@@ -443,8 +443,13 @@ def parse_class(ps: ParserState, is_first: bool) -> ast.ClassDefn:
 
 def parse_program(ps: ParserState) -> ast.Program:
 	classes: List[ast.ClassDefn] = []
-	while not ps.empty():
-		classes.append(parse_class(ps, is_first = len(classes) == 0))
+
+	try:
+		while not ps.empty():
+			classes.append(parse_class(ps, is_first = len(classes) == 0))
+
+	except ParseException as e:
+		e.throw()
 
 	return ast.Program(classes)
 
