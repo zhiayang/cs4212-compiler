@@ -17,10 +17,12 @@ class Main
 			while(false)
 			{
 				y = 420;
+				a.b(69);
 				a.b.foo(bar)(1)(abcdef);
 
 				while(69)
 				{
+					420 = 69;
 					asdf = 134;
 				}
 

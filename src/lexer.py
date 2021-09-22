@@ -16,7 +16,7 @@ class Token:
 	def __init__(self, txt: str, ty: str, loc: Location): ...
 
 	def __init__(self, txt: Union[StringView, str], ty: str, loc: Location):
-		self.location: Location = loc
+		self.loc: Location = loc
 		self.type: str = ty
 		self.text: str
 
