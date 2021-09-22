@@ -56,7 +56,12 @@ class ParserState:
 			return tok
 
 	def expect_semicolon(self):
-		self.expect("Semicolon", lambda t: f"expected ';' after statement, found '{t.text}' instead")
+		old_loc = self.loc
+		if (tok := self.next()).type != "Semicolon":
+			if self.empty():
+				raise ParseException(old_loc, f"unexpected end of input; expected ';' after statement")
+			else:
+				raise ParseException(old_loc, f"expected ';' after statement")
 
 
 def is_typename(tok: Token) -> bool:

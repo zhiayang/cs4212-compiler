@@ -124,7 +124,7 @@ class DotOp(Expr):
 		self.rhs: Expr = rhs
 
 	def __str__(self) -> str:
-		return f"[{self.lhs}.{self.rhs}]"
+		return f"{self.lhs}.{self.rhs}"
 
 class ReadLnCall(Stmt):
 	def __init__(self, loc: Location, var: str) -> None:
