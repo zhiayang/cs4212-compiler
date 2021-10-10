@@ -34,6 +34,9 @@ class ParserState:
 		else:
 			return None
 
+	def skip_whitespace(self) -> None:
+		self.stream, self.loc = eat_whitespace(self.stream, self.loc)
+
 	def empty(self) -> bool:
 		return self.peek().type == "EOF"
 
@@ -179,6 +182,7 @@ def parse_rhs(ps: ParserState, lhs: ast.Expr, prio: int) -> ast.Expr:
 		if prec < prio:
 			return lhs
 
+		ps.skip_whitespace()
 		op_loc = ps.loc
 		op: str = ps.next().text
 
@@ -367,6 +371,8 @@ def parse_method_body(ps: ParserState) -> Tuple[List[ast.VarDecl], List[ast.Stmt
 
 	while not ps.empty() and ps.peek().type != "RBrace":
 		if is_typename(ps.peek()):
+			ps.skip_whitespace()
+
 			loc = ps.loc
 			ty, name = parse_typed_name(ps)
 			var_decls.append(ast.VarDecl(loc, name, ty))
@@ -425,6 +431,8 @@ def parse_class(ps: ParserState, is_first: bool) -> ast.ClassDefn:
 	# defer constructing the AST node till we reach the next token, which should be ';' for a field
 	# and '(' for a method.
 	while not ps.empty() and ps.peek().type != "RBrace":
+		ps.skip_whitespace()
+
 		loc = ps.loc
 		ty, name = parse_typed_name(ps)
 

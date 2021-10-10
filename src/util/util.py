@@ -51,29 +51,41 @@ def colourise(msg: str, colour: str) -> str:
 
 TAB_WIDTH = 4
 
+def print_error_msg(loc: Location, msg: str) -> None:
+	print(f"{loc}: {colourise('error:', '1;31m')} {colourise(msg, '1m')}")
+
+	# print the gutter
+	gutter_width = 4 + len(str(1 + loc.line))
+
+	# we have the filename, so just read the file again
+	file_lines = open(loc.filename, "rb").read().splitlines()
+	if len(file_lines) > loc.line:
+		offending_code: str = file_lines[loc.line].decode("utf-8")
+		offending_code = offending_code.replace('\t', ' ' * TAB_WIDTH)
+		trimmed_code = offending_code.lstrip()
+
+		arrow = "    " + (' ' * (loc.column - (len(offending_code) - len(trimmed_code)))) + '^'
+
+		print(f"{' ' * (gutter_width - 2)}| ")
+		print(     f" {1 + loc.line} |     {trimmed_code}")
+		print(f"{' ' * (gutter_width - 2)}| {colourise(arrow, '1;31m')}")
+
+
+
 class ParseException(Exception):
 	def __init__(self, loc: Location, msg: str) -> None:
 		self.loc: Location = loc
 		self.msg: str = msg
 
 	def throw(self) -> NoReturn:
-		print(f"{self.loc}: {colourise('error:', '1;31m')} {colourise(self.msg, '1m')}")
-
-		# print the gutter
-		gutter_width = 4 + len(str(1 + self.loc.line))
-
-		# we have the filename, so just read the file again
-		file_lines = open(self.loc.filename, "rb").read().splitlines()
-		if len(file_lines) > self.loc.line:
-			offending_code: str = file_lines[self.loc.line].decode("utf-8")
-			offending_code = offending_code.replace('\t', ' ' * TAB_WIDTH)
-			trimmed_code = offending_code.lstrip()
-
-			arrow = "    " + (' ' * (self.loc.column - (len(offending_code) - len(trimmed_code)))) + '^'
-
-			print(f"{' ' * (gutter_width - 2)}| ")
-			print(     f" {1 + self.loc.line} |     {trimmed_code}")
-			print(f"{' ' * (gutter_width - 2)}| {colourise(arrow, '1;31m')}")
-
+		print_error_msg(self.loc, self.msg)
 		sys.exit(1)
 
+class TCException(Exception):
+	def __init__(self, loc: Location, msg: str) -> None:
+		self.loc: Location = loc
+		self.msg: str = msg
+
+	def throw(self) -> NoReturn:
+		print_error_msg(self.loc, self.msg)
+		sys.exit(1)

@@ -55,6 +55,17 @@ class VarRef(Value):
 	def __str__(self) -> str:
 		return self.name
 
+class VarDecl:
+	def __init__(self, loc: Location, name: str, type: str) -> None:
+		self.loc: Location = loc
+		self.name: str = name
+		self.type: str = type
+
+	def __str__(self) -> str:
+		return f"{self.type} {self.name}"
+
+
+
 
 class Stmt(ABC):
 	def __init__(self, loc: Location) -> None:
@@ -227,34 +238,34 @@ class CondBranch(Stmt):
 
 
 class ClassDefn:
-	def __init__(self, loc: Location, name: str, fields: List[Tuple[str, str]]) -> None:
+	def __init__(self, loc: Location, name: str, fields: List[VarDecl]) -> None:
 		self.loc: Location = loc
 		self.name: str = name
-		self.fields: List[Tuple[str, str]] = fields
+		self.fields: List[VarDecl] = fields
 
 	def __str__(self) -> str:
 		return f"class {self.name}\n" + "{\n" \
-			+ "\n".join(map(lambda x: f"    {x[0]} {x[1]};", self.fields)) + "\n}"
+			+ "\n".join(map(lambda x: f"    {x};", self.fields)) + "\n}"
 
 class FuncDefn:
-	def __init__(self, loc: Location, name: str, params: List[Tuple[str, str]], return_type: str,
-				 vars: List[Tuple[str, str]], body: List[Stmt]) -> None:
+	def __init__(self, loc: Location, name: str, params: List[VarDecl], return_type: str,
+				 vars: List[VarDecl], body: List[Stmt]) -> None:
 		self.loc: Location = loc
 		self.name: str = name
-		self.params: List[Tuple[str, str]] = params
+		self.params: List[VarDecl] = params
 		self.return_type: str = return_type
-		self.vars: List[Tuple[str, str]] = vars
+		self.vars: List[VarDecl] = vars
 		self.body: List[Stmt] = body
 
 	def __str__(self) -> str:
-		tmp1 = ", ".join(map(lambda x: f"{x[0]} {x[1]}", self.params))
-		tmp2 = map(lambda x: f"{x[0]} {x[1]};", self.vars)
+		tmp1 = ", ".join(map(str, self.params))
+		tmp2 = map(lambda x: f"{x};", self.vars)
 
 		return f"{self.return_type} {self.name}({tmp1})" \
-			+ "\n    {\n" + "\n".join(map(lambda x: "    " + indent_lines(x), tmp2)) \
+			+ "\n{\n" + "\n".join(map(lambda x: indent_lines(x), tmp2)) \
 			+ ("\n" if len(self.vars) > 0 else "") \
-			+ "\n".join(map(lambda x: "    " + indent_lines(str(x)), self.body)) \
-			+ "\n    }"
+			+ "\n".join(map(lambda x: indent_lines(str(x)), self.body)) \
+			+ "\n}"
 
 class Program:
 	def __init__(self, classes: List[ClassDefn], funcs: List[FuncDefn]) -> None:
@@ -262,5 +273,5 @@ class Program:
 		self.funcs: List[FuncDefn] = funcs
 
 	def __str__(self) -> str:
-		return "\n\n".join(map(str, self.classes)) + "\n" + "\n\n".join(map(str, self.funcs))
+		return "\n\n".join(map(str, self.classes)) + "\n\n" + "\n\n".join(map(str, self.funcs))
 
