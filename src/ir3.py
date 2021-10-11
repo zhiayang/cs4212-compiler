@@ -248,10 +248,11 @@ class ClassDefn:
 			+ "\n".join(map(lambda x: f"    {x};", self.fields)) + "\n}"
 
 class FuncDefn:
-	def __init__(self, loc: Location, name: str, params: List[VarDecl], return_type: str,
+	def __init__(self, loc: Location, name: str, parent: str, params: List[VarDecl], return_type: str,
 				 vars: List[VarDecl], body: List[Stmt]) -> None:
 		self.loc: Location = loc
 		self.name: str = name
+		self.parent: str = parent
 		self.params: List[VarDecl] = params
 		self.return_type: str = return_type
 		self.vars: List[VarDecl] = vars

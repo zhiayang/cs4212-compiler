@@ -107,11 +107,14 @@ def parse_func_call(ps: ParserState, callee: ast.Expr) -> ast.FuncCall:
 def parse_atom_chain(ps: ParserState, lhs: ast.Expr) -> ast.Expr:
 	if tok := ps.next_if("Period"):
 		ident = ps.expect("Identifier", f"expected identifier after '.'")
-		return parse_atom_chain(ps, ast.DotOp(tok.loc, lhs, ast.VarRef(ident.loc, ident.text)))
 
-	elif ps.peek().type == "LParen":
-		return parse_atom_chain(ps, parse_func_call(ps, lhs))
+		rhs: ast.Expr
+		if ps.peek().type == "LParen":
+			rhs = parse_func_call(ps, ast.VarRef(ident.loc, ident.text))
+		else:
+			rhs = ast.VarRef(ident.loc, ident.text)
 
+		return parse_atom_chain(ps, ast.DotOp(tok.loc, lhs, rhs))
 	else:
 		return lhs
 

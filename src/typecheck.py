@@ -49,9 +49,10 @@ def mangle_name(base: str, type: FuncType) -> str:
 
 class TypecheckState:
 	def __init__(self):
-		self.class_decls: Set[str] = set()
+		self.class_decls: Dict[str, ast.ClassDefn] = dict()
 		self.func_decls: Dict[str, Dict[str, List[FuncType]]] = dict()
 
+		self.classes: Dict[str, ir3.ClassDefn] = dict()
 		self.varstack: List[Dict[str, ir3.VarDecl]] = []
 		self.tmpvars: Dict[str, ir3.VarDecl] = dict()
 
@@ -59,7 +60,7 @@ class TypecheckState:
 		if cls.name in self.class_decls:
 			raise TCException(cls.loc, f"duplicate definition of class '{cls.name}'")
 
-		self.class_decls.add(cls.name)
+		self.class_decls[cls.name] = cls
 
 	def declare_func(self, fn: ast.MethodDefn):
 		if self.func_decls.get(fn.parent.name) is None:
@@ -75,9 +76,19 @@ class TypecheckState:
 
 		methods[fn.name].append(get_method_type(fn))
 
+	def add_class(self, cls: ir3.ClassDefn):
+		if cls.name in self.classes:
+			raise TCException(cls.loc, f"duplicate definition of class '{cls.name}'")
+
+		self.classes[cls.name] = cls
+
+
 
 	def is_valid_type(self, name: str) -> bool:
 		return name in ["Int", "String", "Bool", "Void"] or name in self.class_decls
+
+	def is_object_type(self, name: str) -> bool:
+		return self.is_valid_type(name) and (name not in ["Int", "Bool", "Void"])
 
 	def get_var(self, loc: Location, name: str) -> ir3.VarDecl:
 		if (tmpdecl := self.tmpvars.get(name)) is not None:
@@ -98,6 +109,11 @@ class TypecheckState:
 
 		self.varstack[-1][var.name] = var
 
+	def get_class_decl(self, loc: Location, name: str) -> ast.ClassDefn:
+		if name not in self.class_decls:
+			raise TCException(loc, f"class '{name}' does not exist")
+
+		return self.class_decls[name]
 
 
 	def get_value_type(self, value: ir3.Value) -> str:
@@ -108,7 +124,7 @@ class TypecheckState:
 		elif isinstance(value, ir3.ConstantString):
 			return "String"
 		elif isinstance(value, ir3.ConstantNull):
-			return "asdf"
+			return "$NullObject"
 		elif isinstance(value, ir3.VarRef):
 			return self.get_var(value.loc, value.name).type
 		else:
@@ -133,6 +149,34 @@ class TypecheckState:
 		return v
 
 
+def find_overload(ts: TypecheckState, arg_types: List[str], overloads: List[FuncType]) -> Union[FuncType, None]:
+
+	def check_one_overload(ts: TypecheckState, args: List[str], overload: List[str]) -> bool:
+		if len(args) != len(overload):
+			return False
+
+		for i in range(0, len(arg_types)):
+			t1 = arg_types[i]
+			t2 = overload[i]
+
+			# it's easier to structure this as a true condition
+			if (t1 == t2) or (t1 == "$NullObject" and ts.is_object_type(t2)):
+				pass
+			else:
+				return False
+		return True
+
+
+	for overload in overloads:
+		if check_one_overload(ts, arg_types, overload.params):
+			return overload
+
+	return None
+
+
+
+
+
 
 def typecheck_unaryop(ts: TypecheckState, un: ast.UnaryOp) -> Tuple[List[ir3.Stmt], ir3.Value]:
 	stmts, value = typecheck_expr(ts, un.expr)
@@ -148,6 +192,8 @@ def typecheck_unaryop(ts: TypecheckState, un: ast.UnaryOp) -> Tuple[List[ir3.Stm
 	expr = ir3.UnaryOp(un.loc, un.op, value)
 	stmts.append(ir3.AssignOp(un.loc, tmp.name, expr))
 	return (stmts, ir3.VarRef(un.loc, tmp.name))
+
+
 
 def typecheck_binaryop(ts: TypecheckState, bi: ast.BinaryOp) -> Tuple[List[ir3.Stmt], ir3.Value]:
 	s1, v1 = typecheck_expr(ts, bi.lhs)
@@ -172,7 +218,7 @@ def typecheck_binaryop(ts: TypecheckState, bi: ast.BinaryOp) -> Tuple[List[ir3.S
 		raise TCException(bi.loc, f"operator '{bi.op}' cannot be applied on arguments of type '{t1}'")
 
 	if bi.op in ["+", "-", "*", "/", "&&", "||"]:
-		result = "String"
+		result = t1
 	else:
 		result = "Bool"
 
@@ -184,7 +230,68 @@ def typecheck_binaryop(ts: TypecheckState, bi: ast.BinaryOp) -> Tuple[List[ir3.S
 	return (stmts, ir3.VarRef(bi.loc, tmp.name))
 
 def typecheck_dotop(ts: TypecheckState, dot: ast.DotOp) -> Tuple[List[ir3.Stmt], ir3.Value]:
-	return ([], ir3.ConstantNull(dot.loc))
+	stmts, left = typecheck_expr(ts, dot.lhs)
+	left_ty = ts.get_value_type(left)
+
+	print(f"lhs = '{dot.lhs}'")
+	print(f"left = {left_ty}")
+
+	if not ts.is_object_type(left_ty) or left_ty == "String":
+		raise TCException(dot.loc, f"value of type '{left_ty}' does not have any fields or methods")
+
+	# ok, now get the class
+	cls = ts.get_class_decl(dot.loc, left_ty)
+
+	# we need a temp for the lhs
+	this = ts.make_temp(dot.lhs.loc, left_ty)
+	stmts.append(ir3.AssignOp(dot.lhs.loc, this.name, ir3.ValueExpr(dot.lhs.loc, left)))
+
+	if isinstance(dot.rhs, ast.VarRef):
+		for f in cls.fields:
+			if f.name == dot.rhs.name:
+				# and a temp for the rhs
+				tmp2 = ts.make_temp(dot.rhs.loc, f.type)
+				stmts.append(ir3.AssignOp(dot.rhs.loc, tmp2.name, ir3.DotOp(dot.loc, this.name, f.name)))
+				return (stmts, ir3.VarRef(dot.rhs.loc, tmp2.name))
+
+		raise TCException(dot.rhs.loc, f"type '{cls.name}' has no field named '{dot.rhs.name}'")
+
+	elif isinstance(dot.rhs, ast.FuncCall):
+		# use a slightly different approach, by looking up
+		# the func decls in the ts.
+		if not isinstance(dot.rhs.func, ast.VarRef):
+			raise TCException(dot.rhs.loc, f"unknown expression '{dot.rhs.func}' in function call")
+
+		func_name = dot.rhs.func.name
+		if (methods := ts.func_decls[cls.name].get(func_name)) is None:
+			raise TCException(dot.rhs.loc, f"class '{cls.name}' has no method named '{func_name}'")
+
+		# now we have the methods, we need to check the overload set with the argument types.
+		arg_vals = []
+		arg_types = []
+		for arg in dot.rhs.args:
+			ss, vl = typecheck_expr(ts, arg)
+			arg_types.append(ts.get_value_type(vl))
+			arg_vals.append(vl)
+			stmts.extend(ss)
+
+		overload = find_overload(ts, arg_types, methods)
+		if overload is None:
+			raise TCException(dot.rhs.loc, f"method '{func_name}' in class '{cls.name}' has no overload taking arguments '{arg_types}'")
+
+		mangled_name = mangle_name(func_name, overload)
+
+		# insert the 'this' argument.
+		arg_vals.insert(0, ir3.VarRef(dot.rhs.loc, this.name))
+
+		call = ir3.FnCallExpr(dot.rhs.loc, ir3.FnCall(dot.rhs.loc, mangled_name, arg_vals))
+		return_val = ts.make_temp(dot.loc, overload.retty)
+		stmts.append(ir3.AssignOp(dot.loc, return_val.name, call))
+
+		return (stmts, ir3.VarRef(dot.loc, return_val.name))
+
+	else:
+		raise TCException(dot.loc, f"invalid rhs '{dot.rhs}' on dot operator")
 
 
 
@@ -210,6 +317,9 @@ def typecheck_expr(ts: TypecheckState, expr: ast.Expr) -> Tuple[List[ir3.Stmt], 
 	elif isinstance(expr, ast.VarRef):
 		return ([], ir3.VarRef(expr.loc, ts.get_var(expr.loc, expr.name).name))
 
+	elif isinstance(expr, ast.FuncCall):
+		raise TCException(expr.loc, f"call: {expr.func}")
+
 	elif isinstance(expr, ast.IntegerLit):
 		return ([], ir3.ConstantInt(expr.loc, expr.value))
 
@@ -222,7 +332,8 @@ def typecheck_expr(ts: TypecheckState, expr: ast.Expr) -> Tuple[List[ir3.Stmt], 
 	elif isinstance(expr, ast.NullLit):
 		return ([], ir3.ConstantNull(expr.loc))
 
-	return ([], ir3.ConstantInt(expr.loc, 69))
+	else:
+		raise TCException(expr.loc, f"unknown expression '{expr}' (type = {type(expr)})")
 
 
 def typecheck_readln(ts: TypecheckState, stmt: ast.ReadLnCall) -> List[ir3.Stmt]:
@@ -265,6 +376,11 @@ def typecheck_method(ts: TypecheckState, meth: ast.MethodDefn) -> ir3.FuncDefn:
 	vars: List[ir3.VarDecl] = []
 	params: List[ir3.VarDecl] = []
 
+	# first insert the 'this' argument.
+	this = ir3.VarDecl(meth.loc, "this", meth.parent.name)
+	params.append(this)
+	ts.add_var(this)
+
 	for param in meth.args:
 		if param.name in seen:
 			raise TCException(param.loc, f"duplicate parameter '{param.name}' in method declaration")
@@ -306,7 +422,8 @@ def typecheck_method(ts: TypecheckState, meth: ast.MethodDefn) -> ir3.FuncDefn:
 
 	ts.pop_scope()
 	ts.pop_scope()
-	return ir3.FuncDefn(meth.loc, mangle_name(meth.name, get_method_type(meth)), params, meth.return_type, vars, stmts)
+	return ir3.FuncDefn(meth.loc, mangle_name(meth.name, get_method_type(meth)), meth.parent.name,
+		params, meth.return_type, vars, stmts)
 
 
 
@@ -337,6 +454,9 @@ def typecheck_class(ts: TypecheckState, cls: ast.ClassDefn) -> Tuple[ir3.ClassDe
 
 	methods: List[ir3.FuncDefn] = []
 
+	clsdefn = ir3.ClassDefn(cls.loc, cls.name, fields)
+	ts.add_class(clsdefn)
+
 	# push a scope for the class fields, and add the fields
 	ts.push_scope()
 	for f in cls.fields:
@@ -346,7 +466,7 @@ def typecheck_class(ts: TypecheckState, cls: ast.ClassDefn) -> Tuple[ir3.ClassDe
 		methods.append(typecheck_method(ts, meth))
 
 	ts.pop_scope()
-	return (ir3.ClassDefn(cls.loc, cls.name, fields), methods)
+	return (clsdefn, methods)
 
 
 
