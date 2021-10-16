@@ -501,7 +501,15 @@ def typecheck_if(ts: TypecheckState, stmt: ast.IfStmt) -> List[ir3.Stmt]:
 	return stmts
 
 def typecheck_while(ts: TypecheckState, stmt: ast.WhileLoop) -> List[ir3.Stmt]:
+
+	cond_label = ir3.Label(stmt.loc, ts.get_new_label())
 	stmts, cv = typecheck_cond(ts, stmt.condition)
+
+	# note that we need an explicit branch from the preceeding block to the current block,
+	# to have some semblance of basic-block structure. the redundant jump will be removed
+	# in a later optimisation pass... hopefully.
+	stmts = [ ir3.Branch(stmt.loc, cond_label.name), cond_label ] + stmts
+
 	body_stmts = typecheck_block(ts, stmt.body)
 
 	# TODO: check whether the while loop returns in all branches -- in which case, omit the merge block
@@ -514,6 +522,8 @@ def typecheck_while(ts: TypecheckState, stmt: ast.WhileLoop) -> List[ir3.Stmt]:
 		ir3.Branch(body_stmts[0].loc, merge_label.name),
 		body_label
 	] + body_stmts + [
+		ir3.Branch(body_stmts[-1].loc, cond_label.name),
+
 		merge_label
 	]
 
@@ -648,11 +658,13 @@ def typecheck_block(ts: TypecheckState, block: ast.Block) -> List[ir3.Stmt]:
 
 
 
-def convert_to_basic_blocks(ts: TypecheckState, stmts: List[ir3.Stmt]) -> List[ir3.BasicBlock]:
+def convert_to_basic_blocks(ts: TypecheckState, retty: str, stmts: List[ir3.Stmt]) -> List[ir3.BasicBlock]:
 	blocks: List[ir3.BasicBlock] = []
 	block_names: Dict[str, ir3.BasicBlock] = {}
 
-	entry = ir3.BasicBlock(".entry", [], None)
+	assert len(stmts) > 0
+	entry = ir3.BasicBlock(stmts[0].loc, ".entry", [], None)
+	block_names[entry.name] = entry
 	blocks.append(entry)
 
 	current = entry
@@ -666,7 +678,8 @@ def convert_to_basic_blocks(ts: TypecheckState, stmts: List[ir3.Stmt]) -> List[i
 			if stmt.name in block_names:
 				current = block_names[stmt.name]
 			else:
-				blk = ir3.BasicBlock(stmt.name, [], current)
+				blk = ir3.BasicBlock(stmt.loc, stmt.name, [], current)
+				block_names[stmt.name] = blk
 				current = blk
 
 			# note we don't append 'stmt' to stmts here because... a label is not even a real statement
@@ -679,7 +692,6 @@ def convert_to_basic_blocks(ts: TypecheckState, stmts: List[ir3.Stmt]) -> List[i
 			# of course, reset the flag when we go into a new block
 			exited_block = False
 			did_warn = False
-			continue
 
 		# if we're already out of the block, don't do anything with this statement
 		# (especially not adding it to the basic block)
@@ -701,14 +713,14 @@ def convert_to_basic_blocks(ts: TypecheckState, stmts: List[ir3.Stmt]) -> List[i
 			# assume that there is an implicit jump, just by setting the parent of both true and false
 			# cases to this block.
 
-			true_blk = ir3.BasicBlock(stmt.label, [], current)
+			true_blk = ir3.BasicBlock(stmt.loc, stmt.label, [], current)
 
 			# don't add a superfluous block. most of the time, our codegen already has a false block
 			if i < len(stmts) and isinstance(stmts[i + 1], ir3.Label):
 				next_ = cast(ir3.Label, stmts[i + 1])
-				else_blk = ir3.BasicBlock(next_.name, [], current)
+				else_blk = ir3.BasicBlock(next_.loc, next_.name, [], current)
 			else:
-				else_blk = ir3.BasicBlock(ts.get_new_label(), [], current)
+				else_blk = ir3.BasicBlock(stmt.loc, ts.get_new_label(), [], current)
 				blocks.append(else_blk)
 
 			block_names[true_blk.name] = true_blk
@@ -723,11 +735,85 @@ def convert_to_basic_blocks(ts: TypecheckState, stmts: List[ir3.Stmt]) -> List[i
 			current.stmts.append(stmt)
 			exited_block = True
 
-		else:
+		elif not isinstance(stmt, ir3.Label):
 			current.stmts.append(stmt)
+
+		# if this is the last thing, we want to insert a return for void-returning functions.
+		# for non-void returning functions, the "ensure_all_paths_return" function will throw an error
+		# for us later.
+		if retty == "Void" and (i + 1 == len(stmts)):
+			current.stmts.append(ir3.ReturnStmt(stmt.loc, None))
+
+
+	# perform reachability on the basic blocks. due to the nature of the ir generation (most notably
+	# the merge blocks), we might make labels that nobody jumps to.
+
+	def check_reachability(block: ir3.BasicBlock, seen: Set[str]) -> Set[str]:
+		ret: Set[str] = set()
+		ret.add(block.name)
+		if block.name in seen:
+			return ret
+
+		# again, we need some workarounds because ir3's branch is *not* a basic-block style jump
+		if len(block.stmts) == 0:
+			return ret
+
+		elif isinstance(block.stmts[-1], ir3.Branch):
+			ret = ret.union(check_reachability(block_names[cast(ir3.Branch, block.stmts[-1]).label], seen.union(ret)))
+
+		elif isinstance(block.stmts[-1], ir3.CondBranch):
+			# get the subsequent block via a very inefficient method.
+			next_blk: Optional[ir3.BasicBlock] = None
+
+			for i in range(0, len(blocks)):
+				if blocks[i].name == block.name:
+					if i + 1 < len(blocks):
+						next_blk = blocks[i + 1]
+						break
+
+			br = cast(ir3.CondBranch, block.stmts[-1])
+			ret = ret.union(check_reachability(block_names[br.label], seen.union(ret)))
+
+			if next_blk is not None:
+				ret = ret.union(check_reachability(next_blk, seen.union(ret)))
+
+		return ret
+
+
+	# keep removing things until nothing changes.
+	visited: Set[str] = set()
+
+	while True:
+		new_visited = check_reachability(blocks[0], set())
+		if new_visited == visited:
+			break
+		visited = new_visited
+
+		# remove any blocks that are not reachable
+		unreachables = set(blocks).difference(map(lambda x: block_names[x], visited))
+		for unr in unreachables:
+			blocks.remove(unr)
+
+		# print(f"removed {len(unreachables)} unreachable blocks")
 
 	return blocks
 
+
+
+def ensure_all_paths_return(ts: TypecheckState, fn: ir3.FuncDefn):
+	# for void-returning functions, all is well.
+	if fn.return_type == "Void":
+		return
+
+	blocks: Dict[str, ir3.BasicBlock] = { name: blk for name, blk in map(lambda b: (b.name, b), fn.blocks) }
+
+	# every block must either branch or return.
+	for blk in fn.blocks:
+		last = blk.stmts[-1] if len(blk.stmts) > 0 else None
+		loc = last.loc if last is not None else blk.loc
+		if not (isinstance(last, ir3.Branch) or isinstance(last, ir3.CondBranch) or isinstance(last, ir3.ReturnStmt)):
+			# raise TCException(loc, f"not all control paths return a value (problematic branch is somewhere here)")
+			print_warning(loc, f"not all control paths return a value ({blk.name})")
 
 
 
@@ -802,10 +888,12 @@ def typecheck_method(ts: TypecheckState, meth: ast.MethodDefn) -> ir3.FuncDefn:
 	ts.pop_scope()
 	ts.pop_scope()
 
-	blocks = convert_to_basic_blocks(ts, stmts)
-
-	return ir3.FuncDefn(meth.loc, mangle_name(meth.name, method_type), method_type.clsname, params,
+	blocks = convert_to_basic_blocks(ts, method_type.retty, stmts)
+	func = ir3.FuncDefn(meth.loc, mangle_name(meth.name, method_type), method_type.clsname, params,
 		method_type.retty, vars, blocks)
+
+	ensure_all_paths_return(ts, func)
+	return func
 
 
 

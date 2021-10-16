@@ -238,13 +238,13 @@ def parse_if_stmt(ps: ParserState) -> ast.IfStmt:
 
 	true_case = parse_block(ps)
 	if len(true_case.stmts) == 0:
-		raise ParseException(ps.loc, "if statement cannot have an empty block")
+		raise ParseException(ps.loc, "if statement must contain at least one statement")
 
 	ps.expect("kw_else", "'else' clause is mandatory in if statements")
 
 	else_case = parse_block(ps)
 	if len(else_case.stmts) == 0:
-		raise ParseException(ps.loc, "if statement cannot have an empty block")
+		raise ParseException(ps.loc, "if statement (else branch) must contain at least one statement")
 
 	return ast.IfStmt(loc, condition, true_case, else_case)
 
@@ -260,7 +260,7 @@ def parse_while_loop(ps: ParserState) -> ast.WhileLoop:
 
 	body = parse_block(ps)
 	if len(body.stmts) == 0:
-		raise ParseException(ps.loc, "while loop cannot have an empty block")
+		raise ParseException(ps.loc, "while loop must contain at least one statement")
 
 	return ast.WhileLoop(loc, condition, body)
 

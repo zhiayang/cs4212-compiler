@@ -78,7 +78,7 @@ class A
 	}
 	Void test()
 	{
-		return;
+		println("uwu");
 	}
 }
 

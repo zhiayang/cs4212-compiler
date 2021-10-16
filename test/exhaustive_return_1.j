@@ -20,6 +20,7 @@ class Main
 
 class Foo
 {
+	String asdf;
 	Int bar()
 	{
 		println("a");
@@ -30,6 +31,19 @@ class Foo
 		else
 		{
 			println(4);
+			if(69 + 420)
+			{
+				asdf = "foozle";
+				while(true)
+				{
+					println("kekw");
+				}
+				return 0;
+			}
+			else
+			{
+				return 1;
+			}
 		}
 	}
 }
