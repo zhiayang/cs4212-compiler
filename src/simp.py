@@ -33,6 +33,8 @@ def simplify_expr(expr: ast.Expr) -> ast.Expr:
 			if bi.op == "+":    return ast.IntegerLit(bi.loc, lhs.value + rhs.value)
 			elif bi.op == "-":  return ast.IntegerLit(bi.loc, lhs.value - rhs.value)
 			elif bi.op == "*":  return ast.IntegerLit(bi.loc, lhs.value * rhs.value)
+			elif bi.op == "/":  return ast.IntegerLit(bi.loc, lhs.value // rhs.value)
+
 			elif bi.op == "<":  return ast.BooleanLit(bi.loc, lhs.value < rhs.value)
 			elif bi.op == ">":  return ast.BooleanLit(bi.loc, lhs.value > rhs.value)
 			elif bi.op == ">=":  return ast.BooleanLit(bi.loc, lhs.value >= rhs.value)
