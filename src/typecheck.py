@@ -239,6 +239,45 @@ def typecheck_binaryop(ts: TypecheckState, bi: ast.BinaryOp) -> Tuple[List[ir3.S
 	return (stmts, ir3.VarRef(bi.loc, tmp.name))
 
 
+def typecheck_call(ts: TypecheckState, cls_name: str, this_name: str, call: ast.FuncCall) -> Tuple[List[ir3.Stmt], ir3.Value]:
+	# use a slightly different approach, by looking up
+	# the func decls in the ts.
+	if not isinstance(call.func, ast.VarRef):
+		raise TCException(call.loc, f"unknown expression '{call.func}' in function call")
+
+	func_name = call.func.name
+	if (methods := ts.func_decls[cls_name].get(func_name)) is None:
+		raise TCException(call.loc, f"class '{cls_name}' has no method named '{func_name}'")
+
+	stmts: List[ir3.Stmt] = []
+
+	# now we have the methods, we need to check the overload set with the argument types.
+	arg_vals = []
+	arg_types = []
+	for arg in call.args:
+		ss, vl = typecheck_expr(ts, arg)
+		arg_types.append(ts.get_value_type(vl))
+		arg_vals.append(vl)
+		stmts.extend(ss)
+
+	overload = find_overload(ts, arg_types, methods)
+	if overload is None:
+		raise TCException(call.loc, f"method '{func_name}' in class '{cls_name}' has no overload taking arguments '{arg_types}'")
+
+	mangled_name = mangle_name(func_name, overload)
+
+	# insert the 'this' argument.
+	arg_vals.insert(0, ir3.VarRef(call.loc, this_name))
+
+	fncall = ir3.FnCallExpr(call.loc, ir3.FnCall(call.loc, mangled_name, arg_vals))
+	return_val = ts.make_temp(call.loc, overload.retty)
+	stmts.append(ir3.AssignOp(call.loc, return_val.name, fncall))
+
+	return (stmts, ir3.VarRef(call.loc, return_val.name))
+
+
+
+
 
 def typecheck_dotop(ts: TypecheckState, dot: ast.DotOp) -> Tuple[List[ir3.Stmt], ir3.Value]:
 	stmts, left = typecheck_expr(ts, dot.lhs)
@@ -265,38 +304,8 @@ def typecheck_dotop(ts: TypecheckState, dot: ast.DotOp) -> Tuple[List[ir3.Stmt],
 		raise TCException(dot.rhs.loc, f"type '{cls.name}' has no field named '{dot.rhs.name}'")
 
 	elif isinstance(dot.rhs, ast.FuncCall):
-		# use a slightly different approach, by looking up
-		# the func decls in the ts.
-		if not isinstance(dot.rhs.func, ast.VarRef):
-			raise TCException(dot.rhs.loc, f"unknown expression '{dot.rhs.func}' in function call")
-
-		func_name = dot.rhs.func.name
-		if (methods := ts.func_decls[cls.name].get(func_name)) is None:
-			raise TCException(dot.rhs.loc, f"class '{cls.name}' has no method named '{func_name}'")
-
-		# now we have the methods, we need to check the overload set with the argument types.
-		arg_vals = []
-		arg_types = []
-		for arg in dot.rhs.args:
-			ss, vl = typecheck_expr(ts, arg)
-			arg_types.append(ts.get_value_type(vl))
-			arg_vals.append(vl)
-			stmts.extend(ss)
-
-		overload = find_overload(ts, arg_types, methods)
-		if overload is None:
-			raise TCException(dot.rhs.loc, f"method '{func_name}' in class '{cls.name}' has no overload taking arguments '{arg_types}'")
-
-		mangled_name = mangle_name(func_name, overload)
-
-		# insert the 'this' argument.
-		arg_vals.insert(0, ir3.VarRef(dot.rhs.loc, this.name))
-
-		call = ir3.FnCallExpr(dot.rhs.loc, ir3.FnCall(dot.rhs.loc, mangled_name, arg_vals))
-		return_val = ts.make_temp(dot.loc, overload.retty)
-		stmts.append(ir3.AssignOp(dot.loc, return_val.name, call))
-
-		return (stmts, ir3.VarRef(dot.loc, return_val.name))
+		s1, v1 = typecheck_call(ts, cls.name, this.name, dot.rhs)
+		return (stmts + s1, v1)
 
 	else:
 		raise TCException(dot.loc, f"invalid rhs '{dot.rhs}' on dot operator")
@@ -332,7 +341,9 @@ def typecheck_expr(ts: TypecheckState, expr: ast.Expr) -> Tuple[List[ir3.Stmt], 
 			return ([], ir3.VarRef(expr.loc, var[0].name))
 
 	elif isinstance(expr, ast.FuncCall):
-		raise TCException(expr.loc, f"call: {expr.func}")
+		# we know that 'bare' function calls *must* be called on the implicit 'this'
+		cls_ty = ts.get_var(expr.loc, "this")[0].type
+		return typecheck_call(ts, cls_ty, "this", expr)
 
 	elif isinstance(expr, ast.ParenExpr):
 		return typecheck_expr(ts, expr.expr)

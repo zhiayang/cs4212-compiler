@@ -22,6 +22,8 @@ class KEKW
 		b = 69;
 		a = b;
 		println(a);
+		bar(420);
+
 		return true;
 	}
 
