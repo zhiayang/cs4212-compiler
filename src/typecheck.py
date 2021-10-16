@@ -53,7 +53,8 @@ class TypecheckState:
 		self.func_decls: Dict[str, Dict[str, List[FuncType]]] = dict()
 
 		self.classes: Dict[str, ir3.ClassDefn] = dict()
-		self.varstack: List[Dict[str, ir3.VarDecl]] = []
+		# stack<map<name, (decl, is_field)>>
+		self.varstack: List[Dict[str, Tuple[ir3.VarDecl, bool]]] = []
 		self.tmpvars: Dict[str, ir3.VarDecl] = dict()
 		self.label_num = 0
 
@@ -101,9 +102,9 @@ class TypecheckState:
 	def is_object_type(self, name: str) -> bool:
 		return self.is_valid_type(name) and (name not in ["Int", "Bool", "Void"])
 
-	def get_var(self, loc: Location, name: str) -> ir3.VarDecl:
+	def get_var(self, loc: Location, name: str) -> Tuple[ir3.VarDecl, bool]:
 		if (tmpdecl := self.tmpvars.get(name)) is not None:
-			return tmpdecl
+			return (tmpdecl, False)
 
 		for vars in reversed(self.varstack):
 			if (v := vars.get(name)) is not None:
@@ -111,14 +112,14 @@ class TypecheckState:
 
 		raise TCException(loc, f"variable '{name}' does not exist")
 
-	def add_var(self, var: ir3.VarDecl):
+	def add_var(self, var: ir3.VarDecl, is_field: bool):
 		if len(self.varstack) == 0:
 			raise TCException(var.loc, f"no scope to add variable '{var.name}' into")
 
 		if var.name in self.varstack[-1]:
 			raise TCException(var.loc, f"variable '{var.name}' already exists in the current scope")
 
-		self.varstack[-1][var.name] = var
+		self.varstack[-1][var.name] = (var, is_field)
 
 	def get_class_decl(self, loc: Location, name: str) -> ast.ClassDefn:
 		if name not in self.class_decls:
@@ -137,7 +138,7 @@ class TypecheckState:
 		elif isinstance(value, ir3.ConstantNull):
 			return "$NullObject"
 		elif isinstance(value, ir3.VarRef):
-			return self.get_var(value.loc, value.name).type
+			return self.get_var(value.loc, value.name)[0].type
 		else:
 			raise TCException(value.loc, "unknown ir3.Value kind")
 
@@ -237,6 +238,8 @@ def typecheck_binaryop(ts: TypecheckState, bi: ast.BinaryOp) -> Tuple[List[ir3.S
 	stmts.append(ir3.AssignOp(bi.loc, tmp.name, binop))
 	return (stmts, ir3.VarRef(bi.loc, tmp.name))
 
+
+
 def typecheck_dotop(ts: TypecheckState, dot: ast.DotOp) -> Tuple[List[ir3.Stmt], ir3.Value]:
 	stmts, left = typecheck_expr(ts, dot.lhs)
 	left_ty = ts.get_value_type(left)
@@ -320,7 +323,13 @@ def typecheck_expr(ts: TypecheckState, expr: ast.Expr) -> Tuple[List[ir3.Stmt], 
 		return typecheck_dotop(ts, expr)
 
 	elif isinstance(expr, ast.VarRef):
-		return ([], ir3.VarRef(expr.loc, ts.get_var(expr.loc, expr.name).name))
+		var = ts.get_var(expr.loc, expr.name)
+		if var[1]:
+			tmp = ts.make_temp(expr.loc, var[0].type)
+			return ([ ir3.AssignOp(expr.loc, tmp.name, ir3.DotOp(expr.loc, "this", var[0].name)) ],
+				ir3.VarRef(expr.loc, tmp.name))
+		else:
+			return ([], ir3.VarRef(expr.loc, var[0].name))
 
 	elif isinstance(expr, ast.FuncCall):
 		raise TCException(expr.loc, f"call: {expr.func}")
@@ -354,7 +363,7 @@ def typecheck_expr(ts: TypecheckState, expr: ast.Expr) -> Tuple[List[ir3.Stmt], 
 
 
 def typecheck_readln(ts: TypecheckState, stmt: ast.ReadLnCall) -> List[ir3.Stmt]:
-	var = ts.get_var(stmt.loc, stmt.var)
+	var = ts.get_var(stmt.loc, stmt.var)[0]
 	if var.type not in ["Int", "Bool", "String"]:
 		raise TCException(stmt.loc, f"'readln' can only take vars of type 'Int', 'Bool', or 'String' -- not '{var.type}'")
 
@@ -555,17 +564,20 @@ def typecheck_assign(ts: TypecheckState, stmt: ast.AssignStmt) -> List[ir3.Stmt]
 	if not isinstance(stmt.lhs, ast.VarRef):
 		raise TCException(stmt.rhs.loc, f"expected identifier on lhs in assignment")
 
-	# ignore whatever (not important -- we just need to ensure the variable exists and all that)
-	s1, v1 = typecheck_expr(ts, stmt.lhs)
-	assert len(s1) == 0
+	# if the left side is a field, we must emit a "this.field = <expr>" statement instead.s1
+	var_name = stmt.lhs.name
+	rhs_expr = ir3.ValueExpr(stmt.rhs.loc, v2)
 
-	t1 = ts.get_value_type(v1)
+	if (var := ts.get_var(stmt.lhs.loc, var_name))[1]:
+		assign: ir3.Stmt = ir3.AssignDotOp(stmt.loc, "this", var_name, rhs_expr)
+	else:
+		assign = ir3.AssignOp(stmt.loc, var_name, rhs_expr)
+
+	t1 = var[0].type
 	t2 = ts.get_value_type(v2)
 	ensure_compatible_types(t1, t2)
 
-	return s1 + s2 + [
-		ir3.AssignOp(stmt.loc, stmt.lhs.name, ir3.ValueExpr(stmt.rhs.loc, v2))
-	]
+	return s2 + [ assign ]
 
 
 def typecheck_return(ts: TypecheckState, stmt: ast.ReturnStmt) -> List[ir3.Stmt]:
@@ -634,7 +646,7 @@ def typecheck_method(ts: TypecheckState, meth: ast.MethodDefn) -> ir3.FuncDefn:
 	# first insert the 'this' argument.
 	this = ir3.VarDecl(meth.loc, "this", meth.parent.name)
 	params.append(this)
-	ts.add_var(this)
+	ts.add_var(this, is_field = False)
 
 	for param in meth.args:
 		if param.name in seen:
@@ -645,8 +657,8 @@ def typecheck_method(ts: TypecheckState, meth: ast.MethodDefn) -> ir3.FuncDefn:
 			raise TCException(param.loc, f"parameter '{param.name}' has invalid type '{param.type}'")
 
 		t = ir3.VarDecl(param.loc, param.name, param.type)
+		ts.add_var(t, is_field = False)
 		params.append(t)
-		ts.add_var(t)
 
 	if not ts.is_valid_type(meth.return_type):
 		raise TCException(meth.loc, f"return type '{meth.return_type}' is not a valid type")
@@ -666,8 +678,8 @@ def typecheck_method(ts: TypecheckState, meth: ast.MethodDefn) -> ir3.FuncDefn:
 			raise TCException(param.loc, f"local variable '{var.name}' has invalid type '{var.type}'")
 
 		t = ir3.VarDecl(var.loc, var.name, var.type)
+		ts.add_var(t, is_field = False)
 		vars.append(t)
-		ts.add_var(t)
 
 	method_type = get_method_type(meth)
 	ts.enter_function(method_type)
@@ -719,7 +731,7 @@ def typecheck_class(ts: TypecheckState, cls: ast.ClassDefn) -> Tuple[ir3.ClassDe
 	# push a scope for the class fields, and add the fields
 	ts.push_scope()
 	for f in cls.fields:
-		ts.add_var(ir3.VarDecl(f.loc, f.name, f.type))
+		ts.add_var(ir3.VarDecl(f.loc, f.name, f.type), is_field = True)
 
 	for meth in cls.methods:
 		methods.append(typecheck_method(ts, meth))

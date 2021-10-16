@@ -19,6 +19,8 @@ class KEKW
 	Int b;
 	Bool foo(Int a)
 	{
+		b = 69;
+		a = b;
 		println(a);
 		return true;
 	}
