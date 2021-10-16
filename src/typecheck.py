@@ -7,6 +7,7 @@ from functools import reduce
 
 from . import ast
 from . import ir3
+from . import simp
 
 from .util import Location, TCException, StringView, print_warning
 
@@ -162,6 +163,13 @@ class TypecheckState:
 		self.tmpvars[n] = v
 		return v
 
+	def promote_if_necessary(self, value: ir3.Value) -> Tuple[ir3.VarDecl, List[ir3.Stmt]]:
+		if isinstance(value, ir3.VarRef):
+			return (self.get_var(value.loc, value.name)[0], [])
+		else:
+			tmp = self.make_temp(value.loc, self.get_value_type(value))
+			return (tmp, [ ir3.AssignOp(value.loc, tmp.name, ir3.ValueExpr(value.loc, value)) ])
+
 
 def find_overload(ts: TypecheckState, arg_types: List[str], overloads: List[FuncType]) -> Union[FuncType, None]:
 
@@ -290,8 +298,11 @@ def typecheck_dotop(ts: TypecheckState, dot: ast.DotOp) -> Tuple[List[ir3.Stmt],
 	cls = ts.get_class_decl(dot.loc, left_ty)
 
 	# we need a temp for the lhs
-	this = ts.make_temp(dot.lhs.loc, left_ty)
-	stmts.append(ir3.AssignOp(dot.lhs.loc, this.name, ir3.ValueExpr(dot.lhs.loc, left)))
+	this, ss1 = ts.promote_if_necessary(left)
+	stmts.extend(ss1)
+
+	# this = ts.make_temp(dot.lhs.loc, left_ty)
+	# stmts.append(ir3.AssignOp(dot.lhs.loc, this.name, ir3.ValueExpr(dot.lhs.loc, left)))
 
 	if isinstance(dot.rhs, ast.VarRef):
 		for f in cls.fields:
@@ -943,6 +954,9 @@ def typecheck_class(ts: TypecheckState, cls: ast.ClassDefn) -> Tuple[ir3.ClassDe
 def typecheck_program(program: ast.Program) -> ir3.Program:
 	classes: List[ir3.ClassDefn] = []
 	methods: List[ir3.FuncDefn] = []
+
+	# first, run a simplification pass.
+	program = simp.simplify_program(program)
 
 	ts: TypecheckState = TypecheckState()
 

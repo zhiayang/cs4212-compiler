@@ -39,8 +39,8 @@ class Main
 
 		println(a);
 		println(1);
-		println(-1);
-		println(---------------1);
+		println(---1);
+		println(----------------1);
 		println(true);
 		println(o.getA().getB(o).b + 2 * 3 < 1 * o.b);
 		println("string");
