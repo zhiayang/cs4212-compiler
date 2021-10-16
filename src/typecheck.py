@@ -55,6 +55,12 @@ class TypecheckState:
 		self.classes: Dict[str, ir3.ClassDefn] = dict()
 		self.varstack: List[Dict[str, ir3.VarDecl]] = []
 		self.tmpvars: Dict[str, ir3.VarDecl] = dict()
+		self.label_num = 0
+
+	def get_new_label(self) -> str:
+		self.label_num += 1
+		return f".L{self.label_num}"
+
 
 	def declare_class(self, cls: ast.ClassDefn):
 		if cls.name in self.class_decls:
@@ -352,6 +358,102 @@ def typecheck_println(ts: TypecheckState, stmt: ast.PrintLnCall) -> List[ir3.Stm
 	return stmts
 
 
+def typecheck_cond(ts: TypecheckState, expr: ast.Expr) -> Tuple[List[ir3.Stmt], ir3.Value]:
+	stmts: List[ir3.Stmt] = []
+	if isinstance(expr, ast.BinaryOp):
+		if expr.op == "&&":
+			# it doesn't matter when we call this, as long as the statement lists get
+			# inserted in the right place.
+			s1, v1 = typecheck_cond(ts, expr.lhs)
+			s2, v2 = typecheck_cond(ts, expr.rhs)
+
+			if (t1 := ts.get_value_type(v1)) != "Bool":
+				raise TCException(v1.loc, f"expected boolean value on lhs of '&&', got '{t1}' instead")
+
+			if (t2 := ts.get_value_type(v2)) != "Bool":
+				raise TCException(v2.loc, f"expected boolean value on rhs of '&&', got '{t2}' instead")
+
+			result = ts.make_temp(expr.loc, "Bool")
+
+			# ir3 is dumb, and you cannot convince me otherwise.
+			ltrue_block = ir3.Label(expr.lhs.loc, ts.get_new_label())
+			rtrue_block = ir3.Label(expr.lhs.loc, ts.get_new_label())
+			merge_block = ir3.Label(expr.lhs.loc, ts.get_new_label())
+
+			stmts.extend(s1)
+			stmts += [
+				ir3.CondBranch(expr.lhs.loc, v1, ltrue_block.name),
+
+				# now in the implicit false case
+				ir3.AssignOp(expr.loc, result.name, ir3.ValueExpr(expr.loc, ir3.ConstantBool(expr.loc, False))),
+				ir3.Branch(expr.loc, merge_block.name),
+
+				# now in the lhs-true case
+				ltrue_block,
+
+			] + s2 + [
+				# rhs got generated.
+				ir3.CondBranch(expr.rhs.loc, v2, rtrue_block.name),
+
+				# implicit rhs-false case
+				ir3.AssignOp(expr.loc, result.name, ir3.ValueExpr(expr.loc, ir3.ConstantBool(expr.loc, False))),
+				ir3.Branch(expr.loc, merge_block.name),
+
+				# true case
+				rtrue_block,
+				ir3.AssignOp(expr.loc, result.name, ir3.ValueExpr(expr.loc, ir3.ConstantBool(expr.loc, True))),
+
+				merge_block
+			]
+
+			return (stmts, ir3.VarRef(expr.loc, result.name))
+
+		elif expr.op == "||":
+			s1, v1 = typecheck_cond(ts, expr.lhs)
+			s2, v2 = typecheck_cond(ts, expr.rhs)
+
+			if (t1 := ts.get_value_type(v1)) != "Bool":
+				raise TCException(v1.loc, f"expected boolean value on lhs of '&&', got '{t1}' instead")
+
+			if (t2 := ts.get_value_type(v2)) != "Bool":
+				raise TCException(v2.loc, f"expected boolean value on rhs of '&&', got '{t2}' instead")
+
+			result = ts.make_temp(expr.loc, "Bool")
+
+			true_block = ir3.Label(expr.lhs.loc, ts.get_new_label())
+			merge_block = ir3.Label(expr.lhs.loc, ts.get_new_label())
+
+			stmts.extend(s1)
+			stmts += [
+				cast(ir3.Stmt, ir3.CondBranch(expr.lhs.loc, v1, true_block.name)),
+
+				# implicit false-case
+			] + s2 + [
+				ir3.CondBranch(expr.rhs.loc, v2, true_block.name),
+
+				# implicit false-false case:
+				ir3.AssignOp(expr.loc, result.name, ir3.ValueExpr(expr.loc, ir3.ConstantBool(expr.loc, False))),
+				ir3.Branch(expr.loc, merge_block.name),
+
+				# true case:
+				true_block,
+				ir3.AssignOp(expr.loc, result.name, ir3.ValueExpr(expr.loc, ir3.ConstantBool(expr.loc, True))),
+
+				# merge:
+				merge_block
+			]
+			return (stmts, ir3.VarRef(expr.loc, result.name))
+
+	return typecheck_expr(ts, expr)
+
+
+def typecheck_if(ts: TypecheckState, stmt: ast.IfStmt) -> List[ir3.Stmt]:
+	stmts, cv = typecheck_cond(ts, stmt.condition)
+	return stmts
+
+
+
+
 
 
 # one statement can produce multiple ir3 statements
@@ -360,6 +462,8 @@ def typecheck_stmt(ts: TypecheckState, stmt: ast.Stmt) -> List[ir3.Stmt]:
 		return typecheck_readln(ts, stmt)
 	elif isinstance(stmt, ast.PrintLnCall):
 		return typecheck_println(ts, stmt)
+	elif isinstance(stmt, ast.IfStmt):
+		return typecheck_if(ts, stmt)
 
 	return []
 
@@ -419,6 +523,7 @@ def typecheck_method(ts: TypecheckState, meth: ast.MethodDefn) -> ir3.FuncDefn:
 	# whatever vars are in the innermost scope will be a combination of the original vars as well as
 	# any temporaries that we need. we need to hoist all tmpvar declarations to the top of the function.
 	vars.extend(ts.tmpvars.values())
+	ts.tmpvars.clear()
 
 	ts.pop_scope()
 	ts.pop_scope()

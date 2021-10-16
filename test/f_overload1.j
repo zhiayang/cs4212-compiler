@@ -2,19 +2,27 @@ class Main
 {
 	Void main()
 	{
-		new KEKW().foo();
+		KEKW a;
+		// new KEKW().foo();
+		if (a.foo(69) || a.bar(420)) {
+			println("kekw");
+		} else {
+			println("asdf");
+		}
 	}
 }
 
 class KEKW
 {
-	Void foo(Int a)
+	Bool foo(Int a)
 	{
 		println(a);
+		return true;
 	}
 
-	String foo(Int b)
+	Bool bar(Int a)
 	{
-		println(b);
+		println(a);
+		return false;
 	}
 }

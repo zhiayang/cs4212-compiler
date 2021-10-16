@@ -115,6 +115,8 @@ def parse_atom_chain(ps: ParserState, lhs: ast.Expr) -> ast.Expr:
 			rhs = ast.VarRef(ident.loc, ident.text)
 
 		return parse_atom_chain(ps, ast.DotOp(tok.loc, lhs, rhs))
+	elif ps.peek().type == "LParen":
+		return parse_func_call(ps, lhs)
 	else:
 		return lhs
 

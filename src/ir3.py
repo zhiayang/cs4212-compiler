@@ -153,7 +153,7 @@ class Label(Stmt):
 		self.name: str = name
 
 	def __str__(self) -> str:
-		return f"Label {self.name}:"
+		return f"\b\bLabel {self.name}:"
 
 class FnCallStmt(Stmt):
 	def __init__(self, loc: Location, call: FnCall) -> None:
