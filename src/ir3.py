@@ -248,11 +248,11 @@ class ClassDefn:
 			+ "\n".join(map(lambda x: f"    {x};", self.fields)) + "\n}"
 
 class BasicBlock:
-	def __init__(self, loc: Location, name: str, stmts: List[Stmt], parent: Optional[BasicBlock]) -> None:
+	def __init__(self, loc: Location, name: str, stmts: List[Stmt], preds: Set[BasicBlock]) -> None:
 		self.name: str = name
 		self.loc: Location = loc
 		self.stmts: List[Stmt] = stmts
-		self.parent: Optional[BasicBlock] = parent
+		self.predecessors: Set[BasicBlock] = preds
 
 	def __str__(self) -> str:
 		return f"  Label {self.name}:\n" \

@@ -673,8 +673,21 @@ def convert_to_basic_blocks(ts: TypecheckState, retty: str, stmts: List[ir3.Stmt
 	blocks: List[ir3.BasicBlock] = []
 	block_names: Dict[str, ir3.BasicBlock] = {}
 
+	# a map from a target label to the source. only counts uncond branches.
+	branch_sources: Dict[str, Set[ir3.BasicBlock]] = {}
+	def add_branch_source(label: str, src: ir3.BasicBlock):
+		if branch_sources.get(label) is None:
+			branch_sources[label] = set()
+		branch_sources[label].add(src)
+
+	labels: Dict[str, Location] = { name: loc for name, loc in
+		[(x.name, x.loc) for x in stmts if isinstance(x, ir3.Label)]
+	}
+
+
+
 	assert len(stmts) > 0
-	entry = ir3.BasicBlock(stmts[0].loc, ".entry", [], None)
+	entry = ir3.BasicBlock(stmts[0].loc, ".entry", [], set())
 	block_names[entry.name] = entry
 	blocks.append(entry)
 
@@ -689,7 +702,7 @@ def convert_to_basic_blocks(ts: TypecheckState, retty: str, stmts: List[ir3.Stmt
 			if stmt.name in block_names:
 				current = block_names[stmt.name]
 			else:
-				blk = ir3.BasicBlock(stmt.loc, stmt.name, [], current)
+				blk = ir3.BasicBlock(stmt.loc, stmt.name, [], set([current]))
 				block_names[stmt.name] = blk
 				current = blk
 
@@ -714,6 +727,12 @@ def convert_to_basic_blocks(ts: TypecheckState, retty: str, stmts: List[ir3.Stmt
 
 		if isinstance(stmt, ir3.Branch):
 			current.stmts.append(stmt)
+			add_branch_source(stmt.label, current)
+			if (uwu := block_names.get(stmt.label)) is not None:
+				uwu.predecessors.add(current)
+			else:
+				block_names[stmt.label] = ir3.BasicBlock(labels[stmt.label], stmt.label, [], set([current]))
+
 			exited_block = True
 
 		elif isinstance(stmt, ir3.CondBranch):
@@ -724,18 +743,25 @@ def convert_to_basic_blocks(ts: TypecheckState, retty: str, stmts: List[ir3.Stmt
 			# assume that there is an implicit jump, just by setting the parent of both true and false
 			# cases to this block.
 
-			true_blk = ir3.BasicBlock(stmt.loc, stmt.label, [], current)
+			true_blk = ir3.BasicBlock(stmt.loc, stmt.label, [], set([current]))
+			block_names[true_blk.name] = true_blk
 
 			# don't add a superfluous block. most of the time, our codegen already has a false block
 			if i < len(stmts) and isinstance(stmts[i + 1], ir3.Label):
 				next_ = cast(ir3.Label, stmts[i + 1])
-				else_blk = ir3.BasicBlock(next_.loc, next_.name, [], current)
+				if (uwu := block_names.get(next_.name)) is not None:
+					else_blk = uwu
+					else_blk.predecessors.add(current)
+				else:
+					else_blk = ir3.BasicBlock(next_.loc, next_.name, [], set([current]))
+					block_names[else_blk.name] = else_blk
 			else:
-				else_blk = ir3.BasicBlock(stmt.loc, ts.get_new_label(), [], current)
+				else_blk = ir3.BasicBlock(stmt.loc, ts.get_new_label(), [], set([current]))
+				block_names[else_blk.name] = else_blk
 				blocks.append(else_blk)
 
-			block_names[true_blk.name] = true_blk
-			block_names[else_blk.name] = else_blk
+			# there is an unconditional branch, essentially.
+			add_branch_source(else_blk.name, current)
 
 			# the current block is now the else block, due to fallthrough.
 			current = else_blk
@@ -807,6 +833,32 @@ def convert_to_basic_blocks(ts: TypecheckState, retty: str, stmts: List[ir3.Stmt
 
 		# print(f"removed {len(unreachables)} unreachable blocks")
 
+
+	# while we're here, prune any blocks that contain just a single unconditional branch.
+	# eg. if we have a: { ... jmp b; }, b: { jmp c; }, c: { ... }, then we can replace it
+	# with simply a: { ... jmp c; }, c: { ... } and yeet b from existence.
+
+	# do this weird slice thing to make a copy so we can yeet elements while iterating.
+	for blk in blocks[:]:
+		if len(blk.stmts) == 1 and isinstance(blk.stmts[0], ir3.Branch):
+			target = blk.stmts[0].label
+
+			# if any of the predecessors have a condbranch as the last statement, we need to forcefully
+			# insert an uncondbranch to simulate the fallthrough (since the block order is not fully
+			# determinate with respect to execution order)
+			for pred in branch_sources[blk.name]:
+				# note that this should only be true for one block, the fallthrough source.
+				if isinstance(pred.stmts[-1], ir3.CondBranch):
+					pred.stmts.append(ir3.Branch(pred.stmts[-1].loc, target))
+					branch_sources[target].add(pred)
+				else:
+					assert isinstance(pred.stmts[-1], ir3.Branch)
+					pred.stmts[-1] = ir3.Branch(pred.stmts[-1].loc, target)
+					branch_sources[target].add(pred)
+
+			# print(f"yeeting {blk.name}")
+			blocks.remove(blk)
+
 	return blocks
 
 
@@ -823,8 +875,8 @@ def ensure_all_paths_return(ts: TypecheckState, fn: ir3.FuncDefn):
 		last = blk.stmts[-1] if len(blk.stmts) > 0 else None
 		loc = last.loc if last is not None else blk.loc
 		if not (isinstance(last, ir3.Branch) or isinstance(last, ir3.CondBranch) or isinstance(last, ir3.ReturnStmt)):
-			# raise TCException(loc, f"not all control paths return a value (problematic branch is somewhere here)")
-			print_warning(loc, f"not all control paths return a value ({blk.name})")
+			raise TCException(loc, f"not all control paths return a value (problematic branch is somewhere here)")
+			# print_warning(loc, f"not all control paths return a value ({blk.name})")
 
 
 
