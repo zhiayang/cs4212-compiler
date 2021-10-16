@@ -8,7 +8,7 @@ from functools import reduce
 from . import ast
 from . import ir3
 
-from .util import Location, TCException, StringView
+from .util import Location, TCException, StringView, print_warning
 
 class FuncType:
 	def __init__(self, clsname: str, params: List[str], ret: str):
@@ -483,19 +483,19 @@ def typecheck_if(ts: TypecheckState, stmt: ast.IfStmt) -> List[ir3.Stmt]:
 	else_stmts = typecheck_block(ts, stmt.else_case)
 
 	# TODO: check whether the if statement returns in all branches -- in which case, omit the merge block
-	true_block = ir3.Label(stmt.loc, ts.get_new_label())
-	else_block = ir3.Label(stmt.loc, ts.get_new_label())
-	merge_block = ir3.Label(stmt.loc, ts.get_new_label())
+	true_label = ir3.Label(stmt.loc, ts.get_new_label())
+	else_label = ir3.Label(stmt.loc, ts.get_new_label())
+	merge_label = ir3.Label(stmt.loc, ts.get_new_label())
 
 	stmts += [
-		ir3.CondBranch(stmt.condition.loc, cv, true_block.name),
-		true_block,
-	] + true_stmts + [
-		ir3.Branch(true_stmts[0].loc, merge_block.name),
-		else_block
+		ir3.CondBranch(stmt.condition.loc, cv, true_label.name),
+		else_label,
 	] + else_stmts + [
-		ir3.Branch(else_stmts[0].loc, merge_block.name),
-		merge_block
+		ir3.Branch(true_stmts[0].loc, merge_label.name),
+		true_label
+	] + true_stmts + [
+		ir3.Branch(else_stmts[0].loc, merge_label.name),
+		merge_label
 	]
 
 	return stmts
@@ -505,15 +505,16 @@ def typecheck_while(ts: TypecheckState, stmt: ast.WhileLoop) -> List[ir3.Stmt]:
 	body_stmts = typecheck_block(ts, stmt.body)
 
 	# TODO: check whether the while loop returns in all branches -- in which case, omit the merge block
-	body_block = ir3.Label(stmt.loc, ts.get_new_label())
-	merge_block = ir3.Label(stmt.loc, ts.get_new_label())
+	body_label = ir3.Label(stmt.loc, ts.get_new_label())
+	merge_label = ir3.Label(stmt.loc, ts.get_new_label())
 
 	# there's no break or continue, so there's no need to keep track of any of that.
 	return stmts + [
-		ir3.CondBranch(stmt.condition.loc, cv, body_block.name),
-		body_block
+		ir3.CondBranch(stmt.condition.loc, cv, body_label.name),
+		ir3.Branch(body_stmts[0].loc, merge_label.name),
+		body_label
 	] + body_stmts + [
-		merge_block
+		merge_label
 	]
 
 
@@ -646,6 +647,102 @@ def typecheck_block(ts: TypecheckState, block: ast.Block) -> List[ir3.Stmt]:
 
 
 
+
+def convert_to_basic_blocks(ts: TypecheckState, stmts: List[ir3.Stmt]) -> List[ir3.BasicBlock]:
+	blocks: List[ir3.BasicBlock] = []
+	block_names: Dict[str, ir3.BasicBlock] = {}
+
+	entry = ir3.BasicBlock(".entry", [], None)
+	blocks.append(entry)
+
+	current = entry
+
+	exited_block = False
+	did_warn = False
+	for i in range(0, len(stmts)):
+		stmt = stmts[i]
+
+		if isinstance(stmt, ir3.Label):
+			if stmt.name in block_names:
+				current = block_names[stmt.name]
+			else:
+				blk = ir3.BasicBlock(stmt.name, [], current)
+				current = blk
+
+			# note we don't append 'stmt' to stmts here because... a label is not even a real statement
+
+			# note that the blocks must be in sequential order (due to the dumb fallthrough design of ir3),
+			# so we only add to the list of blocks when we encounter the label, even if the block object
+			# itself was created earlier by a jump to it.
+			blocks.append(current)
+
+			# of course, reset the flag when we go into a new block
+			exited_block = False
+			did_warn = False
+			continue
+
+		# if we're already out of the block, don't do anything with this statement
+		# (especially not adding it to the basic block)
+		if exited_block:
+			if not did_warn and not isinstance(stmt, ir3.Branch):
+				print_warning(stmt.loc, f"unreachable statement")
+				did_warn = True
+			continue
+
+		if isinstance(stmt, ir3.Branch):
+			current.stmts.append(stmt)
+			exited_block = True
+
+		elif isinstance(stmt, ir3.CondBranch):
+			current.stmts.append(stmt)
+
+			# now this requires a bit of finesse. basic blocks are not supposed to fall through, but
+			# stupid ir3 does not implement conditional branches "properly" to support that. so, we
+			# assume that there is an implicit jump, just by setting the parent of both true and false
+			# cases to this block.
+
+			true_blk = ir3.BasicBlock(stmt.label, [], current)
+
+			# don't add a superfluous block. most of the time, our codegen already has a false block
+			if i < len(stmts) and isinstance(stmts[i + 1], ir3.Label):
+				next_ = cast(ir3.Label, stmts[i + 1])
+				else_blk = ir3.BasicBlock(next_.name, [], current)
+			else:
+				else_blk = ir3.BasicBlock(ts.get_new_label(), [], current)
+				blocks.append(else_blk)
+
+			block_names[true_blk.name] = true_blk
+			block_names[else_blk.name] = else_blk
+
+			# the current block is now the else block, due to fallthrough.
+			current = else_blk
+			exited_block = False
+			did_warn = False
+
+		elif isinstance(stmt, ir3.ReturnStmt):
+			current.stmts.append(stmt)
+			exited_block = True
+
+		else:
+			current.stmts.append(stmt)
+
+	return blocks
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 def typecheck_method(ts: TypecheckState, meth: ast.MethodDefn) -> ir3.FuncDefn:
 	ts.push_scope()
 
@@ -704,8 +801,11 @@ def typecheck_method(ts: TypecheckState, meth: ast.MethodDefn) -> ir3.FuncDefn:
 
 	ts.pop_scope()
 	ts.pop_scope()
+
+	blocks = convert_to_basic_blocks(ts, stmts)
+
 	return ir3.FuncDefn(meth.loc, mangle_name(meth.name, method_type), method_type.clsname, params,
-		method_type.retty, vars, stmts)
+		method_type.retty, vars, blocks)
 
 
 
@@ -776,29 +876,3 @@ def typecheck_program(program: ast.Program) -> ir3.Program:
 		e.throw()
 
 
-
-
-
-
-
-"""
-class ExprStmt(Stmt):
-class FuncCall(Expr):
-class BinaryOp(Expr):       // done
-class UnaryOp(Expr):        // done
-class VarRef(Expr):         // done
-class NewExpr(Expr):        // done
-class StringLit(Expr):      // done
-class BooleanLit(Expr):     // done
-class IntegerLit(Expr):     // done
-class NullLit(Expr):        // done
-class ThisLit(Expr):        // done
-class ParenExpr(Expr):      // done
-class DotOp(Expr):          // done
-class ReadLnCall(Stmt):     // done
-class PrintLnCall(Stmt):    // done
-class ReturnStmt(Stmt):     // done
-class AssignStmt(Stmt):     // done
-class IfStmt(Stmt):         // done
-class WhileLoop(Stmt):      // done
-"""

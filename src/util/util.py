@@ -51,9 +51,7 @@ def colourise(msg: str, colour: str) -> str:
 
 TAB_WIDTH = 4
 
-def print_error_msg(loc: Location, msg: str) -> None:
-	print(f"{loc}: {colourise('error:', '1;31m')} {colourise(msg, '1m')}")
-
+def print_context(loc: Location, colour: str) -> None:
 	# print the gutter
 	gutter_width = 4 + len(str(1 + loc.line))
 
@@ -68,7 +66,17 @@ def print_error_msg(loc: Location, msg: str) -> None:
 
 		print(f"{' ' * (gutter_width - 2)}| ")
 		print(     f" {1 + loc.line} |     {trimmed_code}")
-		print(f"{' ' * (gutter_width - 2)}| {colourise(arrow, '1;31m')}")
+		print(f"{' ' * (gutter_width - 2)}| {colourise(arrow, colour)}")
+
+
+def print_error_msg(loc: Location, msg: str) -> None:
+	print(f"{loc}: {colourise('error:', '1;31m')} {colourise(msg, '1m')}")
+	print_context(loc, "1;31m")
+
+def print_warning(loc: Location, msg: str) -> None:
+	print(f"{loc}: {colourise('warning:', '1;35m')} {colourise(msg, '1m')}")
+	print_context(loc, "1;35m")
+
 
 
 

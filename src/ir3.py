@@ -247,16 +247,28 @@ class ClassDefn:
 		return f"class {self.name}\n" + "{\n" \
 			+ "\n".join(map(lambda x: f"    {x};", self.fields)) + "\n}"
 
+class BasicBlock:
+	def __init__(self, name: str, stmts: List[Stmt], parent: Optional[BasicBlock]) -> None:
+		self.name: str = name
+		self.stmts: List[Stmt] = stmts
+		self.parent: Optional[BasicBlock] = parent
+
+	def __str__(self) -> str:
+		return f"  Label {self.name}:\n" \
+			+ "\n".join(map(lambda x: f"    {x}", self.stmts))
+
+
+
 class FuncDefn:
 	def __init__(self, loc: Location, name: str, parent: str, params: List[VarDecl], return_type: str,
-				 vars: List[VarDecl], body: List[Stmt]) -> None:
+				 vars: List[VarDecl], blocks: List[BasicBlock]) -> None:
 		self.loc: Location = loc
 		self.name: str = name
 		self.parent: str = parent
 		self.params: List[VarDecl] = params
 		self.return_type: str = return_type
 		self.vars: List[VarDecl] = vars
-		self.body: List[Stmt] = body
+		self.blocks: List[BasicBlock] = blocks
 
 	def __str__(self) -> str:
 		tmp1 = ", ".join(map(str, self.params))
@@ -264,8 +276,8 @@ class FuncDefn:
 
 		return f"{self.return_type} {self.name}({tmp1})" \
 			+ "\n{\n" + "\n".join(map(lambda x: indent_lines(x), tmp2)) \
-			+ ("\n" if len(self.vars) > 0 else "") \
-			+ "\n".join(map(lambda x: indent_lines(str(x)), self.body)) \
+			+ ("\n\n" if len(self.vars) > 0 else "") \
+			+ "\n".join(map(str, self.blocks)) \
 			+ "\n}"
 
 class Program:

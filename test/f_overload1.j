@@ -3,7 +3,7 @@ class Main
 	Void main()
 	{
 		KEKW a;
-		// new KEKW().foo();
+		new KEKW().foo(1);
 		if (a.foo(69) || a.bar(420) && 1 < 2) {
 			println("kekw");
 		} else {
