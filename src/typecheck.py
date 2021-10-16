@@ -57,6 +57,9 @@ class TypecheckState:
 		self.tmpvars: Dict[str, ir3.VarDecl] = dict()
 		self.label_num = 0
 
+		# we have no nested functions, so a single value is sufficient.
+		self.current_fn_type: Union[None, FuncType] = None
+
 	def get_new_label(self) -> str:
 		self.label_num += 1
 		return f".L{self.label_num}"
@@ -88,6 +91,8 @@ class TypecheckState:
 
 		self.classes[cls.name] = cls
 
+	def enter_function(self, fn: FuncType):
+		self.current_fn_type = fn
 
 
 	def is_valid_type(self, name: str) -> bool:
@@ -136,6 +141,8 @@ class TypecheckState:
 		else:
 			raise TCException(value.loc, "unknown ir3.Value kind")
 
+	def is_compatible_assignment(self, target_ty: str, value_ty: str) -> bool:
+		return (target_ty == value_ty) or (value_ty == "$NullObject" and self.is_object_type(target_ty))
 
 
 	def push_scope(self) -> None:
@@ -162,14 +169,9 @@ def find_overload(ts: TypecheckState, arg_types: List[str], overloads: List[Func
 			return False
 
 		for i in range(0, len(arg_types)):
-			t1 = arg_types[i]
-			t2 = overload[i]
-
-			# it's easier to structure this as a true condition
-			if (t1 == t2) or (t1 == "$NullObject" and ts.is_object_type(t2)):
-				pass
-			else:
+			if not ts.is_compatible_assignment(overload[i], arg_types[i]):
 				return False
+
 		return True
 
 
@@ -326,6 +328,15 @@ def typecheck_expr(ts: TypecheckState, expr: ast.Expr) -> Tuple[List[ir3.Stmt], 
 	elif isinstance(expr, ast.ParenExpr):
 		return typecheck_expr(ts, expr.expr)
 
+	elif isinstance(expr, ast.NewExpr):
+		tmp = ts.make_temp(expr.loc, expr.class_name)
+		return ([
+			ir3.AssignOp(expr.loc, tmp.name, ir3.NewOp(expr.loc, expr.class_name))
+		], ir3.VarRef(expr.loc, tmp.name))
+
+	elif isinstance(expr, ast.ThisLit):
+		return ([], ir3.VarRef(expr.loc, "this"))
+
 	elif isinstance(expr, ast.IntegerLit):
 		return ([], ir3.ConstantInt(expr.loc, expr.value))
 
@@ -469,6 +480,25 @@ def typecheck_if(ts: TypecheckState, stmt: ast.IfStmt) -> List[ir3.Stmt]:
 
 	return stmts
 
+def typecheck_while(ts: TypecheckState, stmt: ast.WhileLoop) -> List[ir3.Stmt]:
+	stmts, cv = typecheck_cond(ts, stmt.condition)
+	body_stmts = typecheck_block(ts, stmt.body)
+
+	# TODO: check whether the while loop returns in all branches -- in which case, omit the merge block
+	body_block = ir3.Label(stmt.loc, ts.get_new_label())
+	merge_block = ir3.Label(stmt.loc, ts.get_new_label())
+
+	# there's no break or continue, so there's no need to keep track of any of that.
+	return stmts + [
+		ir3.CondBranch(stmt.condition.loc, cv, body_block.name),
+		body_block
+	] + body_stmts + [
+		merge_block
+	]
+
+
+
+
 
 def typecheck_assign(ts: TypecheckState, stmt: ast.AssignStmt) -> List[ir3.Stmt]:
 	# this is analogous to the (Value, Ptr) return in flax, except there's no
@@ -482,7 +512,7 @@ def typecheck_assign(ts: TypecheckState, stmt: ast.AssignStmt) -> List[ir3.Stmt]
 	s2, v2 = typecheck_expr(ts, stmt.rhs)
 
 	def ensure_compatible_types(t1: str, t2: str):
-		if t1 != t2 and not (ts.is_object_type(t1) and t2 == "$NullObject"):
+		if not ts.is_compatible_assignment(t1, t2):
 			raise TCException(stmt.loc, f"incompatible types in assignment (assigning '{t2}' to '{t1}')")
 
 
@@ -538,6 +568,22 @@ def typecheck_assign(ts: TypecheckState, stmt: ast.AssignStmt) -> List[ir3.Stmt]
 	]
 
 
+def typecheck_return(ts: TypecheckState, stmt: ast.ReturnStmt) -> List[ir3.Stmt]:
+	assert ts.current_fn_type is not None
+	retty = ts.current_fn_type.retty
+
+	if stmt.value is not None:
+		s, v = typecheck_expr(ts, stmt.value)
+		if not ts.is_compatible_assignment(retty, (vt := ts.get_value_type(v))):
+			raise TCException(v.loc, f"incompatible value in return; function returns '{retty}', value has type '{vt}'")
+
+		return [ ir3.ReturnStmt(stmt.loc, v) ]
+	else:
+		if retty != "Void":
+			raise TCException(stmt.loc, f"invalid void return in function returning '{retty}'")
+
+		return [ ir3.ReturnStmt(stmt.loc, None) ]
+
 
 
 
@@ -555,11 +601,21 @@ def typecheck_stmt(ts: TypecheckState, stmt: ast.Stmt) -> List[ir3.Stmt]:
 	elif isinstance(stmt, ast.IfStmt):
 		return typecheck_if(ts, stmt)
 
+	elif isinstance(stmt, ast.WhileLoop):
+		return typecheck_while(ts, stmt)
+
 	elif isinstance(stmt, ast.AssignStmt):
 		return typecheck_assign(ts, stmt)
 
-	print(f"warning: unhandled statement {type(stmt)}")
-	return []
+	elif isinstance(stmt, ast.ReturnStmt):
+		return typecheck_return(ts, stmt)
+
+	elif isinstance(stmt, ast.ExprStmt):
+		return typecheck_expr(ts, stmt.expr)[0]
+
+	else:
+		raise TCException(stmt.loc, f"unhandled statement {type(stmt)}")
+
 
 def typecheck_block(ts: TypecheckState, block: ast.Block) -> List[ir3.Stmt]:
 	return reduce(lambda a, b: a + b, map(lambda s: typecheck_stmt(ts, s), block.stmts))
@@ -613,6 +669,9 @@ def typecheck_method(ts: TypecheckState, meth: ast.MethodDefn) -> ir3.FuncDefn:
 		vars.append(t)
 		ts.add_var(t)
 
+	method_type = get_method_type(meth)
+	ts.enter_function(method_type)
+
 	stmts = typecheck_block(ts, meth.body)
 
 	# whatever vars are in the innermost scope will be a combination of the original vars as well as
@@ -622,8 +681,8 @@ def typecheck_method(ts: TypecheckState, meth: ast.MethodDefn) -> ir3.FuncDefn:
 
 	ts.pop_scope()
 	ts.pop_scope()
-	return ir3.FuncDefn(meth.loc, mangle_name(meth.name, get_method_type(meth)), meth.parent.name,
-		params, meth.return_type, vars, stmts)
+	return ir3.FuncDefn(meth.loc, mangle_name(meth.name, method_type), method_type.clsname, params,
+		method_type.retty, vars, stmts)
 
 
 
@@ -705,18 +764,18 @@ class FuncCall(Expr):
 class BinaryOp(Expr):       // done
 class UnaryOp(Expr):        // done
 class VarRef(Expr):         // done
-class NewExpr(Expr):
+class NewExpr(Expr):        // done
 class StringLit(Expr):      // done
 class BooleanLit(Expr):     // done
 class IntegerLit(Expr):     // done
 class NullLit(Expr):        // done
-class ThisLit(Expr):
+class ThisLit(Expr):        // done
 class ParenExpr(Expr):      // done
 class DotOp(Expr):          // done
 class ReadLnCall(Stmt):     // done
 class PrintLnCall(Stmt):    // done
-class ReturnStmt(Stmt):
+class ReturnStmt(Stmt):     // done
 class AssignStmt(Stmt):     // done
 class IfStmt(Stmt):         // done
-class WhileLoop(Stmt):
+class WhileLoop(Stmt):      // done
 """

@@ -3,7 +3,6 @@ class Main
 	Void main()
 	{
 		KEKW a;
-		KEKW b;
 		// new KEKW().foo();
 		if (a.foo(69) || a.bar(420) && 1 < 2) {
 			println("kekw");
@@ -11,7 +10,7 @@ class Main
 			println("asdf");
 		}
 		a.kek().b = ((69));
-		a = b;
+		a = new KEKW();
 	}
 }
 
