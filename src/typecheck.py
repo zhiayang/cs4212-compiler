@@ -239,9 +239,6 @@ def typecheck_dotop(ts: TypecheckState, dot: ast.DotOp) -> Tuple[List[ir3.Stmt],
 	stmts, left = typecheck_expr(ts, dot.lhs)
 	left_ty = ts.get_value_type(left)
 
-	print(f"lhs = '{dot.lhs}'")
-	print(f"left = {left_ty}")
-
 	if not ts.is_object_type(left_ty) or left_ty == "String":
 		raise TCException(dot.loc, f"value of type '{left_ty}' does not have any fields or methods")
 
@@ -326,6 +323,9 @@ def typecheck_expr(ts: TypecheckState, expr: ast.Expr) -> Tuple[List[ir3.Stmt], 
 	elif isinstance(expr, ast.FuncCall):
 		raise TCException(expr.loc, f"call: {expr.func}")
 
+	elif isinstance(expr, ast.ParenExpr):
+		return typecheck_expr(ts, expr.expr)
+
 	elif isinstance(expr, ast.IntegerLit):
 		return ([], ir3.ConstantInt(expr.loc, expr.value))
 
@@ -375,7 +375,6 @@ def typecheck_cond(ts: TypecheckState, expr: ast.Expr) -> Tuple[List[ir3.Stmt], 
 
 			result = ts.make_temp(expr.loc, "Bool")
 
-			# ir3 is dumb, and you cannot convince me otherwise.
 			ltrue_block = ir3.Label(expr.lhs.loc, ts.get_new_label())
 			rtrue_block = ir3.Label(expr.lhs.loc, ts.get_new_label())
 			merge_block = ir3.Label(expr.lhs.loc, ts.get_new_label())
@@ -449,7 +448,96 @@ def typecheck_cond(ts: TypecheckState, expr: ast.Expr) -> Tuple[List[ir3.Stmt], 
 
 def typecheck_if(ts: TypecheckState, stmt: ast.IfStmt) -> List[ir3.Stmt]:
 	stmts, cv = typecheck_cond(ts, stmt.condition)
+	true_stmts = typecheck_block(ts, stmt.true_case)
+	else_stmts = typecheck_block(ts, stmt.else_case)
+
+	# TODO: check whether the if statement returns in all branches -- in which case, omit the merge block
+	true_block = ir3.Label(stmt.loc, ts.get_new_label())
+	else_block = ir3.Label(stmt.loc, ts.get_new_label())
+	merge_block = ir3.Label(stmt.loc, ts.get_new_label())
+
+	stmts += [
+		ir3.CondBranch(stmt.condition.loc, cv, true_block.name),
+		true_block,
+	] + true_stmts + [
+		ir3.Branch(true_stmts[0].loc, merge_block.name),
+		else_block
+	] + else_stmts + [
+		ir3.Branch(else_stmts[0].loc, merge_block.name),
+		merge_block
+	]
+
 	return stmts
+
+
+def typecheck_assign(ts: TypecheckState, stmt: ast.AssignStmt) -> List[ir3.Stmt]:
+	# this is analogous to the (Value, Ptr) return in flax, except there's no
+	# getelementptr here. in this case, we just manually generate the lhs-left,
+	# store it in a temp, (and we know the rhs must be an identifier), then use
+	# the IR3 "a.b = c" construction.
+
+	# note that this works (we can just generate the left side of a dotop (eg. in `a.b.c`, `a.b`)
+	# normally, because all class types (ie. anything that has fields) are pointers in jlite,
+	# so their value is just their address -- no copies or anything involved. all pointer semantics.
+	s2, v2 = typecheck_expr(ts, stmt.rhs)
+
+	def ensure_compatible_types(t1: str, t2: str):
+		if t1 != t2 and not (ts.is_object_type(t1) and t2 == "$NullObject"):
+			raise TCException(stmt.loc, f"incompatible types in assignment (assigning '{t2}' to '{t1}')")
+
+
+	if isinstance(stmt.lhs, ast.DotOp):
+		dot: ast.DotOp = stmt.lhs
+
+		# typecheck the left side of the dotop separately (eg. for `a.b.c = 69`, generate `a.b` first)
+		s1, v1 = typecheck_expr(ts, dot.lhs)
+		tmp = ts.make_temp(dot.lhs.loc, ts.get_value_type(v1))
+		stmts: List[ir3.Stmt] = s1 + [ ir3.AssignOp(tmp.loc, tmp.name, ir3.ValueExpr(tmp.loc, v1)) ] + s2
+
+		if not isinstance(dot.rhs, ast.VarRef):
+			raise TCException(stmt.rhs.loc, f"expected identifier on rhs of '.' in assignment")
+
+		# check that the thing on the left has such a field
+		field_name = dot.rhs.name
+		lhs_ty = ts.get_value_type(v1)
+
+		if not ts.is_object_type(lhs_ty):
+			raise TCException(stmt.rhs.loc, f"cannot access field '{field_name}' on non-class type '{lhs_ty}'")
+
+		field_ty: str = ""
+		cls = ts.get_class_decl(dot.loc, lhs_ty)
+		for f in cls.fields:
+			if f.name == field_name:
+				field_ty = f.type
+				break
+
+		if field_ty == "":
+			raise TCException(stmt.rhs.loc, f"type '{cls.name}' has no field named '{field_name}'")
+
+		ensure_compatible_types(field_ty, ts.get_value_type(v2))
+		return stmts + [
+			ir3.AssignDotOp(stmt.loc, tmp.name, field_name, ir3.ValueExpr(stmt.rhs.loc, v2))
+		]
+
+		assert False and "unreachable"
+
+	# normal var = var
+	if not isinstance(stmt.lhs, ast.VarRef):
+		raise TCException(stmt.rhs.loc, f"expected identifier on lhs in assignment")
+
+	# ignore whatever (not important -- we just need to ensure the variable exists and all that)
+	s1, v1 = typecheck_expr(ts, stmt.lhs)
+	assert len(s1) == 0
+
+	t1 = ts.get_value_type(v1)
+	t2 = ts.get_value_type(v2)
+	ensure_compatible_types(t1, t2)
+
+	return s1 + s2 + [
+		ir3.AssignOp(stmt.loc, stmt.lhs.name, ir3.ValueExpr(stmt.rhs.loc, v2))
+	]
+
+
 
 
 
@@ -460,14 +548,21 @@ def typecheck_if(ts: TypecheckState, stmt: ast.IfStmt) -> List[ir3.Stmt]:
 def typecheck_stmt(ts: TypecheckState, stmt: ast.Stmt) -> List[ir3.Stmt]:
 	if isinstance(stmt, ast.ReadLnCall):
 		return typecheck_readln(ts, stmt)
+
 	elif isinstance(stmt, ast.PrintLnCall):
 		return typecheck_println(ts, stmt)
+
 	elif isinstance(stmt, ast.IfStmt):
 		return typecheck_if(ts, stmt)
 
+	elif isinstance(stmt, ast.AssignStmt):
+		return typecheck_assign(ts, stmt)
+
+	print(f"warning: unhandled statement {type(stmt)}")
 	return []
 
-
+def typecheck_block(ts: TypecheckState, block: ast.Block) -> List[ir3.Stmt]:
+	return reduce(lambda a, b: a + b, map(lambda s: typecheck_stmt(ts, s), block.stmts))
 
 
 
@@ -518,7 +613,7 @@ def typecheck_method(ts: TypecheckState, meth: ast.MethodDefn) -> ir3.FuncDefn:
 		vars.append(t)
 		ts.add_var(t)
 
-	stmts: List[ir3.Stmt] = reduce(lambda a, b: a + b, map(lambda s: typecheck_stmt(ts, s), meth.body.stmts))
+	stmts = typecheck_block(ts, meth.body)
 
 	# whatever vars are in the innermost scope will be a combination of the original vars as well as
 	# any temporaries that we need. we need to hoist all tmpvar declarations to the top of the function.
@@ -597,3 +692,31 @@ def typecheck_program(program: ast.Program) -> ir3.Program:
 
 	except TCException as e:
 		e.throw()
+
+
+
+
+
+
+
+"""
+class ExprStmt(Stmt):
+class FuncCall(Expr):
+class BinaryOp(Expr):       // done
+class UnaryOp(Expr):        // done
+class VarRef(Expr):         // done
+class NewExpr(Expr):
+class StringLit(Expr):      // done
+class BooleanLit(Expr):     // done
+class IntegerLit(Expr):     // done
+class NullLit(Expr):        // done
+class ThisLit(Expr):
+class ParenExpr(Expr):      // done
+class DotOp(Expr):          // done
+class ReadLnCall(Stmt):     // done
+class PrintLnCall(Stmt):    // done
+class ReturnStmt(Stmt):
+class AssignStmt(Stmt):     // done
+class IfStmt(Stmt):         // done
+class WhileLoop(Stmt):
+"""

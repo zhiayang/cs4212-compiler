@@ -13,3 +13,4 @@ parser:
 typecheck:
 	@mypy gen.py
 	@python gen.py test/f_overload1.j
+	@python gen.py test/prog1.j
