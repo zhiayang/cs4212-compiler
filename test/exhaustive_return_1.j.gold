@@ -1,0 +1,55 @@
+class Main
+{
+
+}
+
+class Foo
+{
+    String asdf;
+}
+
+Void main(Main this)
+{
+    Foo f;
+    Int a;
+    Int _t0;
+
+  Label .entry:
+    if (true) goto .L1;
+  Label .L2:
+    println(420);
+    goto .L3;
+  Label .L1:
+    println(69);
+    goto .L3;
+  Label .L3:
+    _t0 = _J3Foo_3barE(f);
+    a = _t0;
+    println(a);
+    return;
+}
+
+Int _J3Foo_3barE(Foo this)
+{
+  Label .entry:
+    println("a");
+    if (false) goto .L10;
+  Label .L11:
+    println(4);
+    if (true) goto .L7;
+  Label .L8:
+    return 1;
+  Label .L7:
+    this.asdf = "foozle";
+    goto .L4;
+  Label .L4:
+    if (true) goto .L5;
+    goto .L6;
+  Label .L5:
+    println("kekw");
+    goto .L4;
+  Label .L6:
+    return 0;
+  Label .L10:
+    return 69;
+}

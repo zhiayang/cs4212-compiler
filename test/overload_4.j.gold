@@ -1,0 +1,4 @@
+test/overload_4.j:8:19: error: method 'kekw' in class 'Foo' has no overload taking arguments '['String', 'Int']'
+   |
+ 8 |     new Foo().kekw("owo", 69420);
+   |               ^

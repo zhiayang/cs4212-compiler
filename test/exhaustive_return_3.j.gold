@@ -1,0 +1,4 @@
+test/exhaustive_return_3.j:21:9: error: non-void function does not return a value in all control paths
+    |
+ 21 |     println("a");
+    |     ^

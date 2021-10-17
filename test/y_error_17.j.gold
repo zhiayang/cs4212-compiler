@@ -1,0 +1,4 @@
+test/y_error_17.j:12:5: error: fields cannot have 'Void' type
+    |
+ 12 |     Void x;
+    |     ^

@@ -1,0 +1,27 @@
+class Main
+{
+
+}
+
+Void main(Main this)
+{
+    Int a;
+    Int b;
+    Int c;
+    Int d;
+    Int e;
+    Int f;
+    Bool x;
+    Bool y;
+
+  Label .entry:
+    a = 9490;
+    b = -2987843;
+    c = 3805066;
+    d = 3660264;
+    e = 1;
+    f = -1;
+    x = true;
+    y = true;
+    return;
+}

@@ -1,0 +1,152 @@
+test/x_misc_ok.j:30:12: warning: unreachable statement
+    |
+ 30 |     i4 = 1 + 2;
+    |        ^
+class Uwu
+{
+
+}
+
+class A
+{
+    A a;
+    Int i1;
+    Int i2;
+    String s1;
+}
+
+Void main(Uwu this)
+{
+    Int i1;
+    Int i2;
+    Int i3;
+    Int i4;
+    Bool b;
+    String s;
+    A a;
+    Int _t0;
+    Int _t1;
+    Int _t2;
+    Int _t3;
+    Int _t4;
+    String _t5;
+    String _t6;
+    String _t7;
+    A _t8;
+    A _t9;
+    Void _t10;
+
+  Label .entry:
+    i1 = 489;
+    _t0 = i1 + i2;
+    i2 = _t0;
+    _t1 = i1 + i1;
+    _t2 = _t1 + i1;
+    _t3 = _t2 + i1;
+    _t4 = _t3 + 69420;
+    i3 = _t4;
+    i4 = i1;
+    b = false;
+    s = "ab";
+    _t5 = "a" + s;
+    s = _t5;
+    s = null;
+    _t6 = "1 + 2" + s;
+    _t7 = _t6 + "3 + 4";
+    s = _t7;
+    _t8 = new A();
+    a = _t8;
+    a = null;
+    _t9 = new A();
+    _t10 = _J1A_3fooiE(_t9, 69);
+    return;
+}
+
+Void _J1A_3fooiE(A this, Int x)
+{
+    A _t0;
+    Int _t1;
+    Int _t2;
+    Int _t3;
+    A _t4;
+    A _t5;
+    A _t6;
+    Int _t7;
+    Int _t8;
+    A _t9;
+    Int _t10;
+    A _t11;
+    A _t12;
+    A _t13;
+    A _t14;
+    A _t15;
+    A _t16;
+    A _t17;
+    A _t18;
+    A _t19;
+    Int _t20;
+    A _t21;
+    A _t22;
+    A _t23;
+    A _t24;
+    A _t25;
+    A _t26;
+    A _t27;
+    A _t28;
+
+  Label .entry:
+    this.a = null;
+    _t0 = new A();
+    this.a = _t0;
+    _t1 = this.i2;
+    _t2 = x + _t1;
+    this.i1 = _t2;
+    _t4 = this.a;
+    _t5 = _t4;
+    _t3 = this.i1;
+    _t5.i1 = _t3;
+    _t6 = this.a;
+    _t7 = _t6.i2;
+    this.i2 = _t7;
+    _t9 = this;
+    _t8 = this.i1;
+    _t9.i1 = _t8;
+    _t11 = this;
+    _t10 = this.i2;
+    _t11.i2 = _t10;
+    _t12 = this.a;
+    _t13 = _J1A_1aE(_t12);
+    _t14 = _J1A_1aE(_t13);
+    _t15 = _J1A_1aE(_t14);
+    _t16 = _J1A_1aE(_t15);
+    _t17 = _J1A_1aE(_t16);
+    _t18 = _J1A_1aE(_t17);
+    _t19 = _J1A_1aE(_t18);
+    _t20 = _J1A_3barE(_t19);
+    println(_t20);
+    _t21 = this.a;
+    _t22 = _J1A_1aE(_t21);
+    _t23 = _J1A_1aE(_t22);
+    _t24 = _J1A_1aE(_t23);
+    _t25 = _J1A_1aE(_t24);
+    _t26 = _J1A_1aE(_t25);
+    _t27 = _t26;
+    _t27.i1 = 69;
+    _t28 = this;
+    _t28.i1 = 420;
+    return;
+}
+
+Int _J1A_3barE(A this)
+{
+  Label .entry:
+    return 69;
+}
+
+A _J1A_1aE(A this)
+{
+    A _t0;
+
+  Label .entry:
+    return _t0;
+}

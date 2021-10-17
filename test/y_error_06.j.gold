@@ -1,0 +1,4 @@
+test/y_error_06.j:7:19: error: incompatible types 'Int' and 'String' for operator '<'
+   |
+ 7 |     println(a < b);
+   |               ^

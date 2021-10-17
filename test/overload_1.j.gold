@@ -1,0 +1,79 @@
+class Main
+{
+
+}
+
+class Foo
+{
+
+}
+
+Void main(Main this)
+{
+    Foo foo;
+    Int int;
+    Bool bool;
+    String string;
+    Foo _t0;
+    Int _t1;
+    Foo _t2;
+    Bool _t3;
+    Foo _t4;
+    String _t5;
+    Foo _t6;
+    Foo _t7;
+    Foo _t8;
+
+  Label .entry:
+    _t0 = new Foo();
+    _t1 = _J3Foo_4kekwiiE(_t0, 69, 420);
+    int = _t1;
+    _t2 = new Foo();
+    _t3 = _J3Foo_4kekwbbE(_t2, true, false);
+    bool = _t3;
+    _t4 = new Foo();
+    _t5 = _J3Foo_4kekwssE(_t4, "omega", "lul");
+    string = _t5;
+    _t6 = new Foo();
+    _t7 = new Foo();
+    _t8 = _J3Foo_4kekw3FoosE(_t6, _t7, "uwu");
+    foo = _t8;
+    println(int);
+    println(bool);
+    println(string);
+    return;
+}
+
+Int _J3Foo_4kekwiiE(Foo this, Int a, Int b)
+{
+    Int _t0;
+
+  Label .entry:
+    println("kekw(int, int)");
+    return _t0;
+}
+
+Bool _J3Foo_4kekwbbE(Foo this, Bool a, Bool b)
+{
+    Bool _t0;
+
+  Label .entry:
+    println("kekw(bool)");
+    return _t0;
+}
+
+String _J3Foo_4kekwssE(Foo this, String a, String b)
+{
+    String _t0;
+
+  Label .entry:
+    println("kekw(str, str)");
+    return _t0;
+}
+
+Foo _J3Foo_4kekw3FoosE(Foo this, Foo a, String b)
+{
+  Label .entry:
+    println("kekw(Foo, str)");
+    return this;
+}

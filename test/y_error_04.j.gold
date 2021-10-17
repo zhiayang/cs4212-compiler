@@ -1,0 +1,4 @@
+test/y_error_04.j:6:12: error: if-statement condition must be a 'Bool', found 'Int' instead
+   |
+ 6 |     if(a) { println("a"); } else { println("a"); }
+   |        ^

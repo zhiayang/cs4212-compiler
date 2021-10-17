@@ -1,0 +1,4 @@
+test/y_error_05.j:7:23: error: operator '==' cannot be applied on arguments of type 'Uwu'
+   |
+ 7 |     b = new UWU() == new UWU();
+   |                   ^

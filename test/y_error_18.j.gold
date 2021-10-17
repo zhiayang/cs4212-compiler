@@ -1,0 +1,4 @@
+test/y_error_18.j:9:9: error: 'println' can only print expressions of type 'Int', 'Bool', or 'String' -- not 'A'
+   |
+ 9 |     println(new A());
+   |     ^

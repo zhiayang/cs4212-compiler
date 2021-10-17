@@ -31,7 +31,7 @@ class Foo
 		else
 		{
 			println(4);
-			if(69 + 420)
+			if(69 + 420 < 69420)
 			{
 				asdf = "foozle";
 				while(true)

@@ -1,0 +1,17 @@
+class Main
+{
+
+}
+
+Void main(Main this)
+{
+  Label .entry:
+    if (true) goto .L1;
+  Label .L2:
+    println("kekw");
+    goto .L3;
+  Label .L1:
+    return;
+  Label .L3:
+    return;
+}

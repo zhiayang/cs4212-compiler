@@ -228,7 +228,7 @@ def typecheck_binaryop(ts: TypecheckState, bi: ast.BinaryOp) -> Tuple[List[ir3.S
 	allowables = {
 		"Int": ["+", "-", "*", "/", "==", "!=", ">", "<", ">=", "<="],
 		"Bool": ["&&", "||"],
-		"String": ["+"]
+		"String": ["+", "==", "!="]
 	}
 
 	if (allowed := allowables.get(t1)) is None or (bi.op not in allowed):
@@ -360,6 +360,9 @@ def typecheck_expr(ts: TypecheckState, expr: ast.Expr) -> Tuple[List[ir3.Stmt], 
 		return typecheck_expr(ts, expr.expr)
 
 	elif isinstance(expr, ast.NewExpr):
+		if expr.class_name in [ "Int", "Void", "String", "Bool" ]:
+			raise TCException(expr.loc, f"'new' cannot be used for type '{expr.class_name}'")
+
 		tmp = ts.make_temp(expr.loc, expr.class_name)
 		return ([
 			ir3.AssignOp(expr.loc, tmp.name, ir3.NewOp(expr.loc, expr.class_name))
@@ -454,10 +457,10 @@ def typecheck_cond(ts: TypecheckState, expr: ast.Expr) -> Tuple[List[ir3.Stmt], 
 			s2, v2 = typecheck_cond(ts, expr.rhs)
 
 			if (t1 := ts.get_value_type(v1)) != "Bool":
-				raise TCException(v1.loc, f"expected boolean value on lhs of '&&', got '{t1}' instead")
+				raise TCException(v1.loc, f"expected boolean value on lhs of '||', got '{t1}' instead")
 
 			if (t2 := ts.get_value_type(v2)) != "Bool":
-				raise TCException(v2.loc, f"expected boolean value on rhs of '&&', got '{t2}' instead")
+				raise TCException(v2.loc, f"expected boolean value on rhs of '||', got '{t2}' instead")
 
 			result = ts.make_temp(expr.loc, "Bool")
 
@@ -493,6 +496,9 @@ def typecheck_if(ts: TypecheckState, stmt: ast.IfStmt) -> List[ir3.Stmt]:
 	true_stmts = typecheck_block(ts, stmt.true_case)
 	else_stmts = typecheck_block(ts, stmt.else_case)
 
+	if (cvt := ts.get_value_type(cv)) != "Bool":
+		raise TCException(cv.loc, f"if-statement condition must be a 'Bool', found '{cvt}' instead")
+
 	# TODO: check whether the if statement returns in all branches -- in which case, omit the merge block
 	true_label = ir3.Label(stmt.loc, ts.get_new_label())
 	else_label = ir3.Label(stmt.loc, ts.get_new_label())
@@ -515,6 +521,9 @@ def typecheck_while(ts: TypecheckState, stmt: ast.WhileLoop) -> List[ir3.Stmt]:
 
 	cond_label = ir3.Label(stmt.loc, ts.get_new_label())
 	stmts, cv = typecheck_cond(ts, stmt.condition)
+
+	if (cvt := ts.get_value_type(cv)) != "Bool":
+		raise TCException(cv.loc, f"while-loop condition must be a 'Bool', found '{cvt}' instead")
 
 	# note that we need an explicit branch from the preceeding block to the current block,
 	# to have some semblance of basic-block structure. the redundant jump will be removed
@@ -574,7 +583,7 @@ def typecheck_assign(ts: TypecheckState, stmt: ast.AssignStmt) -> List[ir3.Stmt]
 		lhs_ty = ts.get_value_type(v1)
 
 		if not ts.is_object_type(lhs_ty):
-			raise TCException(stmt.rhs.loc, f"cannot access field '{field_name}' on non-class type '{lhs_ty}'")
+			raise TCException(stmt.lhs.loc, f"cannot access field '{field_name}' on non-class type '{lhs_ty}'")
 
 		field_ty: str = ""
 		cls = ts.get_class_decl(dot.loc, lhs_ty)
@@ -689,6 +698,8 @@ def convert_to_basic_blocks(ts: TypecheckState, retty: str, stmts: List[ir3.Stmt
 	assert len(stmts) > 0
 	entry = ir3.BasicBlock(stmts[0].loc, ".entry", [], set())
 	block_names[entry.name] = entry
+	branch_sources[entry.name] = set()
+
 	blocks.append(entry)
 
 	current = entry
@@ -863,26 +874,35 @@ def convert_to_basic_blocks(ts: TypecheckState, retty: str, stmts: List[ir3.Stmt
 
 
 
-def ensure_all_paths_return(ts: TypecheckState, fn: ir3.FuncDefn):
-	# for void-returning functions, all is well.
-	if fn.return_type == "Void":
-		return
+# def ensure_all_paths_return___(ts: TypecheckState, fn: ir3.FuncDefn):
+# 	# for void-returning functions, all is well.
+# 	if fn.return_type == "Void":
+# 		return
 
-	blocks: Dict[str, ir3.BasicBlock] = { name: blk for name, blk in map(lambda b: (b.name, b), fn.blocks) }
+# 	blocks: Dict[str, ir3.BasicBlock] = { name: blk for name, blk in map(lambda b: (b.name, b), fn.blocks) }
 
-	# every block must either branch or return.
-	for blk in fn.blocks:
-		last = blk.stmts[-1] if len(blk.stmts) > 0 else None
-		loc = last.loc if last is not None else blk.loc
-		if not (isinstance(last, ir3.Branch) or isinstance(last, ir3.CondBranch) or isinstance(last, ir3.ReturnStmt)):
-			raise TCException(loc, f"not all control paths return a value (problematic branch is somewhere here)")
-			# print_warning(loc, f"not all control paths return a value ({blk.name})")
-
-
+# 	# every block must either branch or return.
+# 	for blk in fn.blocks:
+# 		last = blk.stmts[-1] if len(blk.stmts) > 0 else None
+# 		loc = last.loc if last is not None else blk.loc
+# 		if not (isinstance(last, ir3.Branch) or isinstance(last, ir3.CondBranch) or isinstance(last, ir3.ReturnStmt)):
+# 			raise TCException(loc, f"non-void function does not return a value in all control paths")
+# 			# print_warning(loc, f"not all control paths return a value ({blk.name})")
 
 
 
+def ensure_all_paths_return(ts: TypecheckState, block: ast.Block) -> Tuple[bool, Optional[Location]]:
+	for stmt in block.stmts:
+		if isinstance(stmt, ast.ReturnStmt):
+			return True, None
 
+		elif isinstance(stmt, ast.IfStmt):
+			a = ensure_all_paths_return(ts, stmt.true_case)
+			b = ensure_all_paths_return(ts, stmt.else_case)
+			if a and b:
+				return True, None
+
+	return False, block.stmts[0].loc
 
 
 
@@ -895,7 +915,8 @@ def ensure_all_paths_return(ts: TypecheckState, fn: ir3.FuncDefn):
 def typecheck_method(ts: TypecheckState, meth: ast.MethodDefn) -> ir3.FuncDefn:
 	ts.push_scope()
 
-	seen = set()
+	param_names = set()
+	local_names = set()
 
 	vars: List[ir3.VarDecl] = []
 	params: List[ir3.VarDecl] = []
@@ -906,9 +927,9 @@ def typecheck_method(ts: TypecheckState, meth: ast.MethodDefn) -> ir3.FuncDefn:
 	ts.add_var(this, is_field = False)
 
 	for param in meth.args:
-		if param.name in seen:
+		if param.name in param_names:
 			raise TCException(param.loc, f"duplicate parameter '{param.name}' in method declaration")
-		seen.add(param.name)
+		param_names.add(param.name)
 
 		if not ts.is_valid_type(param.type) or param.type == "Void":
 			raise TCException(param.loc, f"parameter '{param.name}' has invalid type '{param.type}'")
@@ -925,14 +946,16 @@ def typecheck_method(ts: TypecheckState, meth: ast.MethodDefn) -> ir3.FuncDefn:
 	# need the stack.
 	ts.push_scope()
 
-	seen.clear()
 	for var in meth.vars:
-		if var.name in seen:
+		if var.name in local_names:
 			raise TCException(var.loc, f"duplicate local variable '{var.name}'")
-		seen.add(var.name)
+		elif var.name in param_names:
+			print_warning(var.loc, f"local variable '{var.name}' shadows function parameter")
+
+		local_names.add(var.name)
 
 		if not ts.is_valid_type(var.type) or var.type == "Void":
-			raise TCException(param.loc, f"local variable '{var.name}' has invalid type '{var.type}'")
+			raise TCException(var.loc, f"local variable '{var.name}' has invalid type '{var.type}'")
 
 		t = ir3.VarDecl(var.loc, var.name, var.type)
 		ts.add_var(t, is_field = False)
@@ -955,7 +978,14 @@ def typecheck_method(ts: TypecheckState, meth: ast.MethodDefn) -> ir3.FuncDefn:
 	func = ir3.FuncDefn(meth.loc, mangle_name(meth.name, method_type), method_type.clsname, params,
 		method_type.retty, vars, blocks)
 
-	ensure_all_paths_return(ts, func)
+	# ensure_all_paths_return(ts, func)
+
+	if method_type.retty != "Void":
+		uwu, loc = ensure_all_paths_return(ts, meth.body)
+		if not uwu:
+			assert loc is not None
+			raise TCException(loc, f"non-void function does not return a value in all control paths")
+
 	return func
 
 
@@ -971,6 +1001,9 @@ def typecheck_method(ts: TypecheckState, meth: ast.MethodDefn) -> ir3.FuncDefn:
 def typecheck_class(ts: TypecheckState, cls: ast.ClassDefn) -> Tuple[ir3.ClassDefn, List[ir3.FuncDefn]]:
 	fields: List[ir3.VarDecl] = []
 	seen = set()
+
+	if cls.name in ["Void", "Int", "Bool", "String"]:
+		raise TCException(cls.loc, f"class cannot be named '{cls.name}'")
 
 	for field in cls.fields:
 		if field.name in seen:
@@ -1016,6 +1049,8 @@ def typecheck_program(program: ast.Program) -> ir3.Program:
 		# first, declare all classes and their methods so we know all the valid types.
 		for cls in program.classes:
 			ts.declare_class(cls)
+			ts.func_decls[cls.name] = dict()
+
 			for meth in cls.methods:
 				ts.declare_func(meth)
 

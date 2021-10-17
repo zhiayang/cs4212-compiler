@@ -1,0 +1,4 @@
+test/y_error_20.j:8:16: error: expected class name after 'new'
+   |
+ 8 |     new Int().x = "69";
+   |            ^

@@ -1,0 +1,4 @@
+test/y_error_09.j:6:9: error: duplicate local variable 'a'
+   |
+ 6 |     Int a;
+   |     ^

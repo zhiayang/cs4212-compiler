@@ -1,0 +1,69 @@
+test/shadowing.j:35:9: warning: local variable 'x' shadows function parameter
+    |
+ 35 |     Int x;
+    |     ^
+class Uwu
+{
+
+}
+
+class Owo
+{
+    Int x;
+    Int y;
+}
+
+Void main(Uwu this)
+{
+    Owo _t0;
+    Void _t1;
+
+  Label .entry:
+    _t0 = new Owo();
+    _t1 = _J3Owo_4kekwiiE(_t0, 69, 420);
+    return;
+}
+
+Void _J3Owo_4kekwiiE(Owo this, Int a, Int b)
+{
+    Int _t0;
+    Int _t1;
+    Void _t2;
+
+  Label .entry:
+    this.x = a;
+    this.y = b;
+    _t0 = this.x;
+    _t1 = this.y;
+    _t2 = _J3Owo_5kekw1iiE(this, _t0, _t1);
+    return;
+}
+
+Void _J3Owo_5kekw1iiE(Owo this, Int x, Int y)
+{
+    Owo _t0;
+    Owo _t1;
+    Void _t2;
+
+  Label .entry:
+    x = 1;
+    y = 2;
+    _t0 = this;
+    _t0.x = x;
+    _t1 = this;
+    _t1.y = y;
+    _t2 = _J3Owo_4kekwiiE(this, 69, 420);
+    return;
+}
+
+Void _J3Owo_4kek2iiE(Owo this, Int x, Int y)
+{
+    Int x;
+    Int _t0;
+
+  Label .entry:
+    x = x;
+    _t0 = this.y;
+    y = _t0;
+    return;
+}

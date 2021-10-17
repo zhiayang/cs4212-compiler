@@ -1,0 +1,4 @@
+test/y_error_07.j:6:18: error: value of type 'String' does not have any fields or methods
+   |
+ 6 |     println(s.foo);
+   |              ^

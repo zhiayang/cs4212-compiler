@@ -64,7 +64,7 @@ def print_context(loc: Location, colour: str) -> None:
 
 		arrow = "    " + (' ' * (loc.column - (len(offending_code) - len(trimmed_code)))) + '^'
 
-		print(f"{' ' * (gutter_width - 2)}| ")
+		print(f"{' ' * (gutter_width - 2)}|")
 		print(     f" {1 + loc.line} |     {trimmed_code}")
 		print(f"{' ' * (gutter_width - 2)}| {colourise(arrow, colour)}")
 
