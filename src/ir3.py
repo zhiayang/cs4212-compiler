@@ -4,6 +4,8 @@ from __future__ import annotations
 from typing import *
 from abc import ABC, abstractmethod
 
+import itertools
+
 from .util import Location, escape_string
 
 def indent_lines(x: str) -> str:
@@ -68,8 +70,11 @@ class VarDecl:
 
 
 class Stmt(ABC):
+	counter = itertools.count()
+
 	def __init__(self, loc: Location) -> None:
 		self.loc: Location = loc
+		self.id = next(Stmt.counter)
 
 	@abstractmethod
 	def __str__(self) -> str: ...

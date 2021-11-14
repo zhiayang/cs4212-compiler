@@ -97,3 +97,12 @@ class TCException(Exception):
 	def throw(self) -> NoReturn:
 		print_error_msg(self.loc, self.msg)
 		sys.exit(1)
+
+# this language sucks.
+class CGException(Exception):
+	def __init__(self, msg: str) -> None:
+		self.msg: str = msg
+
+	def throw(self) -> NoReturn:
+		print(f"<unknown loc>: {colourise('error:', '1;31m')} {colourise(self.msg, '1m')}")
+		sys.exit(1)

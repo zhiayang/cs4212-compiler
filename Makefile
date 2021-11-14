@@ -1,6 +1,7 @@
 # Makefile
 
-.PHONY: lexer
+.PHONY: lexer parser typecheck compile
+.DEFAULT_TARGET: compile
 
 lexer:
 	@mypy lex.py
@@ -12,6 +13,8 @@ parser:
 
 typecheck:
 	@mypy gen.py
-	# @python gen.py test/exhaustive_return_1.j
-	# @python gen.py test/f_overload1.j
 	@python gen.py test/prog1.j
+
+compile:
+	@mypy compile.py
+	@python compile.py test/01_simple.j

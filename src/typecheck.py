@@ -600,8 +600,6 @@ def typecheck_assign(ts: TypecheckState, stmt: ast.AssignStmt) -> List[ir3.Stmt]
 			ir3.AssignDotOp(stmt.loc, tmp.name, field_name, ir3.ValueExpr(stmt.rhs.loc, v2))
 		]
 
-		assert False and "unreachable"
-
 	# normal var = var
 	if not isinstance(stmt.lhs, ast.VarRef):
 		raise TCException(stmt.rhs.loc, f"expected identifier on lhs in assignment")
