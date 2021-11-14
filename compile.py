@@ -1,6 +1,8 @@
 #!/usr/bin/env python
 
 import sys
+import os
+
 from src.util import *
 from src import typecheck
 from src import codegen
@@ -22,4 +24,8 @@ if __name__ == "__main__":
 	prog = parse_file(sys.argv[1])
 	ir3p = typecheck.typecheck_program(prog)
 	asms = codegen.codegen(ir3p, opt=False)
-	print('\n'.join(asms))
+
+	out_file = os.path.splitext(sys.argv[1])[0] + ".s"
+	with open(out_file, "w") as f:
+		f.write('\n'.join(asms))
+		f.write("\n")

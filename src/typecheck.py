@@ -242,6 +242,9 @@ def typecheck_binaryop(ts: TypecheckState, bi: ast.BinaryOp) -> Tuple[List[ir3.S
 	tmp = ts.make_temp(bi.loc, result)
 	binop = ir3.BinaryOp(bi.loc, v1, bi.op, v2)
 
+	if t1 == "String":
+		binop.strs = True
+
 	stmts = s1 + s2
 	stmts.append(ir3.AssignOp(bi.loc, tmp.name, binop))
 	return (stmts, ir3.VarRef(bi.loc, tmp.name))

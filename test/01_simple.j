@@ -11,6 +11,9 @@ class Foo
 {
 	Int foo(Int x, Int y)
 	{
-		return 2 * x + y;
+		Int k;
+		k = 3 * x + y;
+		// if(k == 1) { return x; } else { return k; }
+		return k;
 	}
 }
