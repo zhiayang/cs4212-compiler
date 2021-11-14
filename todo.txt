@@ -1,0 +1,14 @@
+TODO
+
+1. all the other statement and expression types
+2. a not-3head register allocation scheme. presumably this entails:
+	- liveness analysis
+	- probably go with the graph colouring method
+	- `VarState` needs to account for the current statement
+
+3. constants > 4095 need to be handled
+	- either do `ldr reg, =#999999`, or...
+	- manually construct the value using instructions (potentially up to 3 instructions)
+
+5. strings...
+6. long division

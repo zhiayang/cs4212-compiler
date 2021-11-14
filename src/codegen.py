@@ -44,6 +44,25 @@ class CodegenState:
 	def set_prologue(self, label: str) -> None:
 		self.prologue_label = label
 
+	# not re-entrant, but then again nothing in this compiler is reentrant
+	# basically this makes all emit calls not add to the big list of instructions
+	# immediately; this is so we have a chance to insert the prologue/epilogue.
+	def begin_scope(self) -> None:
+		self.old_lines = self.lines
+		self.lines = []
+
+	# this gets the lines that were sent to the gulag
+	def get_scoped(self) -> List[str]:
+		return self.lines
+
+	# this ends the scope, *discarding* any lines that were in the gulag
+	def end_scope(self) -> None:
+		self.lines = self.old_lines
+
+	def emit_lines(self, lines: List[str]) -> None:
+		self.lines += lines
+
+
 
 class CGClass:
 	def __init__(self, cs: CodegenState, cls: ir3.ClassDefn) -> None:
@@ -138,7 +157,7 @@ class VarState:
 
 		self.registers: Dict[str, str] = {
 			"a1": "", "a2": "", "a3": "", "a4": "",
-			"v1": "", "v2": "", "v3": "", "v4": "", "v5": "", "v6": ""
+			"v1": "", "v2": "", "v3": "", "v4": "", "v5": ""
 		}
 
 		# parameters also need locations, duh. note that we don't need to worry about
@@ -218,22 +237,35 @@ class VarState:
 
 
 
-	def emit_prologue(self, cs: CodegenState) -> None:
-		cs.emit(f"stmfd sp!, {{v1, fp, lr}}")
+	def emit_prologue(self, cs: CodegenState) -> List[str]:
+		callee_saved = set(["v1", "v2", "v3", "v4", "v5", "v6", "v7"])
+		restore = sorted(list(callee_saved.intersection(self.touched)))
+		if len(restore) == 0:
+			restore_str = ""
+		else:
+			restore_str = (", ".join(restore)) + ", "
+
+		cs.emit(f"stmfd sp!, {{{restore_str}fp, lr}}")
 		cs.emit(f"mov fp, sp")
 		cs.emit(f"sub sp, sp, #{self.frame_size}")
 		cs.comment("prologue")
 		cs.comment()
 
-		pass
+		return restore
 
-	def emit_epilogue(self, cs: CodegenState) -> None:
+
+	def emit_epilogue(self, cs: CodegenState, restore: List[str]) -> None:
+		if len(restore) == 0:
+			restore_str = ""
+		else:
+			restore_str = (", ".join(restore)) + ", "
+
 		cs.comment()
 		cs.comment("epilogue")
 		cs.emit(f"{cs.prologue_label}:", indent = 0)
 		cs.emit(f"add sp, sp, #{self.frame_size}")
-		cs.emit(f"ldmfd sp!, {{v1, fp, pc}}")
-		pass
+		cs.emit(f"ldmfd sp!, {{{restore_str}fp, pc}}")
+
 
 
 
@@ -401,14 +433,12 @@ def codegen_method(cs: CodegenState, method: ir3.FuncDefn):
 	cs.emit(f".type {method.name}, %function", indent = 0)
 	cs.emit(f"{method.name}:", indent = 0)
 
-	# TODO: we need to somehow defer emitting the prologue until we
-	# know which registers we need to save/restore (based on VarState::touched)
-	vs.emit_prologue(cs)
+	# start sending stuff to the gulag, from which we will later rescue them
+	cs.begin_scope()
 
 	# the way we handle returns (which isn't a good way i admit) is to just set the return
 	# value in a1 (if any), then branch to the epilogue. so, emit a label here:
 	cs.set_prologue(f".{method.name}_epilogue")
-
 
 	for block in method.blocks:
 		block_name = block.name
@@ -424,8 +454,17 @@ def codegen_method(cs: CodegenState, method: ir3.FuncDefn):
 		for stmt in block.stmts:
 			codegen_stmt(cs, vs, stmt)
 
+	# rescue the stmts we put in the gulag
+	fn_stmts = cs.get_scoped()
+	cs.end_scope()
 
-	vs.emit_epilogue(cs)
+	# now that we know which registers were used, we can do the appropriate save/restore.
+	# at this point the actual body has not been emitted (it's in `fn_stmts`).
+	restore = vs.emit_prologue(cs)
+
+	cs.emit_lines(fn_stmts)
+
+	vs.emit_epilogue(cs, restore)
 	cs.emit(f"\n")
 
 

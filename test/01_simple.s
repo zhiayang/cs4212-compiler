@@ -1,7 +1,7 @@
 .global main_dummy
 .type main_dummy, %function
 main_dummy:
-	stmfd sp!, {v1, fp, lr}
+	stmfd sp!, {fp, lr}
 	mov fp, sp
 	sub sp, sp, #8
 	@ prologue
@@ -14,13 +14,13 @@ main_dummy:
 	@ epilogue
 .main_dummy_epilogue:
 	add sp, sp, #8
-	ldmfd sp!, {v1, fp, pc}
+	ldmfd sp!, {fp, pc}
 	
 
 .global _J3Foo_3fooiiE
 .type _J3Foo_3fooiiE, %function
 _J3Foo_3fooiiE:
-	stmfd sp!, {v1, fp, lr}
+	stmfd sp!, {v1, v2, fp, lr}
 	mov fp, sp
 	sub sp, sp, #16
 	@ prologue
@@ -40,7 +40,7 @@ _J3Foo_3fooiiE:
 	@ epilogue
 ._J3Foo_3fooiiE_epilogue:
 	add sp, sp, #16
-	ldmfd sp!, {v1, fp, pc}
+	ldmfd sp!, {v1, v2, fp, pc}
 	
 
 	

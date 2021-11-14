@@ -18,5 +18,5 @@ typecheck:
 compile:
 	@mypy compile.py
 	@python compile.py test/01_simple.j
-	@arm-linux-gnueabihf-gcc -o test/01_simple -static test/01_simple.s
-	@qemu-arm-static test/01_simple
+	@arm-linux-gnueabihf-gcc -o test/01_simple.out -static test/01_simple.s
+	@qemu-arm-static test/01_simple.out
