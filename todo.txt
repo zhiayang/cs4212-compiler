@@ -1,10 +1,21 @@
 TODO
 
 1. all the other statement and expression types
+	- println
+	- readln
+	- conditional branch (on relops and consts)
+	- dotop
+	- dotop assigns
+	- new
+	- unary ops
+	- func calls
+	- strings
+
 2. a not-3head register allocation scheme. presumably this entails:
 	- liveness analysis
 	- probably go with the graph colouring method
 	- `VarState` needs to account for the current statement
+	- 4head way of determining register spill cost
 
 3. constants > 4095 need to be handled
 	- either do `ldr reg, =#999999`, or...
@@ -12,3 +23,5 @@ TODO
 
 5. strings...
 6. long division
+
+7. investigate whether we want to make bools 1 byte

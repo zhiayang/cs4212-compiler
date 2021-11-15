@@ -4,6 +4,8 @@ class Main
 	{
 		Foo foo;
 		foo.foo(69, 420);
+
+		println("asdf");
 	}
 }
 
@@ -13,7 +15,17 @@ class Foo
 	{
 		Int k;
 		k = 3 * x + y;
-		// if(k == 1) { return x; } else { return k; }
+		if(k == 1)
+		{
+			println("kekw");
+			k = 2 * k;
+		}
+		else
+		{
+			println("omegalul");
+			k = 5 * k;
+		}
+
 		return k;
 	}
 }
