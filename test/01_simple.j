@@ -3,15 +3,21 @@ class Main
 	Void main()
 	{
 		Foo foo;
+		Int k;
+		Bool j;
+		Bool r;
 
 		println("asdf");
 		foo.foo(69, 420, 77, 69420, 12345);
 
-		println(69);
+		k = 69;
+		j = true;
+		println(-k);
 		println(420);
 
-		println(true);
-		println(false);
+		r = !j;
+		println(!true);
+		println(j);
 	}
 }
 

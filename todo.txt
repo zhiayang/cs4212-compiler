@@ -9,7 +9,9 @@ TODO
 	- unary ops
 	- strings
 
-2. a not-3head register allocation scheme. presumably this entails:
+2. save a1-a4 across function calls
+
+3. a not-3head register allocation scheme. presumably this entails:
 	- liveness analysis
 	- probably go with the graph colouring method
 	- `VarState` needs to account for the current statement

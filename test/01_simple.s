@@ -4,52 +4,63 @@
 main_dummy:
 	stmfd sp!, {fp, lr}
 	mov fp, sp
-	sub sp, sp, #16
+	sub sp, sp, #32
+	stmfd sp!, {v1, v2, v3}
 	@ prologue
 
 .main_dummy_entry:
 	@ println("asdf");                     scratch = a2
 	ldr a2, =.string0
-	str a1, [fp, #-8]                      @ spilling 'this'
+	str a1, [fp, #-28]                     @ spilling 'this'
 	mov a1, a2
 	add a1, a1, #4
 	bl puts(PLT)
 	@ _t0 = _J3Foo_3fooiiiiiE(foo, 69, 420, 77, 69420, 12345);
-	str a1, [fp, #-8]                      @ spilling 'this'
+	str a1, [fp, #-28]                     @ spilling 'this'
 	ldr a1, =#12345
 	str a1, [sp, #-4]!
 	ldr a1, =#69420
 	str a1, [sp, #-4]!
-	str a2, [fp, #-4]                      @ spilling '_t0'
+	str a2, [fp, #-16]                     @ spilling '_t0'
 	ldr a1, [fp, #0]                       @ load 'foo'
 	mov a2, #69
 	ldr a3, =#420
 	mov a4, #77
 	bl _J3Foo_3fooiiiiiE
 	add sp, sp, #8
-	@ println(69);
+	@ k = 69;
+	mov a3, #69
+	@ j = true;
+	mov a4, #1
+	@ _t1 = -k;
+	rsb v1, a3, #0
+	@ println(_t1);
 	str a1, [fp, #0]                       @ spilling 'foo'
-	str a2, [fp, #-4]                      @ spilling '_t0'
+	str a2, [fp, #-16]                     @ spilling '_t0'
 	ldr a1, =.string1_raw
-	mov a2, #69
+	mov a2, v1
 	bl printf(PLT)
-	@ println(420);                        scratch = a3
-	ldr a3, =#420
+	@ println(420);                        scratch = v2
+	ldr v2, =#420
 	str a1, [fp, #0]                       @ spilling 'foo'
-	str a2, [fp, #-4]                      @ spilling '_t0'
+	str a2, [fp, #-16]                     @ spilling '_t0'
 	ldr a1, =.string1_raw
-	mov a2, a3
+	mov a2, v2
 	bl printf(PLT)
-	@ println(true);
+	@ _t2 = !j;
+	rsb v2, a4, #1
+	@ r = _t2;
+	mov v3, v2
+	@ println(false);
 	str a1, [fp, #0]                       @ spilling 'foo'
-	mov a1, #1
+	mov a1, #0
 	cmp a1, #0
 	ldreq a1, =.string2_raw
 	ldrne a1, =.string3_raw
 	bl puts(PLT)
-	@ println(false);
+	@ println(j);
 	str a1, [fp, #0]                       @ spilling 'foo'
-	mov a1, #0
+	mov a1, a4
 	cmp a1, #0
 	ldreq a1, =.string2_raw
 	ldrne a1, =.string3_raw
@@ -59,7 +70,8 @@ main_dummy:
 
 	@ epilogue
 .main_dummy_epilogue:
-	add sp, sp, #16
+	ldmfd sp!, {v1, v2, v3}
+	add sp, sp, #32
 	ldmfd sp!, {fp, pc}
 	
 

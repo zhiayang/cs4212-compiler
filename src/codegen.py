@@ -215,7 +215,8 @@ class VarState:
 	# locking a register ensures that it cannot be spilled until it is unlocked. this prevents
 	# the stupid case of spilling an operand to load another operand for the same instruction.
 	def lock_register(self, reg: str) -> None:
-		self.locked_regs.add(reg)
+		if reg[0] != '#':
+			self.locked_regs.add(reg)
 
 	def unlock_register(self, reg: str) -> None:
 		if reg in self.locked_regs:
@@ -560,10 +561,38 @@ def codegen_binop(cs: CodegenState, vs: VarState, expr: ir3.BinaryOp, dest_reg: 
 	vs.unlock_register(rhs)
 
 
+def codegen_unaryop(cs: CodegenState, vs: VarState, expr: ir3.UnaryOp, dest_reg: str):
+	value, const, _ = codegen_value(cs, vs, expr.expr)
+	if not const:
+		vs.lock_register(value)
+
+	if expr.op == "-":
+		# isn't our constant folding supposed to get rid of this case?
+		if const:
+			const_int = codegen_constant_int(cs, vs, cast(ir3.ConstantInt, expr.expr).value)
+			cs.emit(f"mov {dest_reg}, {const_int}")
+		else:
+			cs.emit(f"rsb {dest_reg}, {value}, #0")
+
+	elif expr.op == "!":
+		x = cast(ir3.ConstantBool, expr.expr)
+		if const:
+			cs.emit(f"mov {dest_reg}, #{0 if x else 1}")
+		else:
+			# 1 - x works as long as 0 < x < 1 (which should hold...)
+			cs.emit(f"rsb {dest_reg}, {value}, #1")
+	else:
+		cs.comment(f"NOT IMPLEMENTED (unaryop '{expr.op}')")
+
+
+
 
 def codegen_expr(cs: CodegenState, vs: VarState, expr: ir3.Expr, dest_reg: str):
 	if isinstance(expr, ir3.BinaryOp):
 		codegen_binop(cs, vs, expr, dest_reg)
+
+	elif isinstance(expr, ir3.UnaryOp):
+		codegen_unaryop(cs, vs, expr, dest_reg)
 
 	elif isinstance(expr, ir3.ValueExpr):
 		# we might potentially want to abstract this out, but for now idgaf
