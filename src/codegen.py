@@ -618,7 +618,7 @@ def codegen_cond_branch(cs: CodegenState, vs: VarState, cbr: ir3.CondBranch):
 
 
 def codegen_println(cs: CodegenState, vs: VarState, stmt: ir3.PrintLnCall):
-	value, const, ty = codegen_value(cs, vs, stmt.value)
+	value, _, ty = codegen_value(cs, vs, stmt.value)
 
 	# strings are always in registers
 	if ty == "String":
@@ -630,16 +630,30 @@ def codegen_println(cs: CodegenState, vs: VarState, stmt: ir3.PrintLnCall):
 		cs.emit(f"bl puts(PLT)")
 		return
 
+	elif ty == "Int":
+		vs.spill_register("a1")
+		vs.spill_register("a2")
 
-	if const:
-		if ty == "Bool":
-			pass
-		elif ty == "Int":
-			pass
-		elif ty == "$NullObject":
-			pass
+		asdf = cs.add_string("%d\n")
+		cs.emit(f"ldr a1, ={asdf}")
+		cs.emit(f"mov a2, {value}")
+		cs.emit(f"bl printf(PLT)")
+
+	elif ty == "Bool":
+		vs.spill_register("a1")
+		cs.emit(f"mov a1, {value}")
+		cs.emit(f"cmp a1, #0")
+		cs.emit(f"ldreq a1, ={cs.add_string('false')}")
+		cs.emit(f"ldrne a1, ={cs.add_string('true')}")
+		cs.emit(f"bl puts(PLT)")
+
+	elif ty == "$NullObject":
+		vs.spill_register("a1")
+		cs.emit(f"ldr a1, ={cs.add_string('null')}")
+		cs.emit(f"bl puts(PLT)")
+
 	else:
-		pass
+		assert False and f"unknown type {ty}"
 
 
 def codegen_call(cs: CodegenState, vs: VarState, call: ir3.FnCall):

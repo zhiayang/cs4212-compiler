@@ -1,14 +1,12 @@
 TODO
 
 1. all the other statement and expression types
-	- println
 	- readln
 	- conditional branch (on relops and consts)
 	- dotop
 	- dotop assigns
 	- new
 	- unary ops
-	- func calls
 	- strings
 
 2. a not-3head register allocation scheme. presumably this entails:
@@ -17,20 +15,18 @@ TODO
 	- `VarState` needs to account for the current statement
 	- 4head way of determining register spill cost
 
-3. constants > 255 need to be handled
-	- either do `ldr reg, =#999999`, or...
-	- manually construct the value using instructions (potentially up to 3 instructions)
-
 5. strings...
 6. long division
 
 7. investigate whether we want to make bools 1 byte
 
-8. investigate whether the spilling "backup" is required. arm specs say:
-	"A callee can modify any stack space used for receiving parameter values from the caller."
-	Procedure Call Standard for the Arm Architecture, Release 2020Q2 (page 24)
-
 9. main wrapper needs to allocate an instance of Main, though this can be on the stack i guess. it's size
 	0 anyway (since Main cannot have fields by the syntax definition)
 
 10. classes can have no fields; naively calling malloc(0) will return null.
+
+
+-- for now, we decided to just modify the caller stack.
+8. investigate whether the spilling "backup" is required. arm specs say:
+	"A callee can modify any stack space used for receiving parameter values from the caller."
+	Procedure Call Standard for the Arm Architecture, Release 2020Q2 (page 24)
