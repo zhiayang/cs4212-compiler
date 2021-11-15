@@ -6,6 +6,12 @@ class Main
 
 		println("asdf");
 		foo.foo(69, 420, 77, 69420, 12345);
+
+		println(69);
+		println(420);
+
+		println(true);
+		println(false);
 	}
 }
 

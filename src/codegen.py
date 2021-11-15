@@ -635,7 +635,7 @@ def codegen_println(cs: CodegenState, vs: VarState, stmt: ir3.PrintLnCall):
 		vs.spill_register("a2")
 
 		asdf = cs.add_string("%d\n")
-		cs.emit(f"ldr a1, ={asdf}")
+		cs.emit(f"ldr a1, ={asdf}_raw")
 		cs.emit(f"mov a2, {value}")
 		cs.emit(f"bl printf(PLT)")
 
@@ -643,13 +643,13 @@ def codegen_println(cs: CodegenState, vs: VarState, stmt: ir3.PrintLnCall):
 		vs.spill_register("a1")
 		cs.emit(f"mov a1, {value}")
 		cs.emit(f"cmp a1, #0")
-		cs.emit(f"ldreq a1, ={cs.add_string('false')}")
-		cs.emit(f"ldrne a1, ={cs.add_string('true')}")
+		cs.emit(f"ldreq a1, ={cs.add_string('false')}_raw")
+		cs.emit(f"ldrne a1, ={cs.add_string('true')}_raw")
 		cs.emit(f"bl puts(PLT)")
 
 	elif ty == "$NullObject":
 		vs.spill_register("a1")
-		cs.emit(f"ldr a1, ={cs.add_string('null')}")
+		cs.emit(f"ldr a1, ={cs.add_string('null')}_raw")
 		cs.emit(f"bl puts(PLT)")
 
 	else:
@@ -810,6 +810,7 @@ main:
 	for string, id in cs.strings.items():
 		cs.emit(f".string{id}:", indent = 0)
 		cs.emit(f".word {len(string)}")
+		cs.emit(f".string{id}_raw:", indent = 0)
 		cs.emit(f'.asciz "{escape_string(string)}"')
 		cs.comment()
 

@@ -27,6 +27,33 @@ main_dummy:
 	mov a4, #77
 	bl _J3Foo_3fooiiiiiE
 	add sp, sp, #8
+	@ println(69);
+	str a1, [fp, #0]                       @ spilling 'foo'
+	str a2, [fp, #-4]                      @ spilling '_t0'
+	ldr a1, =.string1_raw
+	mov a2, #69
+	bl printf(PLT)
+	@ println(420);                        scratch = a3
+	ldr a3, =#420
+	str a1, [fp, #0]                       @ spilling 'foo'
+	str a2, [fp, #-4]                      @ spilling '_t0'
+	ldr a1, =.string1_raw
+	mov a2, a3
+	bl printf(PLT)
+	@ println(true);
+	str a1, [fp, #0]                       @ spilling 'foo'
+	mov a1, #1
+	cmp a1, #0
+	ldreq a1, =.string2_raw
+	ldrne a1, =.string3_raw
+	bl puts(PLT)
+	@ println(false);
+	str a1, [fp, #0]                       @ spilling 'foo'
+	mov a1, #0
+	cmp a1, #0
+	ldreq a1, =.string2_raw
+	ldrne a1, =.string3_raw
+	bl puts(PLT)
 	@ return;
 	b .main_dummy_epilogue
 
@@ -63,7 +90,7 @@ _J3Foo_3fooiiiiiE:
 	bne ._J3Foo_3fooiiiiiE_L1
 ._J3Foo_3fooiiiiiE_L2:
 	@ println("omegalul");                 scratch = v4
-	ldr v4, =.string1
+	ldr v4, =.string4
 	str a1, [fp, #-36]                     @ spilling 'this'
 	mov a1, v4
 	add a1, a1, #4
@@ -77,7 +104,7 @@ _J3Foo_3fooiiiiiE:
 	b ._J3Foo_3fooiiiiiE_L3
 ._J3Foo_3fooiiiiiE_L1:
 	@ println("kekw");                     scratch = v5
-	ldr v5, =.string2
+	ldr v5, =.string5
 	str a1, [fp, #-36]                     @ spilling 'this'
 	mov a1, v5
 	add a1, a1, #4
@@ -108,7 +135,7 @@ _J3Foo_3fooiiiiiE:
 	bne ._J3Foo_3fooiiiiiE_L4
 ._J3Foo_3fooiiiiiE_L5:
 	@ println("sadge");
-	ldr a3, =.string3
+	ldr a3, =.string6
 	str a1, [fp, #-28]                     @ spilling '_t6'
 	mov a1, a3
 	add a1, a1, #4
@@ -117,7 +144,7 @@ _J3Foo_3fooiiiiiE:
 	b ._J3Foo_3fooiiiiiE_L6
 ._J3Foo_3fooiiiiiE_L4:
 	@ println("poggers");
-	ldr a3, =.string4
+	ldr a3, =.string7
 	str a1, [fp, #-28]                     @ spilling '_t6'
 	mov a1, a3
 	add a1, a1, #4
@@ -138,7 +165,7 @@ _J3Foo_3fooiiiiiE:
 	bne ._J3Foo_3fooiiiiiE_L7
 ._J3Foo_3fooiiiiiE_L8:
 	@ println("riperino");
-	ldr a2, =.string5
+	ldr a2, =.string8
 	str a1, [fp, #12]                      @ spilling 'm'
 	mov a1, a2
 	add a1, a1, #4
@@ -147,7 +174,7 @@ _J3Foo_3fooiiiiiE:
 	b ._J3Foo_3fooiiiiiE_L9
 ._J3Foo_3fooiiiiiE_L7:
 	@ println("poggerino");
-	ldr a2, =.string6
+	ldr a2, =.string9
 	str a1, [fp, #12]                      @ spilling 'm'
 	mov a1, a2
 	add a1, a1, #4
@@ -183,29 +210,51 @@ main:
 .data
 .string0:
 	.word 4
+.string0_raw:
 	.asciz "asdf"
 
 .string1:
-	.word 8
-	.asciz "omegalul"
+	.word 3
+.string1_raw:
+	.asciz "%d\n"
 
 .string2:
-	.word 4
-	.asciz "kekw"
+	.word 5
+.string2_raw:
+	.asciz "false"
 
 .string3:
-	.word 5
-	.asciz "sadge"
+	.word 4
+.string3_raw:
+	.asciz "true"
 
 .string4:
-	.word 7
-	.asciz "poggers"
+	.word 8
+.string4_raw:
+	.asciz "omegalul"
 
 .string5:
-	.word 8
-	.asciz "riperino"
+	.word 4
+.string5_raw:
+	.asciz "kekw"
 
 .string6:
+	.word 5
+.string6_raw:
+	.asciz "sadge"
+
+.string7:
+	.word 7
+.string7_raw:
+	.asciz "poggers"
+
+.string8:
+	.word 8
+.string8_raw:
+	.asciz "riperino"
+
+.string9:
 	.word 9
+.string9_raw:
 	.asciz "poggerino"
 
