@@ -4,80 +4,73 @@
 main_dummy:
 	stmfd sp!, {fp, lr}
 	mov fp, sp
-	sub sp, sp, #40
+	sub sp, sp, #0
 	stmfd sp!, {v1, v2, v3, v4}
 	@ prologue
 
 .main_dummy_entry:
-	@ println("asdf");                     scratch = a2
-	ldr a2, =.string0
-	stmfd sp!, {a1}
-	mov a1, a2
+	@ _c0 = asdf;
+	ldr v1, =.string0
+	@ println(_c0);
+	mov a1, v1
 	add a1, a1, #4
 	bl puts(PLT)
-	ldmfd sp!, {a1}
-	@ _t0 = _J3Foo_3fooiiiiiE(foo, 69, 420, 77, 69420, 12345);
-	stmfd sp!, {a1, a2}
-	str a1, [fp, #-32]                     @ spilling 'this'
-	ldr a1, =#12345
-	str a1, [sp, #-4]!
-	ldr a1, =#69420
-	str a1, [sp, #-4]!
-	ldr a1, [fp, #0]                       @ load 'foo'
+	@ _c4 = 420;
+	ldr v3, =#420
+	@ _c6 = 69420;
+	ldr v2, =#69420
+	@ _c7 = 12345;
+	ldr v1, =#12345
+	@ _t0 = _J3Foo_3fooiiiiiE(foo, 69, _c4, 77, _c6, _c7);
+	str v1, [sp, #-4]!
+	str v2, [sp, #-4]!
+	mov a1, v4
 	mov a2, #69
-	ldr a3, =#420
+	mov a3, v3
 	mov a4, #77
 	bl _J3Foo_3fooiiiiiE
 	add sp, sp, #8
-	ldmfd sp!, {a1, a2}
 	@ k = 69;
-	mov a3, #69
+	mov v1, #69
 	@ j = true;
-	mov a4, #1
+	mov v2, #1
 	@ _t1 = -k;
-	rsb v1, a3, #0
+	rsb v1, v1, #0
 	@ println(_t1);
-	stmfd sp!, {a1, a2, a3, a4}
 	ldr a1, =.string1_raw
 	mov a2, v1
 	bl printf(PLT)
-	ldmfd sp!, {a1, a2, a3, a4}
-	@ println(420);                        scratch = v2
-	ldr v2, =#420
-	stmfd sp!, {a1, a2, a3, a4}
+	@ _c17 = 420;
+	ldr v1, =#420
+	@ println(_c17);
 	ldr a1, =.string1_raw
-	mov a2, v2
+	mov a2, v1
 	bl printf(PLT)
-	ldmfd sp!, {a1, a2, a3, a4}
 	@ _t2 = !j;
-	rsb v2, a4, #1
+	rsb v1, v2, #1
 	@ r = _t2;
-	mov v3, v2
+	mov v1, v1
 	@ println(false);
-	stmfd sp!, {a1, a2, a3, a4}
 	mov a1, #0
 	cmp a1, #0
 	ldreq a1, =.string2_raw
 	ldrne a1, =.string3_raw
 	bl puts(PLT)
-	ldmfd sp!, {a1, a2, a3, a4}
 	@ _t3 = !r;
-	rsb v4, v3, #1
+	rsb v1, v1, #1
 	@ println(_t3);
-	stmfd sp!, {a1, a2, a3, a4}
-	mov a1, v4
+	mov a1, v1
 	cmp a1, #0
 	ldreq a1, =.string2_raw
 	ldrne a1, =.string3_raw
 	bl puts(PLT)
-	ldmfd sp!, {a1, a2, a3, a4}
 	@ return;
 	b .main_dummy_epilogue
 
 	@ epilogue
 .main_dummy_epilogue:
 	ldmfd sp!, {v1, v2, v3, v4}
-	add sp, sp, #40
+	add sp, sp, #0
 	ldmfd sp!, {fp, pc}
 	
 
@@ -86,123 +79,113 @@ main_dummy:
 _J3Foo_3fooiiiiiE:
 	stmfd sp!, {fp, lr}
 	mov fp, sp
-	sub sp, sp, #64
-	stmfd sp!, {v1, v2, v3, v4, v5}
+	sub sp, sp, #0
+	stmfd sp!, {v1, v2, v3, v4}
 	@ prologue
 
+	mov v1, a3
 ._J3Foo_3fooiiiiiE_entry:
 	@ _t0 = 3 * x;
-	lsl a4, a2, #1
-	add a4, a4, a2
+	lsl v2, a2, #1
+	add v2, v2, a2
 	@ _t1 = _t0 + y;
-	add v1, a4, a3
+	add v1, v2, v1
 	@ k = _t1;
 	mov v2, v1
-	@ _t2 = k == 627;                      scratch = v4
-	ldr v4, =#627
-	mov v3, #0
-	cmp v2, v4
-	moveq v3, #1
+	@ _c9 = 627;
+	ldr v1, =#627
+	@ _t2 = k == _c9;
+	mov v1, #0
+	cmp v2, v1
+	moveq v1, #1
 	@ if (_t2) goto .L1;
-	cmp v3, #0
+	cmp v1, #0
 	bne ._J3Foo_3fooiiiiiE_L1
 ._J3Foo_3fooiiiiiE_L2:
-	@ println("omegalul");                 scratch = v4
-	ldr v4, =.string4
-	stmfd sp!, {a1, a2, a3, a4}
-	mov a1, v4
+	@ _c12 = omegalul;
+	ldr v1, =.string4
+	@ println(_c12);
+	mov a1, v1
 	add a1, a1, #4
 	bl puts(PLT)
-	ldmfd sp!, {a1, a2, a3, a4}
 	@ _t4 = 5 * k;
-	lsl v4, v2, #3
-	add v4, v4, v2
+	lsl v1, v2, #3
+	add v1, v1, v2
 	@ k = _t4;
-	mov v2, v4
+	mov v2, v1
 	@ goto .L3;
 	b ._J3Foo_3fooiiiiiE_L3
 ._J3Foo_3fooiiiiiE_L1:
-	@ println("kekw");                     scratch = v5
-	ldr v5, =.string5
-	stmfd sp!, {a1, a2, a3, a4}
-	mov a1, v5
+	@ _c20 = kekw;
+	ldr v1, =.string5
+	@ println(_c20);
+	mov a1, v1
 	add a1, a1, #4
 	bl puts(PLT)
-	ldmfd sp!, {a1, a2, a3, a4}
 	@ _t3 = 2 * k;
-	lsl v5, v2, #1
+	lsl v1, v2, #1
 	@ k = _t3;
-	mov v2, v5
+	mov v2, v1
 	@ goto .L3;
 	b ._J3Foo_3fooiiiiiE_L3
 ._J3Foo_3fooiiiiiE_L3:
 	@ _t5 = w + 1;
-	str a1, [fp, #-36]                     @ spilling 'this' - for '_t5'
-	str a2, [fp, #-40]                     @ spilling 'x' - for 'w'
-	ldr a2, [fp, #8]                       @ load(3) 'w'
-	add a1, a2, #1
-	@ _t6 = _t5 != 69420;
-	str a1, [fp, #-24]                     @ spilling '_t5' - for '_t6'
-	str a2, [fp, #8]                       @ spilling 'w' - for '_t5'
-	ldr a2, [fp, #-24]                     @ load(3) '_t5'
-	str a3, [fp, #-44]                     @ spilling 'y'
-	ldr a3, =#69420
-	mov a1, #0
-	cmp a2, a3
-	movne a1, #1
+	ldr a4, [fp, #4]                       @ restore w
+	add v4, a4, #1
+	@ _c32 = 69420;
+	ldr v1, =#69420
+	@ _t6 = _t5 != _c32;
+	mov v1, #0
+	cmp v4, v1
+	movne v1, #1
 	@ if (_t6) goto .L4;
-	cmp a1, #0
+	cmp v1, #0
 	bne ._J3Foo_3fooiiiiiE_L4
 ._J3Foo_3fooiiiiiE_L5:
-	@ println("sadge");
-	ldr a3, =.string6
-	stmfd sp!, {a1, a2, a3, a4}
-	mov a1, a3
+	@ _c35 = sadge;
+	ldr v1, =.string6
+	@ println(_c35);
+	mov a1, v1
 	add a1, a1, #4
 	bl puts(PLT)
-	ldmfd sp!, {a1, a2, a3, a4}
 	@ goto .L6;
 	b ._J3Foo_3fooiiiiiE_L6
 ._J3Foo_3fooiiiiiE_L4:
-	@ println("poggers");
-	ldr a3, =.string7
-	stmfd sp!, {a1, a2, a3, a4}
-	mov a1, a3
+	@ _c38 = poggers;
+	ldr v1, =.string7
+	@ println(_c38);
+	mov a1, v1
 	add a1, a1, #4
 	bl puts(PLT)
-	ldmfd sp!, {a1, a2, a3, a4}
 	@ goto .L6;
 	b ._J3Foo_3fooiiiiiE_L6
 ._J3Foo_3fooiiiiiE_L6:
-	@ _t7 = m == 12345;                     - for '_t7'
-	str a1, [fp, #-28]                     @ spilling '_t6' - for 'm'
-	ldr a1, [fp, #12]                      @ load(3) 'm'
-	str a2, [fp, #-24]                     @ spilling '_t5'
-	ldr a2, =#12345
-	mov a3, #0
-	cmp a1, a2
-	moveq a3, #1
+	@ _c42 = 12345;
+	ldr v1, =#12345
+	@ _t7 = m == _c42;
+	ldr a4, [fp, #8]                       @ restore m
+	mov v1, #0
+	cmp a4, v1
+	moveq v1, #1
 	@ if (_t7) goto .L7;
-	cmp a3, #0
+	cmp v1, #0
 	bne ._J3Foo_3fooiiiiiE_L7
 ._J3Foo_3fooiiiiiE_L8:
-	@ println("riperino");
-	ldr a2, =.string8
-	stmfd sp!, {a1, a2, a3, a4}
-	mov a1, a2
+	@ _c45 = riperino;
+	ldr v1, =.string8
+	@ println(_c45);
+	mov a1, v1
 	add a1, a1, #4
 	bl puts(PLT)
-	ldmfd sp!, {a1, a2, a3, a4}
 	@ goto .L9;
 	b ._J3Foo_3fooiiiiiE_L9
 ._J3Foo_3fooiiiiiE_L7:
-	@ println("poggerino");
-	ldr a2, =.string9
-	stmfd sp!, {a1, a2, a3, a4}
-	mov a1, a2
+	@ _c48 = poggerino;
+	ldr v1, =.string9
+	@ println(_c48);
+	mov a1, v1
 	add a1, a1, #4
 	bl puts(PLT)
-	ldmfd sp!, {a1, a2, a3, a4}
 	@ goto .L9;
 	b ._J3Foo_3fooiiiiiE_L9
 ._J3Foo_3fooiiiiiE_L9:
@@ -212,8 +195,8 @@ _J3Foo_3fooiiiiiE:
 
 	@ epilogue
 ._J3Foo_3fooiiiiiE_epilogue:
-	ldmfd sp!, {v1, v2, v3, v4, v5}
-	add sp, sp, #64
+	ldmfd sp!, {v1, v2, v3, v4}
+	add sp, sp, #0
 	ldmfd sp!, {fp, pc}
 	
 

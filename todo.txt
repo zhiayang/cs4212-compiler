@@ -8,20 +8,11 @@ TODO
 	- new
 	- strings
 
-2. finish register allocation
-
-3. in the allocator, try to allocate *using* the scratch registers as normal (ie. without scratch).
-	if it can be done, then we don't use scratch. only if it can't be done, then we use the scratch.
-
-	we might extend this to try 1 scratch and 2 scratch.
-
-
 
 4. find some way to tell the register allocator about caller-saved registers
 	- ideally we want some way to automatically spill a1-a4 across a function call
 	- maybe by having calls "def" a1-a4, but those are registers and not variables...
 
-5. also, some way to "prefer" putting arguments in a1-a4. some "pre-colouring" algorithm exists.
 
 6. long division
 
@@ -35,6 +26,56 @@ TODO
 
 11. see if we need (want) to toposort the basic blocks before renumbering/allocating
 
+
+13. in the allocator, try to allocate *using* the scratch registers as normal (ie. without scratch).
+	if it can be done, then we don't use scratch. only if it can't be done, then we use the scratch.
+
+	we might extend this to try 1 scratch and 2 scratch. depends on (12).
+
+
+14. related to (12) and (13). we should actually insert the spill code into the statement list and rerun the
+	use/def traversal (ie. start over). this would allow us to allocate a "real" register for the spill load.
+
+
+15. related to (14); make sure that we don't "double spill" a def. the edge case here is if we restore `x`
+	before a use (because we spilled `x`), we cannot then "re-spill" that loaded `x`.
+
+	this should be simple, we just need to track all the previously-spilled vars and exclude them from spilling.
+
+
+
+16. in ir3, don't generate short-circuiting code if the potentially-elided operand has no side effects.
+	-- no need to short circuit:
+	foo   || bar
+	foo() || bar
+
+	-- must short circuit:
+	foo   || bar()
+	foo() || bar()
+
+	(same applies for &&)
+
+
+
+17. register allocation coalescing
+
+
+18. ir3 for string concat should return a different operator (not '+', maybe 's+'?)
+
+
+
+
+
+-- done
+12. potentially preprocess ir3 (or just change it in ir3 itself...) so that we:
+	- always make temporaries for strings, since they need a register. this way the register allocator can
+	  give them a register "normally", without relying on scratch. this would depend on (13)
+
+	- make temporaries for nums outside of [-128, 127] or [0, 255] (same reason).
+
+	these depend on (13) -- more intelligent scratch allocation. or rather, they are mutually dependent. if
+	we don't have scratch registers, then we must have a register allocated for strings and numbers. if we
+	don't have registers allocated, then we must have scratch.
 
 
 

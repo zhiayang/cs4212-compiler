@@ -6,455 +6,54 @@ from copy import *
 
 from . import ir3
 from . import regalloc
+from . import cgpseudo
 
 from .util import Location, TCException, CGException, StringView, print_warning, escape_string
+from .cgstate import *
 
 import math
 
-POINTER_SIZE    = 4
-STACK_ALIGNMENT = 8
-
-
-class CodegenState:
-	def __init__(self, opt: bool, classes: List[ir3.ClassDefn]) -> None:
-		self.opt = opt
-		self.lines: List[str] = []
-		self.classes: Dict[str, ir3.ClassDefn] = { cls.name: cls for cls in classes }
-		self.builtin_sizes = { "Void": 0, "Int": 4, "Bool": 4, "String": 4 }
-
-		self.prologue_label = ""
-		self.current_method: ir3.FuncDefn
-		self.strings: Dict[str, int] = dict()
-
-	# gets the size of a type, but objects are always size 4
-	def sizeof_type_pointers(self, name: str) -> int:
-		if name in self.builtin_sizes:
-			return self.builtin_sizes[name]
-
-		if name not in self.classes:
-			raise CGException(f"unknown class '{name}'")
-
-		return POINTER_SIZE
-
-	def emit(self, line: str, indent: int = 1) -> None:
-		self.lines.append('\t' * indent + line)
-
-	def comment(self, line: str = "", indent: int = 1) -> None:
-		if line != "":
-			self.lines.append('\t' * indent + "@ " + line)
-		else:
-			self.lines.append("")
-
-	def comment_line(self, msg: str) -> None:
-		padding = 40 - len(self.lines[-1])
-		if padding > 0:
-			self.lines[-1] += (' ' * padding)
-
-		if '@' not in self.lines[-1]:
-			msg = f"@ {msg}"
-
-		self.lines[-1] += msg
-
-	def set_prologue(self, label: str) -> None:
-		self.prologue_label = label
-
-	def set_current_method(self, method: ir3.FuncDefn) -> None:
-		self.current_method = method
-
-	def mangle_label(self, label: str) -> str:
-		if label[0] == '.':
-			label = label[1:]
-		return f".{self.current_method.name}_{label}"
-
-	# not re-entrant, but then again nothing in this compiler is reentrant
-	# basically this makes all emit calls not add to the big list of instructions
-	# immediately; this is so we have a chance to insert the prologue/epilogue.
-	def begin_scope(self) -> None:
-		self.old_lines = self.lines
-		self.lines = []
-
-	# this gets the lines that were sent to the gulag
-	def get_scoped(self) -> List[str]:
-		return self.lines
-
-	# this ends the scope, *discarding* any lines that were in the gulag
-	def end_scope(self) -> None:
-		self.lines = self.old_lines
-
-	def emit_lines(self, lines: List[str]) -> None:
-		self.lines += lines
-
-	# returns the label of the thing
-	def add_string(self, s: str) -> str:
-		if s in self.strings:
-			return f".string{self.strings[s]}"
-		else:
-			i = len(self.strings)
-			self.strings[s] = i
-			return f".string{i}"
-
-
-
-class CGClass:
-	def __init__(self, cs: CodegenState, cls: ir3.ClassDefn) -> None:
-		self.base = cls
-
-		# since types are either 4 bytes or 1 byte, our life is actually quite easy. we just
-		# shove all the bools to the back...
-		self.fields: Dict[str, int] = dict()
-
-		# TODO: this makes bools 4 bytes even in structs
-		offset = 0
-		for field in self.base.fields:
-			assert cs.sizeof_type_pointers(field.type) == POINTER_SIZE
-			self.fields[field.name] = offset
-			offset += POINTER_SIZE
-
-		# round up to the nearest 4 bytes
-		self.total_size = POINTER_SIZE * (offset + POINTER_SIZE - 1) // POINTER_SIZE
-
-
-
-
-class VarLoc:
-	def __init__(self) -> None:
-		self.reg: Optional[str] = None
-		self.ofs: Optional[int] = None
-
-	def set_stack(self, ofs: int) -> VarLoc:
-		self.ofs = ofs
-		return self
-
-	def set_register(self, name: str) -> VarLoc:
-		self.reg = name
-		return self
-
-	def clear_register(self) -> VarLoc:
-		self.reg = None
-		return self
-
-	def clear_stack(self) -> VarLoc:
-		self.ofs = None
-		return self
-
-	def register(self) -> str:
-		return cast(str, self.reg)
-
-	def stack_ofs(self) -> int:
-		return cast(int, self.ofs)
-
-	def have_register(self) -> bool:
-		return self.reg is not None
-
-	def have_stack(self) -> bool:
-		return self.ofs is not None
-
-	def valid(self) -> bool:
-		return (self.reg is not None) or (self.ofs is not None)
-
-
-
-
-
-class VarState:
-	def __init__(self, cs: CodegenState, vars: List[ir3.VarDecl], params: List[ir3.VarDecl]) -> None:
-
-		self.cs = cs
-
-		offset: int = 0
-
-		self.locations: Dict[str, VarLoc] = dict()
-		self.var_types: Dict[str, str] = dict()
-		self.locked_regs: Set[str] = set()
-
-		self.registers: Dict[str, str] = {
-			"a1": "", "a2": "", "a3": "", "a4": "",
-			"v1": "", "v2": "", "v3": "", "v4": "", "v5": ""
-		}
-
-
-		# note the negative offset here (since the stack grows down, and bp is nearer the top of the stack).
-		# TODO: this makes bools 4 bytes
-		for var in vars:
-			self.var_types[var.name] = var.type
-			self.locations[var.name] = VarLoc().set_stack(-offset)
-			offset += POINTER_SIZE
-
-
-		# parameters also need locations, duh. note that we don't need to worry about
-		# stuff not fitting in 1 register, since everything is <= 4 bytes.
-		param_num: int = 1
-		for param in params:
-			ploc = VarLoc()
-			if param_num < 4:
-				reg_name = f"a{param_num}"
-				self.registers[reg_name] = param.name
-
-				ploc.set_register(reg_name)
-
-				# we don't want to waste time copying from the register to the stack,
-				# so set the stack location as stale
-				ploc.set_stack(-offset)
-
-				offset += POINTER_SIZE
-
-			else:
-				# these arguments are passed on the stack. these are positive offsets from bp,
-				# since they are "above" the current stack frame.
-				ploc.set_stack(8 + (param_num - 4 - 1) * 4)
-				offset += POINTER_SIZE
-
-
-			self.locations[param.name] = ploc
-			self.var_types[param.name] = param.type
-
-			param_num += 1
-
-
-		self.frame_size: int = STACK_ALIGNMENT * ((offset + STACK_ALIGNMENT - 1) // STACK_ALIGNMENT)
-		self.touched: Set[str] = set()
-
-	# locking a register ensures that it cannot be spilled until it is unlocked. this prevents
-	# the stupid case of spilling an operand to load another operand for the same instruction.
-	def lock_register(self, reg: str) -> None:
-		if reg[0] != '#':
-			self.locked_regs.add(reg)
-
-	def unlock_register(self, reg: str) -> None:
-		if reg in self.locked_regs:
-			self.locked_regs.remove(reg)
-
-	def unlock_all(self) -> None:
-		self.locked_regs = set()
-
-	def spill_register(self, reg: str):
-		old_var = self.registers[reg]
-		if old_var is not None and old_var != "" and old_var != "$scratch":
-			# unset the current register from the loc first
-			# print(f"old_var = {old_var}")
-			self.locations[old_var].clear_register()
-
-			# do the spill
-			stk_ofs = self.locations[old_var].stack_ofs()
-			self.cs.emit(f"str {reg}, [fp, #{stk_ofs}]")
-			self.cs.comment_line(f"spilling '{old_var}'")
-
-
-	def find_free_register(self) -> Optional[str]:
-		for (reg, cur) in self.registers.items():
-			if cur == "":
-				return reg
-		return None
-
-	def get_register_to_spill(self) -> str:
-		for k, v in self.registers.items():
-			if v == "$scratch" and k not in self.locked_regs:
-				return k
-
-		# otherwise just get any unlocked register for now.
-		for reg in self.registers:
-			if reg not in self.locked_regs:
-				return reg
-
-		assert False and "ran out of registers!"
-
-
-	def scratch_register(self) -> str:
-		free_reg = self.find_free_register()
-		if free_reg is not None:
-			self.cs.comment_line(f"scratch = {free_reg}")
-			return free_reg
-
-		spill = self.get_register_to_spill()
-		self.spill_register(spill)
-
-		# TODO: use this to prefer spilling scratch registers. anyway there
-		# shouldn't be too many of these.
-		self.registers[spill] = "$scratch"
-		return spill
-
-
-
-	# if skip_loads is true, we don't bother loading the old value from the stack to the new register; the
-	# assumption is that we will soon store to that register, so there's no point loading anything
-	def make_available(self, var: str, reg_hint: str = "", skip_loads = False) -> str:
-		loc = self.locations[var]
-
-		# if the var is already in a register, use it
-		if loc.have_register():
-			# note that we don't use the provided register here; it's just a suggestion
-			return loc.register()
-
-		# the variable was not in a register, but we have a register specified; in this
-		# case, load directly there (assuming that whoever called this has performed the necessary spillage)
-		if reg_hint != "":
-			self.registers[reg_hint] = var
-			self.locations[var].set_register(reg_hint)
-
-			if not skip_loads:
-				self.cs.emit(f"ldr {reg_hint}, [fp, #{loc.stack_ofs()}]")
-				self.cs.comment_line(f"load '{var}'")
-
-			self.touched.add(reg_hint)
-			return reg_hint
-
-
-		# if we have a free register, load from memory to that register
-		free_reg = self.find_free_register()
-		if free_reg is not None:
-			self.registers[free_reg] = var
-			self.locations[var].set_register(free_reg)
-
-			# do a load. stack_ofs is still valid (we can be both)
-			if not skip_loads:
-				self.cs.emit(f"ldr {free_reg}, [fp, #{loc.stack_ofs()}]")
-				self.cs.comment_line(f"load '{var}'")
-
-			self.touched.add(free_reg)
-			return free_reg
-
-		reg = self.get_register_to_spill()
-		self.spill_register(reg)
-		self.cs.comment_line(f" - for '{var}'")
-
-		# load the new value
-		stk_ofs = self.locations[var].stack_ofs()
-		if not skip_loads:
-			self.cs.emit(f"ldr {reg}, [fp, #{stk_ofs}]")
-			self.cs.comment_line(f"load(3) '{var}'")
-
-		# setup the descriptors and stuff
-		self.locations[var].set_register(reg)
-		self.registers[reg] = var
-		self.touched.add(reg)
-
-		return reg
-
-
-
-
-
-
-
-	def emit_prologue(self, cs: CodegenState) -> List[str]:
-		callee_saved = set(["v1", "v2", "v3", "v4", "v5", "v6", "v7"])
-		restore = sorted(list(callee_saved.intersection(self.touched)))
-		if len(restore) == 0:
-			restore_str = ""
-		else:
-			restore_str = (", ".join(restore))
-
-		cs.emit(f"stmfd sp!, {{fp, lr}}")
-		cs.emit(f"mov fp, sp")
-		cs.emit(f"sub sp, sp, #{self.frame_size}")
-
-		if restore_str != "":
-			cs.emit(f"stmfd sp!, {{{restore_str}}}")
-
-		cs.comment("prologue")
-		cs.comment()
-
-		return restore
-
-
-	def emit_epilogue(self, cs: CodegenState, restore: List[str]) -> None:
-		if len(restore) == 0:
-			restore_str = ""
-		else:
-			restore_str = (", ".join(restore))
-
-		cs.comment()
-		cs.comment("epilogue")
-		cs.emit(f"{cs.prologue_label}:", indent = 0)
-
-		if restore_str != "":
-			cs.emit(f"ldmfd sp!, {{{restore_str}}}")
-
-		cs.emit(f"add sp, sp, #{self.frame_size}")
-		cs.emit(f"ldmfd sp!, {{fp, pc}}")
-
-
-
-
-
-
-
-
-def codegen_constant_int(cs: CodegenState, vs: VarState, val: int, must_use_reg: bool = False, reg_hint: str = "") -> str:
-	if (-128 <= val <= 127) or (0 <= val <= 255):
-		if must_use_reg:
-			if reg_hint != "":
-				reg = reg_hint
-			else:
-				reg = vs.scratch_register()
-			cs.emit(f"mov {reg}, #{val}")
-			return reg
-		else:
-			return f"#{val}"
-
-	else:
-		if reg_hint != "":
-			reg = reg_hint
-		else:
-			reg = vs.scratch_register()
-		cs.emit(f"ldr {reg}, =#{val}")
-		return reg
 
 
 # returns (string, is_constant, type)
-def codegen_value(cs: CodegenState, vs: VarState, val: ir3.Value, must_use_reg: bool = False) -> Tuple[str, bool, str]:
+def codegen_value(cs: CodegenState, vs: VarState, val: ir3.Value) -> Tuple[str, bool]:
 	if isinstance(val, ir3.VarRef):
-		return vs.make_available(val.name), False, vs.var_types[val.name]
+		if vs.get_location(val.name).have_register():
+			return vs.get_location(val.name).register(), False
 
-	elif isinstance(val, ir3.ConstantString):
-		scr = vs.scratch_register()
-		cs.emit(f"ldr {scr}, ={cs.add_string(val.value)}")
-		return scr, False, "String"
+		# restore...
+		scr = vs.get_scratch()
+		cs.emit(f"ldr {scr}, [fp, #{vs.get_location(val.name).stack_ofs()}]")
+		cs.comment_line(f"restore {val.name}")
+
+		return scr, False
 
 	elif isinstance(val, ir3.ConstantInt):
-		tmp = codegen_constant_int(cs, vs, val.value, must_use_reg = must_use_reg)
-		return tmp, (tmp[0] == '#'), "Int"
+		return f"#{val.value}", True
 
-	elif not must_use_reg:
-		if isinstance(val, ir3.ConstantBool):
-			return f"#{0 if not val.value else 1}", True, "Bool"
+	if isinstance(val, ir3.ConstantBool):
+		return f"#{0 if not val.value else 1}", True
 
-		elif isinstance(val, ir3.ConstantNull):
-			return f"#0", True, "$NullObject"
-	else:
-		if isinstance(val, ir3.ConstantBool):
-			cs.emit(f"mov {scr}, #{0 if not val.value else 1}")
-			return scr, False, "Bool"
-
-		elif isinstance(val, ir3.ConstantNull):
-			cs.emit(f"mov {scr}, #0")
-			return scr, False, "$NullObject"
+	elif isinstance(val, ir3.ConstantNull):
+		return f"#0", True
 
 	assert False and "unreachable"
 
 
-# this only uses the given register for constants. for values, it we just
-def codegen_value_into_register(cs: CodegenState, vs: VarState, val: ir3.Value, reg: str) -> str:
+def get_value_type(cs: CodegenState, vs: VarState, val: ir3.Value) -> str:
 	if isinstance(val, ir3.VarRef):
-		return vs.make_available(val.name, reg_hint = reg)
-
-	elif isinstance(val, ir3.ConstantString):
-		cs.emit(f"ldr {reg}, ={cs.add_string(val.value)}")
-		return reg
+		return vs.get_type(val.name)
 
 	elif isinstance(val, ir3.ConstantInt):
-		return codegen_constant_int(cs, vs, val.value, must_use_reg = True, reg_hint = reg)
+		return "Int"
 
-	elif isinstance(val, ir3.ConstantBool):
-		cs.emit(f"mov {reg}, #{0 if not val.value else 1}")
-		return reg
+	if isinstance(val, ir3.ConstantBool):
+		return "Bool"
 
 	elif isinstance(val, ir3.ConstantNull):
-		cs.emit(f"mov {reg}, #0")
-		return reg
+		return "$NullObject"
 
-	else:
-		assert False and "unreachable"
+	assert False and "unreachable"
 
 
 
@@ -470,19 +69,11 @@ def codegen_binop(cs: CodegenState, vs: VarState, expr: ir3.BinaryOp, dest_reg: 
 		return
 
 
-
-
-	lhs, lc, _ = codegen_value(cs, vs, expr.lhs)
-	if not lc:
-		vs.lock_register(lhs)
-
-	rhs, rc, _ = codegen_value(cs, vs, expr.rhs)
-	if not rc:
-		vs.lock_register(rhs)
+	lhs, lc = codegen_value(cs, vs, expr.lhs)
+	rhs, rc = codegen_value(cs, vs, expr.rhs)
 
 	if lc and rc:
 		raise TCException(expr.loc, "somehow, constant folding failed")
-
 
 	# turns out all of these need unique paths ><
 	if expr.op == "+":
@@ -514,7 +105,6 @@ def codegen_binop(cs: CodegenState, vs: VarState, expr: ir3.BinaryOp, dest_reg: 
 
 			assert isinstance(constant_thing, ir3.ConstantInt)
 			mult: int = constant_thing.value
-
 
 			negate: bool = False
 			if mult == 0:
@@ -559,37 +149,27 @@ def codegen_binop(cs: CodegenState, vs: VarState, expr: ir3.BinaryOp, dest_reg: 
 	else:
 		cs.comment(f"NOT IMPLEMENTED (binop '{expr.op}')")
 
-	vs.unlock_register(lhs)
-	vs.unlock_register(rhs)
+	vs.free_all_scratch()
 
 
 def codegen_unaryop(cs: CodegenState, vs: VarState, expr: ir3.UnaryOp, dest_reg: str):
-	value, const, _ = codegen_value(cs, vs, expr.expr)
-	if not const:
-		vs.lock_register(value)
+	value, const = codegen_value(cs, vs, expr.expr)
+	assert not const
 
 	if expr.op == "-":
-		# isn't our constant folding supposed to get rid of this case?
-		if const:
-			const_int = codegen_constant_int(cs, vs, cast(ir3.ConstantInt, expr.expr).value)
-			cs.emit(f"mov {dest_reg}, {const_int}")
-		else:
-			cs.emit(f"rsb {dest_reg}, {value}, #0")
+		cs.emit(f"rsb {dest_reg}, {value}, #0")
 
 	elif expr.op == "!":
-		x = cast(ir3.ConstantBool, expr.expr)
-		if const:
-			cs.emit(f"mov {dest_reg}, #{0 if x else 1}")
-		else:
-			# 1 - x works as long as 0 < x < 1 (which should hold...)
-			cs.emit(f"rsb {dest_reg}, {value}, #1")
+		# 1 - x works as long as 0 < x < 1 (which should hold...)
+		cs.emit(f"rsb {dest_reg}, {value}, #1")
+
 	else:
 		cs.comment(f"NOT IMPLEMENTED (unaryop '{expr.op}')")
 
 
 
 
-def codegen_expr(cs: CodegenState, vs: VarState, expr: ir3.Expr, dest_reg: str):
+def codegen_expr(cs: CodegenState, vs: VarState, expr: ir3.Expr, dest_reg: str, stmt_id: int):
 	if isinstance(expr, ir3.BinaryOp):
 		codegen_binop(cs, vs, expr, dest_reg)
 
@@ -598,11 +178,11 @@ def codegen_expr(cs: CodegenState, vs: VarState, expr: ir3.Expr, dest_reg: str):
 
 	elif isinstance(expr, ir3.ValueExpr):
 		# we might potentially want to abstract this out, but for now idgaf
-		operand, _, _ = codegen_value(cs, vs, expr.value)
+		operand, _ = codegen_value(cs, vs, expr.value)
 		cs.emit(f"mov {dest_reg}, {operand}")
 
 	elif isinstance(expr, ir3.FnCallExpr):
-		codegen_call(cs, vs, expr.call)
+		codegen_call(cs, vs, expr.call, stmt_id)
 
 	else:
 		cs.comment(f"NOT IMPLEMENTED (expression)")
@@ -610,24 +190,56 @@ def codegen_expr(cs: CodegenState, vs: VarState, expr: ir3.Expr, dest_reg: str):
 
 
 
+def make_available(cs: CodegenState, vs: VarState, var: str) -> Tuple[VarLoc, str, bool]:
+	loc = vs.get_location(var)
+	if loc.have_register():
+		spill = False
+		dest_reg = loc.register()
+
+	else:
+		spill = True
+		# what we're doing here is allocating a scratch register, but immediately freeing it.
+		# we usually only have 2 scratch registers, so what happens if all 3 operands (dest, src1, src2)
+		# are spilled?
+		#
+		# the solution here is to share a register between src1 (or src2) and dest. since dest is only
+		# written to, its old value is irrelevant. this means we don't need to actually "keep" the scratch
+		# for dest.
+		#
+		# what if src1/src2 == dest? this is also possible; restoring src1/src2 from mem happens strictly
+		# before we write to dest, so there is no overlap.
+		dest_reg = vs.get_scratch()
+		vs.free_scratch(dest_reg)
+
+	return loc, dest_reg, spill
+
+def writeback_spill(cs: CodegenState, vs: VarState, spill: bool, loc: VarLoc, dest_reg: str, var: str):
+	if spill and vs.is_var_used(var):
+		cs.emit(f"str {dest_reg}, [fp, #{loc.stack_ofs()}]")
+		cs.comment_line(f"spill/wb {var}")
+
+
+
 def codegen_assign(cs: CodegenState, vs: VarState, assign: ir3.AssignOp):
-	dest_reg = vs.make_available(assign.lhs, skip_loads=True)
-	vs.lock_register(dest_reg)
 
-	codegen_expr(cs, vs, assign.rhs, dest_reg)
+	loc, dest_reg, spill = make_available(cs, vs, assign.lhs)
 
-	vs.unlock_register(dest_reg)
+	codegen_expr(cs, vs, assign.rhs, dest_reg, assign.id)
+
+	writeback_spill(cs, vs, spill, loc, dest_reg, assign.lhs)
 
 
 
 
 def codegen_return(cs: CodegenState, vs: VarState, stmt: ir3.ReturnStmt):
 	if stmt.value is not None:
-		value = codegen_value_into_register(cs, vs, stmt.value, reg = "a1")
+		# it actually doesn't matter what register this even is.
+		value, _ = codegen_value(cs, vs, stmt.value)
 		if value != "a1":
 			cs.emit(f"mov a1, {value}")
 
 	cs.emit(f"b {cs.prologue_label}")
+
 
 
 def codegen_uncond_branch(cs: CodegenState, vs: VarState, ubr: ir3.Branch):
@@ -639,22 +251,29 @@ def codegen_cond_branch(cs: CodegenState, vs: VarState, cbr: ir3.CondBranch):
 		cs.comment("NOT IMPLEMENTED (relop branch)")
 
 	else:
-		value, const, _ = codegen_value(cs, vs, cbr.cond)
-		if const:
-			cs.comment("NOT IMPLEMENTED (const branch)")
+		assert get_value_type(cs, vs, cbr.cond) == "Bool"
 
+		target = cs.mangle_label(cbr.label)
+
+		if isinstance(cbr.cond, ir3.ConstantBool):
+			if cbr.cond.value:
+				cs.emit(f"b {target}")
+			else:
+				cs.comment("constant branch eliminated; fallthrough")
+				pass
 		else:
+			value, _ = codegen_value(cs, vs, cbr.cond)
 			cs.emit(f"cmp {value}, #0")
-			cs.emit(f"bne {cs.mangle_label(cbr.label)}")
+			cs.emit(f"bne {target}")
 
 
-def save_arg_regs(cs: CodegenState, vs: VarState) -> List[str]:
+def save_arg_regs(cs: CodegenState, vs: VarState, stmt_id: int) -> List[str]:
 	# for each of a1-a4, if there is some value in there, we need to save/restore across
 	# the call boundary. this also acts as a spill for those values, so we don't need to
 	# handle spilling separately.
 	spills: List[str] = []
 	for r in ["a1", "a2", "a3", "a4"]:
-		if vs.registers[r] is not None and vs.registers[r] != "":
+		if vs.is_register_live(r, stmt_id):
 			spills.append(r)
 
 	if len(spills) > 0:
@@ -670,9 +289,10 @@ def restore_arg_regs(cs: CodegenState, vs: VarState, spills: List[str]) -> None:
 
 
 def codegen_println(cs: CodegenState, vs: VarState, stmt: ir3.PrintLnCall):
-	value, _, ty = codegen_value(cs, vs, stmt.value)
+	value, _ = codegen_value(cs, vs, stmt.value)
+	ty = get_value_type(cs, vs, stmt.value)
 
-	spills = save_arg_regs(cs, vs)
+	spills = save_arg_regs(cs, vs, stmt.id)
 
 	# strings are always in registers
 	if ty == "String":
@@ -705,28 +325,29 @@ def codegen_println(cs: CodegenState, vs: VarState, stmt: ir3.PrintLnCall):
 	restore_arg_regs(cs, vs, spills)
 
 
-def codegen_call(cs: CodegenState, vs: VarState, call: ir3.FnCall):
+def codegen_call(cs: CodegenState, vs: VarState, call: ir3.FnCall, stmt_id: int):
 	# if the number of arguments is > 4, then we set up the stack first; this
 	# is so we can just use a1 as a scratch register
 
-	spills = save_arg_regs(cs, vs)
+	spills = save_arg_regs(cs, vs, stmt_id)
 
 	if len(call.args) > 4:
 		# to match the C calling convention, stack arguments go right-to-left.
 		stack_args = reversed(call.args[4:])
 
-		vs.spill_register("a1")
-		spilled_a1 = True
-
 		for i, arg in enumerate(stack_args):
 			# just always use a1 as a hint, since it's bound to get spilled anyway
 			# note the stack offset is always -4, since we do the post increment
-			val = codegen_value_into_register(cs, vs, arg, reg = "a1")
+			val, const = codegen_value(cs, vs, arg)
+			if const:
+				cs.emit(f"mov a1, {val}")
+
 			cs.emit(f"str {val}, [sp, #-4]!")
 
 	for i, arg in enumerate(call.args[:4]):
 		reg = f"a{i + 1}"
-		val = codegen_value_into_register(cs, vs, arg, reg = reg)
+		val, _ = codegen_value(cs, vs, arg)
+
 		if val != reg:
 			cs.emit(f"mov {reg}, {val}")
 
@@ -760,7 +381,18 @@ def codegen_stmt(cs: CodegenState, vs: VarState, stmt: ir3.Stmt):
 		codegen_cond_branch(cs, vs, stmt)
 
 	elif isinstance(stmt, ir3.FnCallStmt):
-		codegen_call(cs, vs, stmt.call)
+		codegen_call(cs, vs, stmt.call, stmt.id)
+
+	elif isinstance(stmt, cgpseudo.AssignConstInt) or isinstance(stmt, cgpseudo.AssignConstString):
+		foo: Union[cgpseudo.AssignConstInt, cgpseudo.AssignConstString] = stmt
+		loc, dest, spill = make_available(cs, vs, foo.lhs)
+
+		if isinstance(foo, cgpseudo.AssignConstInt):
+			cs.emit(f"ldr {dest}, =#{foo.rhs}")
+		else:
+			cs.emit(f"ldr {dest}, ={cs.add_string(foo.rhs)}")
+
+		writeback_spill(cs, vs, spill, loc, dest, foo.lhs)
 
 	else:
 		cs.comment("NOT IMPLEMENTED")
@@ -775,11 +407,11 @@ def codegen_method(cs: CodegenState, method: ir3.FuncDefn):
 	cs.emit(f".type {method.name}, %function", indent = 0)
 	cs.emit(f"{method.name}:", indent = 0)
 
-	assigns, spills, scratches = regalloc.allocate(method)
+	assigns, spills, scratches, reg_live_ranges = regalloc.allocate(method)
 
 	# start sending stuff to the gulag, from which we will later rescue them
 	cs.begin_scope()
-	vs = VarState(cs, method.vars, method.params)
+	vs = VarState(cs, method.vars, method.params, assigns, spills, scratches, reg_live_ranges)
 
 	# the way we handle returns (which isn't a good way i admit) is to just set the return
 	# value in a1 (if any), then branch to the epilogue. so, emit a label here:
@@ -796,11 +428,11 @@ def codegen_method(cs: CodegenState, method: ir3.FuncDefn):
 
 	# now that we know which registers were used, we can do the appropriate save/restore.
 	# at this point the actual body has not been emitted (it's in `fn_stmts`).
-	restore = vs.emit_prologue(cs)
+	vs.emit_prologue(cs)
 
 	cs.emit_lines(fn_stmts)
 
-	vs.emit_epilogue(cs, restore)
+	vs.emit_epilogue(cs)
 	cs.emit(f"\n")
 
 

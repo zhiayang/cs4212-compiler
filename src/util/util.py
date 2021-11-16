@@ -77,6 +77,10 @@ def print_warning(loc: Location, msg: str) -> None:
 	print(f"{loc}: {colourise('warning:', '1;35m')} {colourise(msg, '1m')}")
 	print_context(loc, "1;35m")
 
+def print_note(loc: Location, msg: str) -> None:
+	print(f"{loc}: {colourise('note:', '1;94m')} {colourise(msg, '1m')}")
+	print_context(loc, "1;94m")
+
 
 
 
@@ -93,9 +97,17 @@ class TCException(Exception):
 	def __init__(self, loc: Location, msg: str) -> None:
 		self.loc: Location = loc
 		self.msg: str = msg
+		self.notes: List[Tuple[Location, str]] = []
+
+	def add_note(self, loc: Location, msg: str) -> TCException:
+		self.notes.append((loc, msg))
+		return self
 
 	def throw(self) -> NoReturn:
 		print_error_msg(self.loc, self.msg)
+		for l, m in self.notes:
+			print_note(l, m)
+
 		sys.exit(1)
 
 # this language sucks.
@@ -104,5 +116,5 @@ class CGException(Exception):
 		self.msg: str = msg
 
 	def throw(self) -> NoReturn:
-		print(f"<unknown loc>: {colourise('error:', '1;31m')} {colourise(self.msg, '1m')}")
+		print(f"{colourise('codegen failure:', '1;31m')} {colourise(self.msg, '1m')}")
 		sys.exit(1)

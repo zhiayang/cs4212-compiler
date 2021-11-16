@@ -11,11 +11,23 @@ from . import simp
 
 from .util import Location, TCException, StringView, print_warning
 
+
+# just a little hack -- this should *not* leave this module. we should never have values of type void.
+class ConstantVoid(ir3.Value):
+	def __init__(self, loc: Location):
+		super().__init__(loc)
+
+	def __str__(self) -> str:
+		return "void"
+
+
+
 class FuncType:
-	def __init__(self, clsname: str, params: List[str], ret: str):
+	def __init__(self, clsname: str, params: List[str], ret: str, loc: Location):
 		self.clsname: str = clsname
 		self.params: List[str] = params
 		self.retty: str = ret
+		self.loc = loc
 
 	def __str__(self) -> str:
 		return f"{self.retty} ({', '.join(self.params)})"
@@ -23,12 +35,13 @@ class FuncType:
 	def __eq__(self, other: object) -> bool:
 		if isinstance(other, FuncType):
 			# note: don't check return types, you can't overload on that
+			# same for location
 			return other.clsname == self.clsname and other.params == self.params
 		else:
 			return False
 
 def get_method_type(method: ast.MethodDefn) -> FuncType:
-	return FuncType(method.parent.name, list(map(lambda a: a.type, method.args)), method.return_type)
+	return FuncType(method.parent.name, list(map(lambda a: a.type, method.args)), method.return_type, method.loc)
 
 def mangle_one(name: str) -> str:
 	if name == "Void":
@@ -138,6 +151,8 @@ class TypecheckState:
 			return "String"
 		elif isinstance(value, ir3.ConstantNull):
 			return "$NullObject"
+		elif isinstance(value, ConstantVoid):
+			return "Void"
 		elif isinstance(value, ir3.VarRef):
 			return self.get_var(value.loc, value.name)[0].type
 		else:
@@ -171,7 +186,7 @@ class TypecheckState:
 			return (tmp, [ ir3.AssignOp(value.loc, tmp.name, ir3.ValueExpr(value.loc, value)) ])
 
 
-def find_overload(ts: TypecheckState, arg_types: List[str], overloads: List[FuncType]) -> Union[FuncType, None]:
+def find_overload(ts: TypecheckState, loc: Location, arg_types: List[str], overloads: List[FuncType]) -> Optional[FuncType]:
 
 	def check_one_overload(ts: TypecheckState, args: List[str], overload: List[str]) -> bool:
 		if len(args) != len(overload):
@@ -183,12 +198,24 @@ def find_overload(ts: TypecheckState, arg_types: List[str], overloads: List[Func
 
 		return True
 
-
+	ret: List[FuncType] = []
 	for overload in overloads:
 		if check_one_overload(ts, arg_types, overload.params):
-			return overload
+			ret.append(overload)
 
-	return None
+	if len(ret) == 0:
+		return None
+
+	elif len(ret) == 1:
+		return ret[0]
+
+	else:
+		e = TCException(loc, f"ambiguous call to function: {len(ret)} overloads match")
+		for f in ret:
+			e.add_note(f.loc, f"here")
+		raise e
+
+
 
 
 
@@ -271,7 +298,7 @@ def typecheck_call(ts: TypecheckState, cls_name: str, this_name: str, call: ast.
 		arg_vals.append(vl)
 		stmts.extend(ss)
 
-	overload = find_overload(ts, arg_types, methods)
+	overload = find_overload(ts, call.loc, arg_types, methods)
 	if overload is None:
 		raise TCException(call.loc, f"method '{func_name}' in class '{cls_name}' has no overload taking arguments '{arg_types}'")
 
@@ -280,11 +307,17 @@ def typecheck_call(ts: TypecheckState, cls_name: str, this_name: str, call: ast.
 	# insert the 'this' argument.
 	arg_vals.insert(0, ir3.VarRef(call.loc, this_name))
 
-	fncall = ir3.FnCallExpr(call.loc, ir3.FnCall(call.loc, mangled_name, arg_vals))
-	return_val = ts.make_temp(call.loc, overload.retty)
-	stmts.append(ir3.AssignOp(call.loc, return_val.name, fncall))
+	fncall = ir3.FnCall(call.loc, mangled_name, arg_vals)
+	if overload.retty == "Void":
+		stmts.append(ir3.FnCallStmt(call.loc, fncall))
 
-	return (stmts, ir3.VarRef(call.loc, return_val.name))
+		# return a dummy value, since we must return something.
+		return stmts, ConstantVoid(call.loc)
+
+	else:
+		return_val = ts.make_temp(call.loc, overload.retty)
+		stmts.append(ir3.AssignOp(call.loc, return_val.name, ir3.FnCallExpr(call.loc, fncall)))
+		return stmts, ir3.VarRef(call.loc, return_val.name)
 
 
 
