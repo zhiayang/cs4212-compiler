@@ -26,3 +26,28 @@ class AssignConstString(ir3.Stmt):
 
 	def __str__(self) -> str:
 		return f"{self.lhs} = \"{escape_string(self.rhs)}\";"
+
+
+class DummyStmt(ir3.Stmt):
+	def __init__(self, loc: Location) -> None:
+		super().__init__(loc)
+
+	def __str__(self) -> str:
+		return f"dummy;"
+
+
+class SpillVariable(ir3.Stmt):
+	def __init__(self, loc: Location, var: str) -> None:
+		super().__init__(loc)
+		self.var: str = var
+
+	def __str__(self) -> str:
+		return f"spill {self.var};"
+
+class RestoreVariable(ir3.Stmt):
+	def __init__(self, loc: Location, var: str) -> None:
+		super().__init__(loc)
+		self.var: str = var
+
+	def __str__(self) -> str:
+		return f"restore {self.var};"

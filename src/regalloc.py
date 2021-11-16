@@ -5,306 +5,46 @@ from typing import *
 from copy import *
 
 from . import ir3
+from . import cglower
 from . import cgpseudo
+from . import cgliveness
 from .util import Location, TCException, CGException, StringView, print_warning, escape_string
 
-import math
 
-def expand_constant_value(value: ir3.Value, ctr: List[int]) -> Tuple[List[ir3.Stmt], List[ir3.VarDecl], ir3.Value]:
-	stm: ir3.Stmt
-	vname = f"_c{ctr[0]}"
-	ctr[0] += 1
 
-	if isinstance(value, ir3.ConstantInt):
-		# we know "for sure" that any value between -256 and +256 (inclusive) can be encoded as
-		# an immediate operand
-		if -256 <= value.value <= 256:
-			return [], [], value
+# func -> (assignments, spills, reg_live_ranges)
+def allocate_registers(func: ir3.FuncDefn) -> Tuple[Dict[str, str], Set[str], Dict[str, Set[int]]]:
+	# this wrapper only exists so that we lower functions exactly once.
+	cglower.lower_function(func)
+	return alloc_function(func)
 
-		var = ir3.VarDecl(value.loc, vname, "Int")
-		stm = cgpseudo.AssignConstInt(value.loc, vname, value.value)
 
-		return [ stm ], [ var ], ir3.VarRef(value.loc, vname)
+def alloc_function(func: ir3.FuncDefn, prespilled: Set[str] = set()) -> Tuple[Dict[str, str], Set[str], Dict[str, Set[int]]]:
+	stmts = cglower.renumber_stmts(func)
+	ins, outs, defs, uses = cgliveness.analyse(func, stmts)
 
-	elif isinstance(value, ir3.ConstantString):
-		# this always needs expanding.
-		var = ir3.VarDecl(value.loc, vname, "String")
-		stm = cgpseudo.AssignConstString(value.loc, vname, value.value)
+	# for s in stmts:
+	# 	print("{:02}  {}".format(s.id, s))
 
-		return [ stm ], [ var ], ir3.VarRef(value.loc, vname)
+	"""
+	TODO: do we need to consider OUT for def? the idea here is that, if we have the following:
+	0:  z = 69;
+	1:  ...
+	2:  k = z + 7;
+	3:  ...
+	4:  k = k + 1;
 
-	else:
-		return [], [], value
+	without considering OUT, we have live(z) = { 1, 2 }, live(k) = { 3, 4 }
+	z and k here would *not* interfere. BUT, they actually don't -- nothing stops us
+	from assigning the same register to `k` and `z`.
+	if, in a subsequent line:
 
+	5:  ...
+	6:  y = z + 1;
 
-# for constants that cannot fit in an immediate (ie. strings, integers out of range),
-def expand_constants_in_expr(expr: ir3.Expr, ctr: List[int]) -> Tuple[List[ir3.Stmt], List[ir3.VarDecl], ir3.Expr]:
-	if isinstance(expr, ir3.BinaryOp):
-		s1, vrs1, v1 = expand_constant_value(expr.lhs, ctr)
-		s2, vrs2, v2 = expand_constant_value(expr.rhs, ctr)
-		if len(s1) == 0 and len(s2) == 0:
-			return [], [], expr
-		return [ *s1, *s2 ], [ *vrs1, *vrs2 ], ir3.BinaryOp(expr.loc, v1, expr.op, v2)
-
-	elif isinstance(expr, ir3.UnaryOp):
-		ss, vr, v = expand_constant_value(expr.expr, ctr)
-		if len(ss) == 0:
-			return [], [], expr
-		return ss, vr, ir3.UnaryOp(expr.loc, expr.op, v)
-
-	elif isinstance(expr, ir3.ValueExpr):
-		ss, vr, v = expand_constant_value(expr.value, ctr)
-		return ss, vr, ir3.ValueExpr(expr.loc, v)
-
-	elif isinstance(expr, ir3.FnCallExpr):
-		ss = []
-		vs = []
-		vrs = []
-		for arg in expr.call.args:
-			s, vr, v = expand_constant_value(arg, ctr)
-			ss.extend(s)
-			vrs.extend(vr)
-			vs.append(v)
-
-		if len(ss) == 0:
-			return [], [], expr
-
-		return ss, vrs, ir3.FnCallExpr(expr.loc, ir3.FnCall(expr.loc, expr.call.name, vs))
-
-	else:
-		return [], [], expr
-
-
-def expand_constants_in_stmt(stmt: ir3.Stmt, ctr: List[int]) -> Tuple[List[ir3.Stmt], List[ir3.VarDecl]]:
-	if isinstance(stmt, ir3.AssignOp):
-		ss, vr, e = expand_constants_in_expr(stmt.rhs, ctr)
-		if len(ss) == 0:
-			return [ stmt ], []
-		return [ *ss, ir3.AssignOp(stmt.loc, stmt.lhs, e) ], vr
-
-	elif isinstance(stmt, ir3.AssignDotOp):
-		ss, vr, e = expand_constants_in_expr(stmt.rhs, ctr)
-		if len(ss) == 0:
-			return [ stmt ], []
-		return [ *ss, ir3.AssignDotOp(stmt.loc, stmt.lhs1, stmt.lhs2, e) ], vr
-
-	elif isinstance(stmt, ir3.PrintLnCall):
-		ss, vr, v = expand_constant_value(stmt.value, ctr)
-		if len(ss) == 0:
-			return [ stmt ], []
-		return [ *ss, ir3.PrintLnCall(stmt.loc, v) ], vr
-
-	elif isinstance(stmt, ir3.FnCallStmt):
-		ss = []
-		vs = []
-		vrs = []
-		for arg in stmt.call.args:
-			s, vr, v = expand_constant_value(arg, ctr)
-			ss.extend(s)
-			vs.append(v)
-			vrs.extend(vr)
-
-		if len(ss) == 0:
-			return [ stmt ], []
-
-		return [ *ss, ir3.FnCallStmt(stmt.loc, ir3.FnCall(stmt.loc, stmt.call.name, vs)) ], vrs
-
-	elif isinstance(stmt, ir3.ReturnStmt):
-		if stmt.value is None:
-			return [ stmt ], []
-		ss, vr, v = expand_constant_value(stmt.value, ctr)
-		if len(ss) == 0:
-			return [ stmt ], []
-		return [ *ss, ir3.ReturnStmt(stmt.loc, v) ], vr
-
-	elif isinstance(stmt, ir3.CondBranch):
-		if not isinstance(stmt.cond, ir3.RelOp):
-			return [ stmt ], []
-
-		ss1, vr1, v1 = expand_constant_value(stmt.cond.lhs, ctr)
-		ss2, vr2, v2 = expand_constant_value(stmt.cond.rhs, ctr)
-		if len(ss1) == 0 and len(ss2) == 0:
-			return [ stmt ], []
-		rel = ir3.RelOp(stmt.cond.loc, stmt.cond.lhs, stmt.cond.op, stmt.cond.rhs)
-		return [ *ss1, *ss2, ir3.CondBranch(stmt.loc, rel, stmt.label) ], [ *vr1, *vr2 ]
-
-	else:
-		return [ stmt ], []
-
-
-def renumber_statements(func: ir3.FuncDefn) -> List[ir3.Stmt]:
-
-	# first, expand all statements.
-	const_nums = [0]
-	for b in func.blocks:
-		backup = copy(b.stmts)
-		b.stmts = []
-		for i, s in enumerate(backup):
-			ss, vrs = expand_constants_in_stmt(s, const_nums)
-			func.vars.extend(vrs)
-
-			b.stmts.extend(ss)
-			const_nums[0] += 1
-
-	all_stmts: List[ir3.Stmt] = []
-
-	# then renumber them.
-	counter = 0
-	for b in func.blocks:
-		for s in b.stmts:
-			s.id = counter
-			counter += 1
-			all_stmts.append(s)
-
-	return all_stmts
-
-
-def get_defs_and_uses(stmt: ir3.Stmt) -> Tuple[Set[str], Set[str]]:
-
-	def get_value_uses(val: ir3.Value) -> Set[str]:
-		if isinstance(val, ir3.VarRef):
-			return set([ val.name ])
-		else:
-			return set()
-
-	def get_expr_uses(expr: ir3.Expr) -> Set[str]:
-		if isinstance(expr, ir3.BinaryOp):
-			return get_value_uses(expr.lhs).union(get_value_uses(expr.rhs))
-		elif isinstance(expr, ir3.UnaryOp):
-			return get_value_uses(expr.expr)
-		elif isinstance(expr, ir3.DotOp):
-			return set([expr.lhs])
-		elif isinstance(expr, ir3.ValueExpr):
-			return get_value_uses(expr.value)
-		elif isinstance(expr, ir3.FnCallExpr):
-			tmp: Set[str] = set()       # stupidest language ever designed
-			return tmp.union(*map(lambda a: get_value_uses(a), expr.call.args))
-		else:
-			return set()
-
-	if isinstance(stmt, ir3.FnCallStmt):
-		# calls don't def anything
-		tmp: Set[str] = set()           # stupidest language ever designed
-		return (set(), tmp.union(*map(lambda a: get_value_uses(a), stmt.call.args)))
-	elif isinstance(stmt, ir3.ReturnStmt):
-		return (set(), get_value_uses(stmt.value) if stmt.value is not None else set())
-	elif isinstance(stmt, ir3.ReadLnCall):
-		return (set([ stmt.name ]), set())
-	elif isinstance(stmt, ir3.PrintLnCall):
-		return (set(), get_value_uses(stmt.value))
-	elif isinstance(stmt, ir3.AssignOp):
-		return (set([ stmt.lhs ]), get_expr_uses(stmt.rhs))
-	elif isinstance(stmt, ir3.AssignDotOp):
-		return (set([ stmt.lhs1 ]), get_expr_uses(stmt.rhs))
-	elif isinstance(stmt, ir3.CondBranch):
-		if isinstance(stmt.cond, ir3.Value):
-			return (set(), get_value_uses(stmt.cond))
-		else:
-			uses: Set[str] = set()
-			uses = uses.union(get_value_uses(stmt.cond.lhs), get_value_uses(stmt.cond.rhs))
-			return (set(), uses)
-	elif isinstance(stmt, cgpseudo.AssignConstInt):
-		return (set([ stmt.lhs ]), set())
-	elif isinstance(stmt, cgpseudo.AssignConstString):
-		return (set([ stmt.lhs ]), set())
-	else:
-		return (set(), set())
-
-
-
-
-
-# returns (ins, outs, defs, uses)
-def analyse_liveness(func: ir3.FuncDefn, all_stmts: List[ir3.Stmt]) -> Tuple[List[Set[str]], List[Set[str]], \
-	List[Set[str]], List[Set[str]]]:
-
-	labels: Dict[str, int] = dict()
-	predecessors: Dict[int, Set[int]] = dict()
-
-	for b in func.blocks:
-		labels[b.name] = b.stmts[0].id
-
-		# for the first stmt in the block, its preds are the set of all branches to it.
-		# for subsequent stmts, its pred is just the previous statement.
-		predecessors[labels[b.name]] = set(map(lambda b: b.stmts[-1].id, b.predecessors))
-
-		for k in range(1, len(b.stmts)):
-			x = b.stmts[k].id
-			predecessors[x] = set([x - 1])
-
-	def get_successors(i: int) -> Set[int]:
-		stmt = all_stmts[i]
-		if isinstance(stmt, ir3.Branch):
-			return set([ labels[stmt.label] ])
-
-		elif isinstance(stmt, ir3.CondBranch):
-			return set([ labels[stmt.label], i + 1 ])
-
-		elif i + 1 < len(all_stmts):
-			return set([i + 1])
-		else:
-			return set()
-
-	ins: List[Set[str]]  = list(map(lambda _: set(), range(0, len(all_stmts))))
-	outs: List[Set[str]] = list(map(lambda _: set(), range(0, len(all_stmts))))
-	queue: List[int] = list(range(0, len(all_stmts)))
-
-	defs: List[Set[str]] = list(map(lambda s: get_defs_and_uses(s)[0], all_stmts))
-	uses: List[Set[str]] = list(map(lambda s: get_defs_and_uses(s)[1], all_stmts))
-
-	# furthermore, we consider the first statement to define all locals (incl. temporaries) and arguments.
-	defs[0].update(map(lambda v: v.name, func.vars))
-	defs[0].update(map(lambda v: v.name, func.params))
-
-	while len(queue) > 0:
-		n = queue[0]
-		stmt = all_stmts[n]
-		queue = queue[1:]
-
-		old_in = copy(ins[n])
-
-		tmp: Set[str] = set()       # stupidest language ever designed
-		outs[n] = tmp.union(*map(lambda succ: ins[succ], get_successors(n)))
-
-		ins[n]  = uses[n].union(outs[n] - defs[n])
-
-		# TODO: is this correct?
-		if old_in != ins[n] and n in predecessors:
-			queue.extend(predecessors[n])
-
-
-	# for s in all_stmts:
-	# 	print("{:02}:  {}".format(s.id, s))
-	# 	print(f"  ins = {ins[s.id]}")
-
-
-
-	return (ins, outs, defs, uses)
-
-
-# func -> (assignments, spills, scratch, reg_live_ranges)
-def allocate(func: ir3.FuncDefn) -> Tuple[Dict[str, str], Set[str], List[str], Dict[str, Set[int]]]:
-	all_stmts = renumber_statements(func)
-	ins, outs, defs, uses = analyse_liveness(func, all_stmts)
-
-
-	# TODO: do we need to consider OUT for def? the idea here is that, if we have the following:
-	# 0:  z = 69;
-	# 1:  ...
-	# 2:  k = z + 7;
-	# 3:  ...
-	# 4:  k = k + 1;
-	#
-	# without considering OUT, we have live(z) = { 1, 2 }, live(k) = { 3, 4 }
-	# z and k here would *not* interfere. BUT, they actually don't -- nothing stops us
-	# from assigning the same register to `k` and `z`.
-	# if, in a subsequent line:
-	#
-	# 5:  ...
-	# 6:  y = z + 1;
-	#
-	# then, live(z) = { 1, 2, 3, 4, 5, 6 }, which would interfere with live(k) = { 3, 4 } --
-	# so it seems to suggest that we only need to consider IN.
+	then, live(z) = { 1, 2, 3, 4, 5, 6 }, which would interfere with live(k) = { 3, 4 } --
+	so it seems to suggest that we only need to consider IN.
+	"""
 
 	live_ranges: Dict[str, Set[int]] = dict()
 
@@ -330,24 +70,78 @@ def allocate(func: ir3.FuncDefn) -> Tuple[Dict[str, str], Set[str], List[str], D
 
 
 	# `uses` now is (essentially) a map from stmt_num -> used_vars
-	# we want to reverse it.
+	# we want to invert it.
 	var_uses: Dict[str, Set[int]] = dict()
 	for n, us in enumerate(uses):
 		for u in us:
 			var_uses.setdefault(u, set()).add(n)
 
+	# same deal for `defs`
+	var_defs: Dict[str, Set[int]] = dict()
+	for n, ds in enumerate(defs):
+		for d in ds:
+			var_defs.setdefault(d, set()).add(n)
+
 
 	# we must pre-colour the incoming arguments (which are not shadowed by locals) as a1-a4.
-	pre_assigned: Dict[str, str] = dict()
+	preassigned: Dict[str, str] = dict()
+	first_four_args: Set[str] = set()
+
 	for i, param in enumerate(func.params[:4]):
 		# only if it's not shadowed.
 		if param.name not in func.vars:
-			pre_assigned[param.name] = f"a{i + 1}"
+			preassigned[param.name] = f"a{i + 1}"
+			first_four_args.add(param.name)
 
-	# we designate a3 and a4 as scratch registers. this lets us always have 2 registers
-	# (guaranteed) into which we can load spilled operands.
-	assigns, spills = colour_graph(graph, ["v1", "v2", "v3", "a1", "a2", "a3", "a4"],
-		var_uses, pre_assigned)
+
+	registers = ["v1", "v2", "v3", "v4"]
+
+	# print(f"\nprespilled = {prespilled}")
+	# print(f"ranges: { {k: v  for k, v in map(lambda k: (k, live_ranges[k]), prespilled) } }")
+	assigns, spills, retry = colour_graph(graph, registers, var_uses, preassigned, prespilled)
+	if retry:
+		# now we must spill the new variable.
+		assert len(spills) == 1
+		var = next(iter(spills))
+
+		if var in prespilled:
+			raise CGException(f"invalid double spill of '{var}', graph = {graph.edges}")
+
+		# because of the way the blocks are structured and stuff, there isn't really a better way to do this.
+		u_stmts = var_uses[var]
+		d_stmts = var_defs[var]
+
+		for blk in func.blocks:
+			backup = copy(blk.stmts)
+			blk.stmts = []
+			for s in backup:
+				if (s.id in u_stmts) and (s.id in d_stmts):
+					blk.stmts.append(cgpseudo.RestoreVariable(s.loc, var))
+					blk.stmts.append(s)
+					blk.stmts.append(cgpseudo.SpillVariable(s.loc, var))
+
+				elif s.id in u_stmts:
+					blk.stmts.append(cgpseudo.RestoreVariable(s.loc, var))
+					blk.stmts.append(s)
+
+				elif s.id in d_stmts:
+					blk.stmts.append(s)
+
+					# if the var is one of the first 4 params and it is *not* shadowed,
+					# then we also need to spill it. for 5+ params we spill back to the
+					# callee-frame anyway, so an additional spill here is pointless
+					# for local vars, they start with an indeterminate value, so spilling
+					# is also pointless.
+					if s.id != 0 or var in first_four_args:
+						blk.stmts.append(cgpseudo.SpillVariable(s.loc, var))
+
+				else:
+					blk.stmts.append(s)
+
+		return alloc_function(func, prespilled.union(spills))
+
+
+	spills.update(prespilled)
 
 
 	# the statements where the register is live. we just compute this from the assignment.
@@ -356,17 +150,19 @@ def allocate(func: ir3.FuncDefn) -> Tuple[Dict[str, str], Set[str], List[str], D
 		reg = assigns[var]
 		reg_live_ranges.setdefault(reg, set()).update(live_ranges[var])
 
+
 	# print(f"assigns = {assigns}")
 	# print(f"spills = {spills}")
 
-	return assigns, spills, ["v4", "v5"], reg_live_ranges
+	return assigns, spills, reg_live_ranges
 
 
 
 def colour_graph(graph_: Graph, registers: List[str], uses: Dict[str, Set[int]], preassigned: Dict[str, str],
-	to_spill: Set[str] = set()) -> Tuple[Dict[str, str], Set[str]]:
+	prespilled_: Set[str]) -> Tuple[Dict[str, str], Set[str], bool]:
 
 	graph = deepcopy(graph_)
+	prespilled = copy(prespilled_)
 
 	stack: List[str] = []
 	preassigned_vars = set(preassigned.keys())
@@ -378,6 +174,8 @@ def colour_graph(graph_: Graph, registers: List[str], uses: Dict[str, Set[int]],
 		if sel is not None:
 			graph.remove(sel)
 			stack.append(sel)
+			prespilled.discard(sel)
+
 		else:
 			# try again, but without excluding preassigned nodes. this moves them
 			# as far back as possible so they are more likely to get their colour.
@@ -385,30 +183,50 @@ def colour_graph(graph_: Graph, registers: List[str], uses: Dict[str, Set[int]],
 			if sel is not None:
 				graph.remove(sel)
 				stack.append(sel)
+				prespilled.discard(sel)
 				continue
+			"""
+			choose a node to spill. we have a few heuristics to use:
+			1. its degree, ie. how many other vars it interferes with
+				spilling such a variable would make colouring easier later on
+			2. how many times it is used
+				spilling such a variable would be bad, because we need to touch memory more
+			3. other stuff, but i can't be bothered.
 
-			# choose a node to spill. we have a few heuristics to use:
-			# 1. its degree, ie. how many other vars it interferes with
-			#   spilling such a variable would make colouring easier later on
-			# 2. how many times it is used
-			#   spilling such a variable would be bad, because we need to touch memory more
-			# 3. other stuff, but i can't be bothered.
+			so we just calculate a score here that is: num_uses / degree, and spill the smallest one.
+			"""
 
-			# so we just calculate a score here that is: num_uses / degree, and spill the smallest one.
-			foo = list(map(lambda x: (x, len(uses[x]) / graph.get_degree(x)), graph.get_remaining_nodes()))
+			def get_spill_cost(var: str) -> float:
+				return len(uses[var]) / graph.get_degree(var)
+
+			remaining_unspilled = graph.get_remaining_nodes() - prespilled
+			foo: Iterable = map(lambda x: (x, get_spill_cost(x)), remaining_unspilled)
+			foo = list(foo)
+
 			foo.sort(key = lambda x: x[1])
 
 			if len(foo) > 0:
 				# now get the first one
 				sel = foo[0][0]
+				# print(f"spilling {sel}")
+
 				graph.remove(sel)
 				stack.append(sel)
+
 			else:
+				if len(remaining_unspilled) == 0:
+					break
+
+				print(f"graph = {graph.edges}")
 				raise CGException("failed to codegen: could not simplify interference graph")
 
 
-
 	assignments: Dict[str, str] = dict()
+
+	# process the prespilled ones first.
+	for ps in prespilled:
+		graph.remove(ps)
+		stack.append(ps)
 
 	while len(stack) > 0:
 		var = stack.pop(len(stack) - 1)
@@ -424,16 +242,11 @@ def colour_graph(graph_: Graph, registers: List[str], uses: Dict[str, Set[int]],
 			else:
 				assignments[var] = free_regs[0]
 		else:
-			print(f"spilling {var}")
-
 			# oops, we *really* need to spill.
-			new_graph = deepcopy(graph_)
-			new_graph.remove(var)
-			to_spill.add(var)
-			return colour_graph(new_graph, registers, uses, preassigned, to_spill)
+			return dict(), set([ var ]), True
 
 
-	return (assignments, to_spill)
+	return assignments, prespilled, False
 
 
 

@@ -746,7 +746,10 @@ def convert_to_basic_blocks(ts: TypecheckState, retty: str, stmts: List[ir3.Stmt
 
 		if isinstance(stmt, ir3.Label):
 			if stmt.name in block_names:
-				current = block_names[stmt.name]
+				next_blk = block_names[stmt.name]
+				next_blk.predecessors.add(current)
+
+				current = next_blk
 			else:
 				blk = ir3.BasicBlock(stmt.loc, stmt.name, [], set([current]))
 				block_names[stmt.name] = blk

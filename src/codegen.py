@@ -210,24 +210,11 @@ def codegen_expr(cs: CodegenState, vs: VarState, expr: ir3.Expr, dest_reg: str, 
 
 def make_available(cs: CodegenState, vs: VarState, var: str) -> Tuple[VarLoc, str, bool]:
 	loc = vs.get_location(var)
-	if loc.have_register():
-		spill = False
-		dest_reg = loc.register()
+	if not loc.have_register():
+		raise CGException(f"did not get register for '{var}'")
 
-	else:
-		spill = True
-		# what we're doing here is allocating a scratch register, but immediately freeing it.
-		# we usually only have 2 scratch registers, so what happens if all 3 operands (dest, src1, src2)
-		# are spilled?
-		#
-		# the solution here is to share a register between src1 (or src2) and dest. since dest is only
-		# written to, its old value is irrelevant. this means we don't need to actually "keep" the scratch
-		# for dest.
-		#
-		# what if src1/src2 == dest? this is also possible; restoring src1/src2 from mem happens strictly
-		# before we write to dest, so there is no overlap.
-		dest_reg = vs.get_scratch()
-		vs.free_scratch(dest_reg)
+	spill = False
+	dest_reg = loc.register()
 
 	return loc, dest_reg, spill
 
@@ -240,12 +227,11 @@ def writeback_spill(cs: CodegenState, vs: VarState, spill: bool, loc: VarLoc, de
 
 def codegen_assign(cs: CodegenState, vs: VarState, assign: ir3.AssignOp):
 
-	loc, dest_reg, spill = make_available(cs, vs, assign.lhs)
+	dest_reg = vs.make_dest_available(assign.lhs)
 
 	codegen_expr(cs, vs, assign.rhs, dest_reg, assign.id)
 
-	writeback_spill(cs, vs, spill, loc, dest_reg, assign.lhs)
-	vs.free_all_scratch()
+	vs.writeback_dest(assign.lhs, dest_reg)
 
 
 def codegen_dotop_assign(cs: CodegenState, vs: VarState, ado: ir3.AssignDotOp):
@@ -415,14 +401,36 @@ def codegen_stmt(cs: CodegenState, vs: VarState, stmt: ir3.Stmt):
 
 	elif isinstance(stmt, cgpseudo.AssignConstInt) or isinstance(stmt, cgpseudo.AssignConstString):
 		foo: Union[cgpseudo.AssignConstInt, cgpseudo.AssignConstString] = stmt
-		loc, dest, spill = make_available(cs, vs, foo.lhs)
+		dest_reg = vs.make_dest_available(foo.lhs)
 
 		if isinstance(foo, cgpseudo.AssignConstInt):
-			cs.emit(f"ldr {dest}, =#{foo.rhs}")
+			cs.emit(f"ldr {dest_reg}, =#{foo.rhs}")
 		else:
-			cs.emit(f"ldr {dest}, ={cs.add_string(foo.rhs)}")
+			cs.emit(f"ldr {dest_reg}, ={cs.add_string(foo.rhs)}")
 
-		writeback_spill(cs, vs, spill, loc, dest, foo.lhs)
+		vs.writeback_dest(foo.lhs, dest_reg)
+
+	# the reason that we have to assert we have a register, even when we're spilling, is because
+	# we must spill from somewhere. by the virtue of inserting these spill/reload pseudo-ops, the
+	# live range of the var should have split, giving us a variable to assign it.
+	elif isinstance(stmt, cgpseudo.SpillVariable):
+		loc = vs.get_location(stmt.var)
+		if not loc.have_register():
+			raise CGException(f"no register to spill '{stmt.var}'")
+
+		cs.emit(f"str {loc.register()}, [fp, #{loc.stack_ofs()}]")
+		cs.comment_line(f"spill/wb {stmt.var}")
+
+	elif isinstance(stmt, cgpseudo.RestoreVariable):
+		loc = vs.get_location(stmt.var)
+		if not loc.have_register():
+			raise CGException(f"could not restore '{stmt.var}'")
+
+		cs.emit(f"ldr {loc.register()}, [fp, #{loc.stack_ofs()}]")
+		cs.comment_line(f"restore {stmt.var}")
+
+	elif isinstance(stmt, cgpseudo.DummyStmt):
+		pass
 
 	else:
 		cs.comment("NOT IMPLEMENTED")
@@ -437,13 +445,13 @@ def codegen_method(cs: CodegenState, method: ir3.FuncDefn):
 	cs.emit(f".type {method.name}, %function", indent = 0)
 	cs.emit(f"{method.name}:", indent = 0)
 
-	assigns, spills, scratches, reg_live_ranges = regalloc.allocate(method)
+	assigns, spills, reg_live_ranges = regalloc.allocate_registers(method)
 	cs.comment(f"assigns: {', '.join(map(lambda k: f'{k} = {assigns[k]}', assigns))}")
 	cs.comment(f"spills:  {spills}")
 
 	# start sending stuff to the gulag, from which we will later rescue them
 	cs.begin_scope()
-	vs = VarState(cs, method.vars, method.params, assigns, spills, scratches, reg_live_ranges)
+	vs = VarState(cs, method.vars, method.params, assigns, spills, reg_live_ranges)
 
 	# the way we handle returns (which isn't a good way i admit) is to just set the return
 	# value in a1 (if any), then branch to the epilogue. so, emit a label here:

@@ -6,6 +6,15 @@ TODO
 	- dotop assigns
 
 
+3. insert pseudo-ops for GetElementPtr and StoreField so we can safely perform dotop assigns.
+	as it stands now, if we have `a.x = p + q`, and a, p, and q are all spilled, then we
+	simply do not have enough scratch registers to deal with this.
+
+	if we split it up into 2 operations, then we solve this problem since we only need 2
+	scratch registers.
+
+
+
 4. find some way to tell the register allocator about caller-saved registers
 	- ideally we want some way to automatically spill a1-a4 across a function call
 	- maybe by having calls "def" a1-a4, but those are registers and not variables...
@@ -23,22 +32,6 @@ TODO
 
 
 12. ensure stack alignment on function calls
-
-
-13. in the allocator, try to allocate *using* the scratch registers as normal (ie. without scratch).
-	if it can be done, then we don't use scratch. only if it can't be done, then we use the scratch.
-
-	we might extend this to try 1 scratch and 2 scratch. depends on (12).
-
-
-14. related to (12) and (13). we should actually insert the spill code into the statement list and rerun the
-	use/def traversal (ie. start over). this would allow us to allocate a "real" register for the spill load.
-
-
-15. related to (14); make sure that we don't "double spill" a def. the edge case here is if we restore `x`
-	before a use (because we spilled `x`), we cannot then "re-spill" that loaded `x`.
-
-	this should be simple, we just need to track all the previously-spilled vars and exclude them from spilling.
 
 
 
@@ -59,6 +52,21 @@ TODO
 
 
 18. ir3 for string concat should return a different operator (not '+', maybe 's+'?)
+
+
+
+19. see if it's possible to "properly split" the live ranges. right now, even though there might be disjoint parts in a var's
+	live range, the var must still use the same register (or spill) throughout.
+
+	if possible, split it up, so that we can (eg.) perform partial spills, and/or use a different register for different
+	subranges of the live range.
+
+
+
+20. peephole optimisations.....
+
+
+
 
 
 

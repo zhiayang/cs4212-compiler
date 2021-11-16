@@ -146,7 +146,7 @@ class VarLoc:
 
 class VarState:
 	def __init__(self, cs: CodegenState, vars: List[ir3.VarDecl], params: List[ir3.VarDecl],
-		assignments: Dict[str, str], spills: Set[str], scratch: List[str], reg_ranges: Dict[str, Set[int]]) -> None:
+		assignments: Dict[str, str], spills: Set[str], reg_ranges: Dict[str, Set[int]]) -> None:
 
 		self.cs = cs
 		self.locations: Dict[str, VarLoc] = dict()
@@ -166,29 +166,31 @@ class VarState:
 			if i < 4:
 				arg_reg = f"a{i + 1}"
 				if param.name in spills:
-					# we need to add code to spill it immediately.
 					# fp[0] is actually the lr, so we start from fp - 4
 
+					# note that we don't insert code to spill it, because our pseudo-op SpillVariable
+					# should have already been inserted on spills.
 					stack_loc = -(frame_size + 4)
-					cs.emit(f"str {arg_reg}, [fp, #{stack_loc}]")
-					ploc.set_stack(frame_size)
+					ploc.set_stack(stack_loc)
 					frame_size += POINTER_SIZE
 
-				elif param.name in assignments:
+				if param.name in assignments:
 					if assignments[param.name] != arg_reg:
 						cs.emit(f"mov {assignments[param.name]}, {arg_reg}")
 
 					ploc.set_register(assignments[param.name])
 
-				else:
-					# if the reg name is not spilled and not assigned, we can safely
-					# infer that it is not used anywhere, so we can just... ignore it.
-					pass
+				# if the reg name is not spilled and not assigned, we can safely
+				# infer that it is not used anywhere, so we can just... ignore it.
 
 			else:
 				# these arguments are passed on the stack. these are positive offsets from bp,
 				# since they are "above" the current stack frame.
 				ploc.set_stack(8 + (i - 4) * 4)
+
+				# these still have registers
+				if param.name in assignments:
+					ploc.set_register(assignments[param.name])
 
 			self.locations[param.name] = ploc
 
@@ -198,18 +200,19 @@ class VarState:
 		for var in vars:
 			ploc = VarLoc(var.type)
 
+			# note that spilling and being assigned something are not mutually exclusive. now that we
+			# have spill/restore pseudo-ops, scratch registers are no longer necessary, which means that
+			# spilled variables still need a register assigned, just that their live ranges are very short.
 			if var.name in spills:
 				stack_loc = -(frame_size + 4)
 				ploc.set_stack(stack_loc)
 				frame_size += POINTER_SIZE
 
-			elif var.name in assignments:
+			if var.name in assignments:
 				ploc.set_register(assignments[var.name])
 
-			else:
-				# same deal here; if it's not spilled or assigned a reg, then we can
-				# deduce that it is simply not used.
-				pass
+			# same deal here; if it's not spilled or assigned a reg, then we can
+			# deduce that it is simply not used.
 
 			self.locations[var.name] = ploc
 
@@ -219,31 +222,11 @@ class VarState:
 		# we already know which variables are touched.
 		self.touched: Set[str] = set(assignments.values())
 
-		self.scratch_regs = set(scratch)
-		self.used_scratch: Set[str] = set()
 		self.reg_live_ranges = reg_ranges
+		self.spilled: Set[str] = spills
 
 		self.stack_extra_offset = 0
 
-
-	# returns a scratch register to use. whatever you use is considered "locked" till
-	# a subsequent call to free_scratch();
-	def get_scratch(self) -> str:
-		avail = self.scratch_regs - self.used_scratch
-		if len(avail) == 0:
-			raise CGException("ran out of scratch registers!")
-
-		ret = next(iter(avail))
-		self.used_scratch.add(ret)
-		self.touched.add(ret)
-
-		return ret
-
-	def free_scratch(self, reg: str):
-		self.used_scratch.remove(reg)
-
-	def free_all_scratch(self):
-		self.used_scratch.clear()
 
 	def is_var_used(self, var: str) -> bool:
 		return (var in self.locations) and (self.locations[var].valid())
@@ -266,16 +249,36 @@ class VarState:
 
 
 	def load_var(self, var: str) -> str:
-		if self.get_location(var).have_register():
-			return self.get_location(var).register()
+		# because of our pseudo-ops, there *must* be a register for this guy.
+		loc = self.get_location(var)
+		if not loc.have_register():
+			print(f"no reg for '{var}'")
+		assert loc.have_register()
 
-		# restore...
-		scr = self.get_scratch()
-		self.cs.emit(f"ldr {scr}, [fp, #{self.get_location(var).stack_ofs()}]")
-		self.cs.comment_line(f"restore {var}")
-		return scr
+		reg = loc.register()
+
+		# if this was a spilled var, we must load it from memory first.
+		if var in self.spilled:
+			self.cs.emit(f"ldr {reg}, [fp, #{self.get_location(var).stack_ofs()}]")
+			self.cs.comment_line(f"restore {var}")
+
+		return reg
 
 
+	def make_dest_available(self, var: str) -> str:
+		loc = self.get_location(var)
+		if not loc.have_register():
+			raise CGException(f"did not get register for '{var}'")
+
+		# because of our pseudo-ops, there *must* be a register for this guy.
+		return loc.register()
+
+	def writeback_dest(self, var: str, dest_reg: str) -> None:
+		loc = self.get_location(var)
+
+		if var in self.spilled and self.is_var_used(var):
+			self.cs.emit(f"str {dest_reg}, [fp, #{loc.stack_ofs()}]")
+			self.cs.comment_line(f"spill/wb {var}")
 
 
 

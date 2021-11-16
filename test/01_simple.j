@@ -43,7 +43,7 @@ class Foo
 			println("omegalul");
 			k = 5 * k;
 		}
-
+*/
 		if(w + 1 != 69420)
 		{
 			println("poggers");
@@ -55,7 +55,7 @@ class Foo
 
 		if(m == 12345)  { println("poggerino"); }
 		else            { println("riperino"); }
-*/
+
 		println(f1);
 		println(f2);
 		println(f3);
