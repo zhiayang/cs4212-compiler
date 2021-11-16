@@ -5,6 +5,8 @@ from typing import *
 from copy import *
 
 from . import ir3
+from . import regalloc
+
 from .util import Location, TCException, CGException, StringView, print_warning, escape_string
 
 import math
@@ -772,6 +774,8 @@ def codegen_method(cs: CodegenState, method: ir3.FuncDefn):
 	cs.emit(f".global {method.name}", indent = 0)
 	cs.emit(f".type {method.name}, %function", indent = 0)
 	cs.emit(f"{method.name}:", indent = 0)
+
+	assigns, spills, scratches = regalloc.allocate(method)
 
 	# start sending stuff to the gulag, from which we will later rescue them
 	cs.begin_scope()

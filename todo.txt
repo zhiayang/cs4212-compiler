@@ -6,24 +6,42 @@ TODO
 	- dotop
 	- dotop assigns
 	- new
-	- unary ops
 	- strings
 
-3. a not-3head register allocation scheme. presumably this entails:
-	- liveness analysis
-	- probably go with the graph colouring method
-	- `VarState` needs to account for the current statement
-	- 4head way of determining register spill cost
+2. finish register allocation
 
-5. strings...
+3. in the allocator, try to allocate *using* the scratch registers as normal (ie. without scratch).
+	if it can be done, then we don't use scratch. only if it can't be done, then we use the scratch.
+
+	we might extend this to try 1 scratch and 2 scratch.
+
+
+
+4. find some way to tell the register allocator about caller-saved registers
+	- ideally we want some way to automatically spill a1-a4 across a function call
+	- maybe by having calls "def" a1-a4, but those are registers and not variables...
+
+5. also, some way to "prefer" putting arguments in a1-a4. some "pre-colouring" algorithm exists.
+
 6. long division
 
-7. investigate whether we want to make bools 1 byte
+7. make bools 1 byte instead of 4
 
 9. main wrapper needs to allocate an instance of Main, though this can be on the stack i guess. it's size
 	0 anyway (since Main cannot have fields by the syntax definition)
 
 10. classes can have no fields; naively calling malloc(0) will return null.
+
+
+11. see if we need (want) to toposort the basic blocks before renumbering/allocating
+
+
+
+
+-- for now, we only consider IN.
+11. investigate whether the live range of a def should consider statements where the def only
+	appears in OUT, and not in IN.
+
 
 
 -- for now, we decided to just modify the caller stack.

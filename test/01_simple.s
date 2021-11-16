@@ -4,8 +4,8 @@
 main_dummy:
 	stmfd sp!, {fp, lr}
 	mov fp, sp
-	sub sp, sp, #32
-	stmfd sp!, {v1, v2, v3}
+	sub sp, sp, #40
+	stmfd sp!, {v1, v2, v3, v4}
 	@ prologue
 
 .main_dummy_entry:
@@ -18,7 +18,7 @@ main_dummy:
 	ldmfd sp!, {a1}
 	@ _t0 = _J3Foo_3fooiiiiiE(foo, 69, 420, 77, 69420, 12345);
 	stmfd sp!, {a1, a2}
-	str a1, [fp, #-28]                     @ spilling 'this'
+	str a1, [fp, #-32]                     @ spilling 'this'
 	ldr a1, =#12345
 	str a1, [sp, #-4]!
 	ldr a1, =#69420
@@ -61,9 +61,11 @@ main_dummy:
 	ldrne a1, =.string3_raw
 	bl puts(PLT)
 	ldmfd sp!, {a1, a2, a3, a4}
-	@ println(r);
+	@ _t3 = !r;
+	rsb v4, v3, #1
+	@ println(_t3);
 	stmfd sp!, {a1, a2, a3, a4}
-	mov a1, v3
+	mov a1, v4
 	cmp a1, #0
 	ldreq a1, =.string2_raw
 	ldrne a1, =.string3_raw
@@ -74,8 +76,8 @@ main_dummy:
 
 	@ epilogue
 .main_dummy_epilogue:
-	ldmfd sp!, {v1, v2, v3}
-	add sp, sp, #32
+	ldmfd sp!, {v1, v2, v3, v4}
+	add sp, sp, #40
 	ldmfd sp!, {fp, pc}
 	
 

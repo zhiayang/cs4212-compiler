@@ -51,6 +51,7 @@ class Foo
 		if(m == 12345)  { println("poggerino"); }
 		else            { println("riperino"); }
 
+		// k = 69;
 		return k;
 	}
 }
