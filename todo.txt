@@ -3,9 +3,7 @@ TODO
 1. all the other statement and expression types
 	- readln
 	- conditional branch (on relops and consts)
-	- dotop
 	- dotop assigns
-	- new
 
 
 4. find some way to tell the register allocator about caller-saved registers
@@ -16,14 +14,9 @@ TODO
 
 6. long division
 
-7. make bools 1 byte instead of 4
+7. make spilled bools 1 byte instead of 4
 
 8. locals should be cleared to 0 i guess.
-
-9. main wrapper needs to allocate an instance of Main, though this can be on the stack i guess. it's size
-	0 anyway (since Main cannot have fields by the syntax definition)
-
-10. classes can have no fields; naively calling malloc(0) will return null.
 
 
 11. see if we need (want) to toposort the basic blocks before renumbering/allocating

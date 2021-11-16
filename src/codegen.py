@@ -18,15 +18,7 @@ import math
 # returns (string, is_constant, type)
 def codegen_value(cs: CodegenState, vs: VarState, val: ir3.Value) -> Tuple[str, bool]:
 	if isinstance(val, ir3.VarRef):
-		if vs.get_location(val.name).have_register():
-			return vs.get_location(val.name).register(), False
-
-		# restore...
-		scr = vs.get_scratch()
-		cs.emit(f"ldr {scr}, [fp, #{vs.get_location(val.name).stack_ofs()}]")
-		cs.comment_line(f"restore {val.name}")
-
-		return scr, False
+		return vs.load_var(val.name), False
 
 	elif isinstance(val, ir3.ConstantInt):
 		return f"#{val.value}", True
@@ -148,8 +140,6 @@ def codegen_binop(cs: CodegenState, vs: VarState, expr: ir3.BinaryOp, dest_reg: 
 	else:
 		cs.comment(f"NOT IMPLEMENTED (binop '{expr.op}')")
 
-	vs.free_all_scratch()
-
 
 def codegen_unaryop(cs: CodegenState, vs: VarState, expr: ir3.UnaryOp, dest_reg: str):
 	value, const = codegen_value(cs, vs, expr.expr)
@@ -165,6 +155,17 @@ def codegen_unaryop(cs: CodegenState, vs: VarState, expr: ir3.UnaryOp, dest_reg:
 	else:
 		cs.comment(f"NOT IMPLEMENTED (unaryop '{expr.op}')")
 
+
+
+def codegen_dotop(cs: CodegenState, vs: VarState, dot: ir3.DotOp, dest_reg: str, stmt_id: int):
+	ptr = vs.load_var(dot.lhs)
+	layout = cs.get_class_layout(vs.get_type(dot.lhs))
+	offset = layout.field_offset(dot.rhs)
+
+	if layout.field_size(dot.rhs) == 1:
+		cs.emit(f"ldrb {dest_reg}, [{ptr}, #{offset}]")
+	else:
+		cs.emit(f"ldr {dest_reg}, [{ptr}, #{offset}]")
 
 
 
@@ -183,8 +184,12 @@ def codegen_expr(cs: CodegenState, vs: VarState, expr: ir3.Expr, dest_reg: str, 
 	elif isinstance(expr, ir3.FnCallExpr):
 		codegen_call(cs, vs, expr.call, dest_reg, stmt_id)
 
+	elif isinstance(expr, ir3.DotOp):
+		codegen_dotop(cs, vs, expr, dest_reg, stmt_id)
+
 	elif isinstance(expr, ir3.NewOp):
 		cls_size = cs.get_class_layout(expr.cls).size()
+		assert cls_size > 0
 
 		spills = save_arg_regs(cs, vs, stmt_id)
 
@@ -240,6 +245,15 @@ def codegen_assign(cs: CodegenState, vs: VarState, assign: ir3.AssignOp):
 	codegen_expr(cs, vs, assign.rhs, dest_reg, assign.id)
 
 	writeback_spill(cs, vs, spill, loc, dest_reg, assign.lhs)
+	vs.free_all_scratch()
+
+
+def codegen_dotop_assign(cs: CodegenState, vs: VarState, ado: ir3.AssignDotOp):
+
+	# the liveness analysis should have ensured that
+
+	pass
+
 
 
 

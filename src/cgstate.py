@@ -100,33 +100,6 @@ class CodegenState:
 
 
 
-class CGClass:
-	def __init__(self, cs: CodegenState, cls: ir3.ClassDefn) -> None:
-		self.base = cls
-
-		# since types are either 4 bytes or 1 byte, our life is actually quite easy. we just
-		# shove all the bools to the back...
-		self.fields: Dict[str, int] = dict()
-
-		# put bools at the end so they pack better.
-		offset = 0
-		for field in filter(lambda x: x.type != "Bool", self.base.fields):
-			assert cs.sizeof_type_pointers(field.type) == POINTER_SIZE
-			self.fields[field.name] = offset
-			offset += POINTER_SIZE
-
-		for field in filter(lambda x: x.type == "Bool", self.base.fields):
-			self.fields[field.name] = offset
-			offset += 1
-
-		# round up to the nearest 4 bytes
-		self.total_size = POINTER_SIZE * ((offset + POINTER_SIZE - 1) // POINTER_SIZE)
-
-
-	def size(self) -> int:
-		return self.total_size
-
-
 
 
 
@@ -291,6 +264,21 @@ class VarState:
 		self.stack_extra_offset -= num
 		assert self.stack_extra_offset >= 0
 
+
+	def load_var(self, var: str) -> str:
+		if self.get_location(var).have_register():
+			return self.get_location(var).register()
+
+		# restore...
+		scr = self.get_scratch()
+		self.cs.emit(f"ldr {scr}, [fp, #{self.get_location(var).stack_ofs()}]")
+		self.cs.comment_line(f"restore {var}")
+		return scr
+
+
+
+
+
 	def emit_prologue(self, cs: CodegenState) -> None:
 		callee_saved = set(["v1", "v2", "v3", "v4", "v5", "v6", "v7"])
 		restore = sorted(list(callee_saved.intersection(self.touched)))
@@ -330,3 +318,43 @@ class VarState:
 
 
 
+
+
+class CGClass:
+	def __init__(self, cs: CodegenState, cls: ir3.ClassDefn) -> None:
+		self.base = cls
+
+		# since types are either 4 bytes or 1 byte, our life is actually quite easy. we just
+		# shove all the bools to the back...
+		self.fields: Dict[str, int] = dict()
+
+		# put bools at the end so they pack better.
+		offset = 0
+		for field in filter(lambda x: x.type != "Bool", self.base.fields):
+			assert cs.sizeof_type_pointers(field.type) == POINTER_SIZE
+			self.fields[field.name] = offset
+			offset += POINTER_SIZE
+
+		for field in filter(lambda x: x.type == "Bool", self.base.fields):
+			self.fields[field.name] = offset
+			offset += 1
+
+		# round up to the nearest 4 bytes
+		self.total_size = POINTER_SIZE * ((offset + POINTER_SIZE - 1) // POINTER_SIZE)
+
+		if self.total_size == 0:
+			self.total_size = POINTER_SIZE
+
+
+	def size(self) -> int:
+		return self.total_size
+
+	def field_offset(self, field: str) -> int:
+		return self.fields[field]
+
+	def field_size(self, field: str) -> int:
+		# we assume that everything is 4 bytes except for bools which are 1.
+		if next(filter(lambda f: f.name == field, self.base.fields)).type == "Bool":
+			return 1
+		else:
+			return 4

@@ -24,11 +24,15 @@ class Main
 
 class Foo
 {
+	Int f1;
+	Int f2;
+	Int f3;
+
 	Int foo(Int x, Int y, Int z, Int w, Int m)
 	{
 		Int k;
 		k = 3 * x + y;
-
+/*
 		if(k == 627)
 		{
 			println("kekw");
@@ -51,6 +55,10 @@ class Foo
 
 		if(m == 12345)  { println("poggerino"); }
 		else            { println("riperino"); }
+*/
+		println(f1);
+		println(f2);
+		println(f3);
 
 		// k = 69;
 		return k;
