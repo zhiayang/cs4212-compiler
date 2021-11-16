@@ -11,23 +11,25 @@ main_dummy:
 .main_dummy_entry:
 	@ println("asdf");                     scratch = a2
 	ldr a2, =.string0
-	str a1, [fp, #-28]                     @ spilling 'this'
+	stmfd sp!, {a1}
 	mov a1, a2
 	add a1, a1, #4
 	bl puts(PLT)
+	ldmfd sp!, {a1}
 	@ _t0 = _J3Foo_3fooiiiiiE(foo, 69, 420, 77, 69420, 12345);
+	stmfd sp!, {a1, a2}
 	str a1, [fp, #-28]                     @ spilling 'this'
 	ldr a1, =#12345
 	str a1, [sp, #-4]!
 	ldr a1, =#69420
 	str a1, [sp, #-4]!
-	str a2, [fp, #-16]                     @ spilling '_t0'
 	ldr a1, [fp, #0]                       @ load 'foo'
 	mov a2, #69
 	ldr a3, =#420
 	mov a4, #77
 	bl _J3Foo_3fooiiiiiE
 	add sp, sp, #8
+	ldmfd sp!, {a1, a2}
 	@ k = 69;
 	mov a3, #69
 	@ j = true;
@@ -35,36 +37,38 @@ main_dummy:
 	@ _t1 = -k;
 	rsb v1, a3, #0
 	@ println(_t1);
-	str a1, [fp, #0]                       @ spilling 'foo'
-	str a2, [fp, #-16]                     @ spilling '_t0'
+	stmfd sp!, {a1, a2, a3, a4}
 	ldr a1, =.string1_raw
 	mov a2, v1
 	bl printf(PLT)
+	ldmfd sp!, {a1, a2, a3, a4}
 	@ println(420);                        scratch = v2
 	ldr v2, =#420
-	str a1, [fp, #0]                       @ spilling 'foo'
-	str a2, [fp, #-16]                     @ spilling '_t0'
+	stmfd sp!, {a1, a2, a3, a4}
 	ldr a1, =.string1_raw
 	mov a2, v2
 	bl printf(PLT)
+	ldmfd sp!, {a1, a2, a3, a4}
 	@ _t2 = !j;
 	rsb v2, a4, #1
 	@ r = _t2;
 	mov v3, v2
 	@ println(false);
-	str a1, [fp, #0]                       @ spilling 'foo'
+	stmfd sp!, {a1, a2, a3, a4}
 	mov a1, #0
 	cmp a1, #0
 	ldreq a1, =.string2_raw
 	ldrne a1, =.string3_raw
 	bl puts(PLT)
-	@ println(j);
-	str a1, [fp, #0]                       @ spilling 'foo'
-	mov a1, a4
+	ldmfd sp!, {a1, a2, a3, a4}
+	@ println(r);
+	stmfd sp!, {a1, a2, a3, a4}
+	mov a1, v3
 	cmp a1, #0
 	ldreq a1, =.string2_raw
 	ldrne a1, =.string3_raw
 	bl puts(PLT)
+	ldmfd sp!, {a1, a2, a3, a4}
 	@ return;
 	b .main_dummy_epilogue
 
@@ -103,10 +107,11 @@ _J3Foo_3fooiiiiiE:
 ._J3Foo_3fooiiiiiE_L2:
 	@ println("omegalul");                 scratch = v4
 	ldr v4, =.string4
-	str a1, [fp, #-36]                     @ spilling 'this'
+	stmfd sp!, {a1, a2, a3, a4}
 	mov a1, v4
 	add a1, a1, #4
 	bl puts(PLT)
+	ldmfd sp!, {a1, a2, a3, a4}
 	@ _t4 = 5 * k;
 	lsl v4, v2, #3
 	add v4, v4, v2
@@ -117,10 +122,11 @@ _J3Foo_3fooiiiiiE:
 ._J3Foo_3fooiiiiiE_L1:
 	@ println("kekw");                     scratch = v5
 	ldr v5, =.string5
-	str a1, [fp, #-36]                     @ spilling 'this'
+	stmfd sp!, {a1, a2, a3, a4}
 	mov a1, v5
 	add a1, a1, #4
 	bl puts(PLT)
+	ldmfd sp!, {a1, a2, a3, a4}
 	@ _t3 = 2 * k;
 	lsl v5, v2, #1
 	@ k = _t3;
@@ -148,19 +154,21 @@ _J3Foo_3fooiiiiiE:
 ._J3Foo_3fooiiiiiE_L5:
 	@ println("sadge");
 	ldr a3, =.string6
-	str a1, [fp, #-28]                     @ spilling '_t6'
+	stmfd sp!, {a1, a2, a3, a4}
 	mov a1, a3
 	add a1, a1, #4
 	bl puts(PLT)
+	ldmfd sp!, {a1, a2, a3, a4}
 	@ goto .L6;
 	b ._J3Foo_3fooiiiiiE_L6
 ._J3Foo_3fooiiiiiE_L4:
 	@ println("poggers");
 	ldr a3, =.string7
-	str a1, [fp, #-28]                     @ spilling '_t6'
+	stmfd sp!, {a1, a2, a3, a4}
 	mov a1, a3
 	add a1, a1, #4
 	bl puts(PLT)
+	ldmfd sp!, {a1, a2, a3, a4}
 	@ goto .L6;
 	b ._J3Foo_3fooiiiiiE_L6
 ._J3Foo_3fooiiiiiE_L6:
@@ -178,19 +186,21 @@ _J3Foo_3fooiiiiiE:
 ._J3Foo_3fooiiiiiE_L8:
 	@ println("riperino");
 	ldr a2, =.string8
-	str a1, [fp, #12]                      @ spilling 'm'
+	stmfd sp!, {a1, a2, a3, a4}
 	mov a1, a2
 	add a1, a1, #4
 	bl puts(PLT)
+	ldmfd sp!, {a1, a2, a3, a4}
 	@ goto .L9;
 	b ._J3Foo_3fooiiiiiE_L9
 ._J3Foo_3fooiiiiiE_L7:
 	@ println("poggerino");
 	ldr a2, =.string9
-	str a1, [fp, #12]                      @ spilling 'm'
+	stmfd sp!, {a1, a2, a3, a4}
 	mov a1, a2
 	add a1, a1, #4
 	bl puts(PLT)
+	ldmfd sp!, {a1, a2, a3, a4}
 	@ goto .L9;
 	b ._J3Foo_3fooiiiiiE_L9
 ._J3Foo_3fooiiiiiE_L9:

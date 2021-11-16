@@ -17,7 +17,7 @@ class Main
 
 		r = !j;
 		println(!true);
-		println(j);
+		println(!r);
 	}
 }
 

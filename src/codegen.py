@@ -646,30 +646,47 @@ def codegen_cond_branch(cs: CodegenState, vs: VarState, cbr: ir3.CondBranch):
 			cs.emit(f"bne {cs.mangle_label(cbr.label)}")
 
 
+def save_arg_regs(cs: CodegenState, vs: VarState) -> List[str]:
+	# for each of a1-a4, if there is some value in there, we need to save/restore across
+	# the call boundary. this also acts as a spill for those values, so we don't need to
+	# handle spilling separately.
+	spills: List[str] = []
+	for r in ["a1", "a2", "a3", "a4"]:
+		if vs.registers[r] is not None and vs.registers[r] != "":
+			spills.append(r)
+
+	if len(spills) > 0:
+		cs.emit(f"stmfd sp!, {{{', '.join(spills)}}}")
+
+	return spills
+
+def restore_arg_regs(cs: CodegenState, vs: VarState, spills: List[str]) -> None:
+	# now, restore a1-a4 (if we spilled them)
+	if len(spills) > 0:
+		cs.emit(f"ldmfd sp!, {{{', '.join(spills)}}}")
+
+
+
 def codegen_println(cs: CodegenState, vs: VarState, stmt: ir3.PrintLnCall):
 	value, _, ty = codegen_value(cs, vs, stmt.value)
 
+	spills = save_arg_regs(cs, vs)
+
 	# strings are always in registers
 	if ty == "String":
-		vs.spill_register("a1")
 		cs.emit(f"mov a1, {value}")
 
 		# for strings specifically, increment by 4 to skip the length. the value is a pointer anyway.
 		cs.emit(f"add a1, a1, #4")
 		cs.emit(f"bl puts(PLT)")
-		return
 
 	elif ty == "Int":
-		vs.spill_register("a1")
-		vs.spill_register("a2")
-
 		asdf = cs.add_string("%d\n")
 		cs.emit(f"ldr a1, ={asdf}_raw")
 		cs.emit(f"mov a2, {value}")
 		cs.emit(f"bl printf(PLT)")
 
 	elif ty == "Bool":
-		vs.spill_register("a1")
 		cs.emit(f"mov a1, {value}")
 		cs.emit(f"cmp a1, #0")
 		cs.emit(f"ldreq a1, ={cs.add_string('false')}_raw")
@@ -677,19 +694,20 @@ def codegen_println(cs: CodegenState, vs: VarState, stmt: ir3.PrintLnCall):
 		cs.emit(f"bl puts(PLT)")
 
 	elif ty == "$NullObject":
-		vs.spill_register("a1")
 		cs.emit(f"ldr a1, ={cs.add_string('null')}_raw")
 		cs.emit(f"bl puts(PLT)")
 
 	else:
 		assert False and f"unknown type {ty}"
 
+	restore_arg_regs(cs, vs, spills)
+
 
 def codegen_call(cs: CodegenState, vs: VarState, call: ir3.FnCall):
 	# if the number of arguments is > 4, then we set up the stack first; this
 	# is so we can just use a1 as a scratch register
 
-	spilled_a1 = False
+	spills = save_arg_regs(cs, vs)
 
 	if len(call.args) > 4:
 		# to match the C calling convention, stack arguments go right-to-left.
@@ -704,13 +722,6 @@ def codegen_call(cs: CodegenState, vs: VarState, call: ir3.FnCall):
 			val = codegen_value_into_register(cs, vs, arg, reg = "a1")
 			cs.emit(f"str {val}, [sp, #-4]!")
 
-
-	if len(call.args) > 3:  vs.spill_register("a4")
-	if len(call.args) > 2:  vs.spill_register("a3")
-	if len(call.args) > 1:  vs.spill_register("a2")
-	if len(call.args) > 0 and not spilled_a1:
-		vs.spill_register("a1")
-
 	for i, arg in enumerate(call.args[:4]):
 		reg = f"a{i + 1}"
 		val = codegen_value_into_register(cs, vs, arg, reg = reg)
@@ -724,8 +735,7 @@ def codegen_call(cs: CodegenState, vs: VarState, call: ir3.FnCall):
 	if len(call.args) > 4:
 		cs.emit(f"add sp, sp, #{4 * (len(call.args) - 4)}")
 
-
-
+	restore_arg_regs(cs, vs, spills)
 
 
 
