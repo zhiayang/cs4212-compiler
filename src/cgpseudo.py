@@ -25,4 +25,4 @@ class AssignConstString(ir3.Stmt):
 		self.rhs: str = rhs
 
 	def __str__(self) -> str:
-		return f"{self.lhs} = {self.rhs};"
+		return f"{self.lhs} = \"{escape_string(self.rhs)}\";"

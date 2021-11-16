@@ -2,13 +2,13 @@ class Main
 {
 	Void main()
 	{
-		Foo foo;
 		Int k;
+		Int z;
 		Bool j;
 		Bool r;
 
 		println("asdf");
-		foo.foo(69, 420, 77, 69420, 12345);
+		z = new Foo().foo(69, 420, 77, 69420, 12345);
 
 		k = 69;
 		j = true;
@@ -18,6 +18,7 @@ class Main
 		r = !j;
 		println(!true);
 		println(!r);
+		println(z);
 	}
 }
 

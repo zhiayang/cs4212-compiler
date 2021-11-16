@@ -245,12 +245,6 @@ def analyse_liveness(func: ir3.FuncDefn, all_stmts: List[ir3.Stmt]) -> Tuple[Lis
 		else:
 			return set()
 
-
-	for s in all_stmts:
-		print("{:02}:  {}".format(s.id, s))
-
-
-
 	ins: List[Set[str]]  = list(map(lambda _: set(), range(0, len(all_stmts))))
 	outs: List[Set[str]] = list(map(lambda _: set(), range(0, len(all_stmts))))
 	queue: List[int] = list(range(0, len(all_stmts)))
@@ -277,6 +271,13 @@ def analyse_liveness(func: ir3.FuncDefn, all_stmts: List[ir3.Stmt]) -> Tuple[Lis
 		# TODO: is this correct?
 		if old_in != ins[n] and n in predecessors:
 			queue.extend(predecessors[n])
+
+
+	# for s in all_stmts:
+	# 	print("{:02}:  {}".format(s.id, s))
+	# 	print(f"  ins = {ins[s.id]}")
+
+
 
 	return (ins, outs, defs, uses)
 
@@ -345,7 +346,7 @@ def allocate(func: ir3.FuncDefn) -> Tuple[Dict[str, str], Set[str], List[str], D
 
 	# we designate a3 and a4 as scratch registers. this lets us always have 2 registers
 	# (guaranteed) into which we can load spilled operands.
-	assigns, spills = colour_graph(graph, ["v1", "v2", "v3", "v4", "v5", "a1", "a2"],
+	assigns, spills = colour_graph(graph, ["v1", "v2", "v3", "a1", "a2", "a3", "a4"],
 		var_uses, pre_assigned)
 
 
@@ -358,7 +359,7 @@ def allocate(func: ir3.FuncDefn) -> Tuple[Dict[str, str], Set[str], List[str], D
 	# print(f"assigns = {assigns}")
 	# print(f"spills = {spills}")
 
-	return assigns, spills, ["a3", "a4"], reg_live_ranges
+	return assigns, spills, ["v4", "v5"], reg_live_ranges
 
 
 

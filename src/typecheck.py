@@ -547,7 +547,8 @@ def typecheck_if(ts: TypecheckState, stmt: ast.IfStmt) -> List[ir3.Stmt]:
 		ir3.Branch(true_stmts[0].loc, merge_label.name),
 		true_label
 	] + true_stmts + [
-		ir3.Branch(else_stmts[0].loc, merge_label.name),
+		# this branch is not necessary, we just fallthrough
+		# ir3.Branch(else_stmts[0].loc, merge_label.name),
 		merge_label
 	]
 

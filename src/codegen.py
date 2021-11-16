@@ -134,8 +134,6 @@ def codegen_binop(cs: CodegenState, vs: VarState, expr: ir3.BinaryOp, dest_reg: 
 		instr_map   = {"==": "eq", "!=": "ne", "<=": "le", ">=": "ge", "<": "lt", ">": "gt"}
 		flipped_map = {"eq": "ne", "ne": "eq", "le": "gt", "ge": "lt", "lt": "ge", "gt": "le"}
 
-		cs.emit(f"mov {dest_reg}, #0")
-
 		cond = instr_map[expr.op]
 		if lc or rc:
 			# keep the constant on the right i guess
@@ -144,7 +142,8 @@ def codegen_binop(cs: CodegenState, vs: VarState, expr: ir3.BinaryOp, dest_reg: 
 				cond = flipped_map[cond]
 
 		cs.emit(f"cmp {lhs}, {rhs}")
-		cs.emit(f"mov{instr_map[expr.op]} {dest_reg}, #1")
+		cs.emit(f"mov{cond} {dest_reg}, #1")
+		cs.emit(f"mov{flipped_map[cond]} {dest_reg}, #0")
 
 	else:
 		cs.comment(f"NOT IMPLEMENTED (binop '{expr.op}')")
@@ -182,7 +181,21 @@ def codegen_expr(cs: CodegenState, vs: VarState, expr: ir3.Expr, dest_reg: str, 
 		cs.emit(f"mov {dest_reg}, {operand}")
 
 	elif isinstance(expr, ir3.FnCallExpr):
-		codegen_call(cs, vs, expr.call, stmt_id)
+		codegen_call(cs, vs, expr.call, dest_reg, stmt_id)
+
+	elif isinstance(expr, ir3.NewOp):
+		cls_size = cs.get_class_layout(expr.cls).size()
+
+		spills = save_arg_regs(cs, vs, stmt_id)
+
+		cs.emit(f"mov a1, #1")
+		cs.emit(f"ldr a2, =#{cls_size}")    # note: rely on the assembler to optimise this away
+		cs.emit(f"bl calloc(PLT)")
+
+		if dest_reg != "a1":
+			cs.emit(f"mov {dest_reg}, a1")
+
+		restore_arg_regs(cs, vs, spills)
 
 	else:
 		cs.comment(f"NOT IMPLEMENTED (expression)")
@@ -325,7 +338,7 @@ def codegen_println(cs: CodegenState, vs: VarState, stmt: ir3.PrintLnCall):
 	restore_arg_regs(cs, vs, spills)
 
 
-def codegen_call(cs: CodegenState, vs: VarState, call: ir3.FnCall, stmt_id: int):
+def codegen_call(cs: CodegenState, vs: VarState, call: ir3.FnCall, dest_reg: str, stmt_id: int):
 	# if the number of arguments is > 4, then we set up the stack first; this
 	# is so we can just use a1 as a scratch register
 
@@ -358,6 +371,9 @@ def codegen_call(cs: CodegenState, vs: VarState, call: ir3.FnCall, stmt_id: int)
 	if len(call.args) > 4:
 		cs.emit(f"add sp, sp, #{4 * (len(call.args) - 4)}")
 
+	if dest_reg != "" and dest_reg != "a1":
+		cs.emit(f"mov {dest_reg}, a1")
+
 	restore_arg_regs(cs, vs, spills)
 
 
@@ -381,7 +397,7 @@ def codegen_stmt(cs: CodegenState, vs: VarState, stmt: ir3.Stmt):
 		codegen_cond_branch(cs, vs, stmt)
 
 	elif isinstance(stmt, ir3.FnCallStmt):
-		codegen_call(cs, vs, stmt.call, stmt.id)
+		codegen_call(cs, vs, stmt.call, "", stmt.id)
 
 	elif isinstance(stmt, cgpseudo.AssignConstInt) or isinstance(stmt, cgpseudo.AssignConstString):
 		foo: Union[cgpseudo.AssignConstInt, cgpseudo.AssignConstString] = stmt
@@ -408,6 +424,8 @@ def codegen_method(cs: CodegenState, method: ir3.FuncDefn):
 	cs.emit(f"{method.name}:", indent = 0)
 
 	assigns, spills, scratches, reg_live_ranges = regalloc.allocate(method)
+	cs.comment(f"assigns: {', '.join(map(lambda k: f'{k} = {assigns[k]}', assigns))}")
+	cs.comment(f"spills:  {spills}")
 
 	# start sending stuff to the gulag, from which we will later rescue them
 	cs.begin_scope()
@@ -472,8 +490,12 @@ main:
 	str lr, [sp, #-4]!
 	@ we need a 'this' argument for this guy, so just allocate
 	@ nothing.
+	sub sp, sp, #4
+	mov a1, sp
 
 	bl main_dummy
+
+	add sp, sp, #4
 
 	@ set the return code to 0
 	mov a1, #0

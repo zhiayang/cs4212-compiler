@@ -6,17 +6,19 @@ TODO
 	- dotop
 	- dotop assigns
 	- new
-	- strings
 
 
 4. find some way to tell the register allocator about caller-saved registers
 	- ideally we want some way to automatically spill a1-a4 across a function call
 	- maybe by having calls "def" a1-a4, but those are registers and not variables...
 
+5. string concat
 
 6. long division
 
 7. make bools 1 byte instead of 4
+
+8. locals should be cleared to 0 i guess.
 
 9. main wrapper needs to allocate an instance of Main, though this can be on the stack i guess. it's size
 	0 anyway (since Main cannot have fields by the syntax definition)
@@ -25,6 +27,9 @@ TODO
 
 
 11. see if we need (want) to toposort the basic blocks before renumbering/allocating
+
+
+12. ensure stack alignment on function calls
 
 
 13. in the allocator, try to allocate *using* the scratch registers as normal (ie. without scratch).

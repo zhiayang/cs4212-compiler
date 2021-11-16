@@ -18,19 +18,21 @@ class CodegenState:
 	def __init__(self, opt: bool, classes: List[ir3.ClassDefn]) -> None:
 		self.opt = opt
 		self.lines: List[str] = []
-		self.classes: Dict[str, ir3.ClassDefn] = { cls.name: cls for cls in classes }
+		self.classes_defs: Dict[str, ir3.ClassDefn] = { cls.name: cls for cls in classes }
 		self.builtin_sizes = { "Void": 0, "Int": 4, "Bool": 4, "String": 4 }
 
 		self.prologue_label = ""
 		self.current_method: ir3.FuncDefn
 		self.strings: Dict[str, int] = dict()
 
+		self.class_layouts: Dict[str, CGClass] = { cls.name: CGClass(self, cls) for cls in classes }
+
 	# gets the size of a type, but objects are always size 4
 	def sizeof_type_pointers(self, name: str) -> int:
 		if name in self.builtin_sizes:
 			return self.builtin_sizes[name]
 
-		if name not in self.classes:
+		if name not in self.classes_defs:
 			raise CGException(f"unknown class '{name}'")
 
 		return POINTER_SIZE
@@ -93,6 +95,10 @@ class CodegenState:
 			return f".string{i}"
 
 
+	def get_class_layout(self, name: str) -> CGClass:
+		return self.class_layouts[name]
+
+
 
 class CGClass:
 	def __init__(self, cs: CodegenState, cls: ir3.ClassDefn) -> None:
@@ -102,15 +108,24 @@ class CGClass:
 		# shove all the bools to the back...
 		self.fields: Dict[str, int] = dict()
 
-		# TODO: this makes bools 4 bytes even in structs
+		# put bools at the end so they pack better.
 		offset = 0
-		for field in self.base.fields:
+		for field in filter(lambda x: x.type != "Bool", self.base.fields):
 			assert cs.sizeof_type_pointers(field.type) == POINTER_SIZE
 			self.fields[field.name] = offset
 			offset += POINTER_SIZE
 
+		for field in filter(lambda x: x.type == "Bool", self.base.fields):
+			self.fields[field.name] = offset
+			offset += 1
+
 		# round up to the nearest 4 bytes
-		self.total_size = POINTER_SIZE * (offset + POINTER_SIZE - 1) // POINTER_SIZE
+		self.total_size = POINTER_SIZE * ((offset + POINTER_SIZE - 1) // POINTER_SIZE)
+
+
+	def size(self) -> int:
+		return self.total_size
+
 
 
 
@@ -200,7 +215,7 @@ class VarState:
 			else:
 				# these arguments are passed on the stack. these are positive offsets from bp,
 				# since they are "above" the current stack frame.
-				ploc.set_stack(8 + (i - 4 - 1) * 4)
+				ploc.set_stack(8 + (i - 4) * 4)
 
 			self.locations[param.name] = ploc
 
@@ -229,7 +244,7 @@ class VarState:
 		self.frame_size: int = STACK_ALIGNMENT * ((frame_size + STACK_ALIGNMENT - 1) // STACK_ALIGNMENT)
 
 		# we already know which variables are touched.
-		self.touched: Set[str] = set(assignments.values()).union(scratch)
+		self.touched: Set[str] = set(assignments.values())
 
 		self.scratch_regs = set(scratch)
 		self.used_scratch: Set[str] = set()
@@ -247,6 +262,8 @@ class VarState:
 
 		ret = next(iter(avail))
 		self.used_scratch.add(ret)
+		self.touched.add(ret)
+
 		return ret
 
 	def free_scratch(self, reg: str):
