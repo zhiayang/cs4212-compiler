@@ -5,7 +5,7 @@ from typing import *
 from copy import *
 
 from . import ir3
-from . import regalloc
+from . import cgreg
 from . import cgpseudo
 
 from .util import Location, TCException, CGException, StringView, print_warning, escape_string
@@ -423,8 +423,8 @@ def gen_regalloc_annotations(assigns: Dict[str, str], spills: Set[str]) -> Tuple
 
 	max_var_len = 7 + max(map(lambda x: len(x), assigns))
 
-	assign_list: Iterable = map(lambda x: (x, assigns[x]), assigns)
-	assign_list = sorted(assign_list, key = lambda x: x[1])
+	assign_list: Iterable = list(map(lambda x: (x, assigns[x]), assigns))
+	assign_list = sorted(assign_list, key = lambda x: (x[1], x[0]))
 	assign_list = map(lambda x: "{:>{w}}".format(f"'{x[0]}' = {x[1]}", w = max_var_len), assign_list)
 
 	max_width = 70
@@ -462,6 +462,9 @@ def gen_regalloc_annotations(assigns: Dict[str, str], spills: Set[str]) -> Tuple
 
 
 
+
+
+
 def codegen_method(cs: CodegenState, method: ir3.FuncDefn):
 	cs.set_current_method(method)
 
@@ -470,7 +473,7 @@ def codegen_method(cs: CodegenState, method: ir3.FuncDefn):
 	cs.emit(f".type {method.name}, %function", indent = 0)
 	cs.emit(f"{method.name}:", indent = 0)
 
-	assigns, spills, reg_live_ranges = regalloc.allocate_registers(method)
+	assigns, spills, reg_live_ranges = cgreg.allocate_registers(method)
 
 	annot_assigns, annot_spills = gen_regalloc_annotations(assigns, spills)
 

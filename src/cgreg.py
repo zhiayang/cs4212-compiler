@@ -297,7 +297,7 @@ class Graph:
 		return set(filter(lambda x: x not in self.removed, self.edges))
 
 	def get_simplifiable_node(self, max_degree: int, exclude: Set[str] = set()) -> Optional[str]:
-		for var in self.edges:
+		for var in sorted(self.edges):
 			if (var not in self.removed) and (var not in exclude) and (self.get_degree(var) < max_degree):
 				return var
 
