@@ -93,7 +93,6 @@ class BinaryOp(Expr):
 		self.lhs: Value = lhs
 		self.rhs: Value = rhs
 		self.op: str = op
-		self.strs: bool = False
 
 	def __str__(self) -> str:
 		return f"{self.lhs} {self.op} {self.rhs}"

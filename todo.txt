@@ -2,7 +2,6 @@ TODO
 
 1. all the other statement and expression types
 	- readln
-	- conditional branch (on relops and consts)
 
 
 4. find some way to tell the register allocator about caller-saved registers
@@ -17,13 +16,13 @@ TODO
 
 8. locals should be cleared to 0 i guess.
 
-
 11. see if we need (want) to toposort the basic blocks before renumbering/allocating
-
 
 12. ensure stack alignment on function calls
 
+13. use fp as a GPR; calculate all offsets from sp.
 
+14. make register allocation deterministic (right now it looks like it depends on the hashset/hashmap ordering)
 
 16. in ir3, don't generate short-circuiting code if the potentially-elided operand has no side effects.
 	-- no need to short circuit:
@@ -36,14 +35,7 @@ TODO
 
 	(same applies for &&)
 
-
-
 17. register allocation coalescing
-
-
-18. ir3 for string concat should return a different operator (not '+', maybe 's+'?)
-
-
 
 19. see if it's possible to "properly split" the live ranges. right now, even though there might be disjoint parts in a var's
 	live range, the var must still use the same register (or spill) throughout.

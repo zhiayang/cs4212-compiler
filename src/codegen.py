@@ -50,7 +50,8 @@ def get_value_type(cs: CodegenState, vs: VarState, val: ir3.Value) -> str:
 
 
 def codegen_binop(cs: CodegenState, vs: VarState, expr: ir3.BinaryOp, dest_reg: str):
-	if expr.strs:
+
+	if expr.op == "s+":
 		# TODO: string concatenation
 		cs.comment("NOT IMPLEMENTED (string concat)")
 		return
@@ -117,7 +118,7 @@ def codegen_unaryop(cs: CodegenState, vs: VarState, expr: ir3.UnaryOp, dest_reg:
 		cs.emit(f"rsb {dest_reg}, {value}, #1")
 
 	else:
-		cs.comment(f"NOT IMPLEMENTED (unaryop '{expr.op}')")
+		raise CGException(f"unsupported unary op '{expr.op}'")
 
 
 
