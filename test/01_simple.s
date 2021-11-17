@@ -6,9 +6,7 @@ main_dummy:
 	@ assigns:  '_c1' = v1;   '_t0' = v1;   '_t1' = v1;     'z' = v1;  '_c21' = v2
 	@           '_c9' = v2;   '_t2' = v2;   '_t3' = v2;   '_t4' = v2;     'k' = v2
 	@             'r' = v2;   '_c8' = v3;     'j' = v3;   '_c6' = v4
-	stmfd sp!, {fp, lr}
-	mov fp, sp
-	sub sp, sp, #0
+	stmfd sp!, {lr}
 	stmfd sp!, {v1, v2, v3, v4}
 	@ prologue
 
@@ -87,8 +85,7 @@ main_dummy:
 	@ epilogue
 .main_dummy_epilogue:
 	ldmfd sp!, {v1, v2, v3, v4}
-	add sp, sp, #0
-	ldmfd sp!, {fp, pc}
+	ldmfd sp!, {pc}
 	
 
 .global _J3Foo_3fooiiiiiE
@@ -103,9 +100,7 @@ _J3Foo_3fooiiiiiE:
 	@             'w' = v1;     'y' = v1;   '_t0' = v2;     'k' = v2;     'x' = v2
 	@          'this' = v3;   '_c1' = v4;  '_c49' = v4;  '_c58' = v4;  '_g26' = v4
 	@          '_g37' = v4;  '_g41' = v4;   '_g8' = v4
-	stmfd sp!, {fp, lr}
-	mov fp, sp
-	sub sp, sp, #0
+	stmfd sp!, {lr}
 	stmfd sp!, {v1, v2, v3, v4}
 	@ prologue
 
@@ -277,8 +272,7 @@ _J3Foo_3fooiiiiiE:
 	@ epilogue
 ._J3Foo_3fooiiiiiE_epilogue:
 	ldmfd sp!, {v1, v2, v3, v4}
-	add sp, sp, #0
-	ldmfd sp!, {fp, pc}
+	ldmfd sp!, {pc}
 	
 
 	

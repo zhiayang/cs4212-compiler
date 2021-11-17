@@ -299,18 +299,29 @@ class VarState:
 		self.stack_extra_offset += (4 * num)
 
 
+	def sort_registers(self, regs: Iterable[str]) -> List[str]:
+		numbers = {
+			"a1":  0, "a2":  1, "a3":  2, "a4":  3,
+			"v1":  4, "v2":  5, "v3":  6, "v4":  7,
+			"v5":  8, "v6":  9, "v7": 10, "fp": 11,
+			"ip": 12, "sp": 13, "lr": 14, "pc": 15
+		}
+
+		return list(sorted(regs, key = lambda x: numbers[x]))
+
 
 	def emit_prologue(self, cs: CodegenState) -> None:
 		callee_saved = set(["v1", "v2", "v3", "v4", "v5", "v6", "v7"])
-		restore = sorted(list(callee_saved.intersection(self.touched)))
+		restore = self.sort_registers(callee_saved.intersection(self.touched))
 		if len(restore) == 0:
 			restore_str = ""
 		else:
 			restore_str = (", ".join(restore))
 
-		cs.emit(f"stmfd sp!, {{fp, lr}}")
-		cs.emit(f"mov fp, sp")
-		cs.emit(f"sub sp, sp, #{self.frame_size}")
+		cs.emit(f"stmfd sp!, {{lr}}")
+
+		if self.frame_size > 0:
+			cs.emit(f"sub sp, sp, #{self.frame_size}")
 
 		if restore_str != "":
 			cs.emit(f"stmfd sp!, {{{restore_str}}}")
@@ -321,7 +332,8 @@ class VarState:
 
 	def emit_epilogue(self, cs: CodegenState) -> None:
 		callee_saved = set(["v1", "v2", "v3", "v4", "v5", "v6", "v7"])
-		restore = sorted(list(callee_saved.intersection(self.touched)))
+		restore = self.sort_registers(callee_saved.intersection(self.touched))
+
 		if len(restore) == 0:
 			restore_str = ""
 		else:
@@ -334,8 +346,10 @@ class VarState:
 		if restore_str != "":
 			cs.emit(f"ldmfd sp!, {{{restore_str}}}")
 
-		cs.emit(f"add sp, sp, #{self.frame_size}")
-		cs.emit(f"ldmfd sp!, {{fp, pc}}")
+		if self.frame_size > 0:
+			cs.emit(f"add sp, sp, #{self.frame_size}")
+
+		cs.emit(f"ldmfd sp!, {{pc}}")
 
 
 
