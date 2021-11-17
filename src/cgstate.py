@@ -249,15 +249,6 @@ class VarState:
 		return (reg in self.reg_live_ranges) and (stmt in self.reg_live_ranges[reg])
 
 
-	def make_dest_available(self, var: str) -> str:
-		loc = self.get_location(var)
-		if not loc.have_register():
-			raise CGException(f"did not get register for '{var}'")
-
-		# because of our pseudo-ops, there *must* be a register for this guy.
-		return loc.register()
-
-
 	def calculate_stack_offset(self, ofs: int) -> int:
 		# starting from the current sp, we must *ADD* our frame size,
 		# and *ADD* the extra_offset, and *ADD* the actual offset.
@@ -273,25 +264,6 @@ class VarState:
 		ofs = self.calculate_stack_offset(self.get_location(var).stack_ofs())
 		self.cs.emit(f"str {reg}, [sp, #{ofs}]")
 		self.cs.comment_line(f"spill/wb {var}")
-
-
-
-
-	def load_var(self, var: str) -> str:
-		# because of our pseudo-ops, there *must* be a register for this guy.
-		loc = self.get_location(var)
-		assert loc.have_register()
-
-		# if this was a spilled var, we must load it from memory first.
-		if var in self.spilled:
-			self.load_stack_location(var, loc.register())
-
-		return loc.register()
-
-
-	def writeback_dest(self, var: str, dest_reg: str) -> None:
-		if var in self.spilled and self.is_var_used(var):
-			self.store_stack_location(var, dest_reg)
 
 
 	# the reason that we have to assert we have a register, even when we're spilling, is because

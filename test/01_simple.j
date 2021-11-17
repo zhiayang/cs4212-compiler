@@ -36,6 +36,7 @@ class Foo
 		f3 = 102;
 		println(k);
 
+		m = 50;
 		if(k == 627)
 		{
 			println("kekw");

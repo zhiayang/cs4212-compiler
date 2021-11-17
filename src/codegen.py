@@ -19,7 +19,7 @@ import math
 # returns (string, is_constant, type)
 def codegen_value(cs: CodegenState, vs: VarState, val: ir3.Value) -> Tuple[str, bool]:
 	if isinstance(val, ir3.VarRef):
-		return vs.load_var(val.name), False
+		return vs.get_location(val.name).register(), False
 
 	elif isinstance(val, ir3.ConstantInt):
 		return f"#{val.value}", True
@@ -124,7 +124,7 @@ def codegen_unaryop(cs: CodegenState, vs: VarState, expr: ir3.UnaryOp, dest_reg:
 
 
 def codegen_dotop(cs: CodegenState, vs: VarState, dot: ir3.DotOp, dest_reg: str, stmt_id: int):
-	ptr = vs.load_var(dot.lhs)
+	ptr = vs.get_location(dot.lhs).register()
 	layout = cs.get_class_layout(vs.get_type(dot.lhs))
 	offset = layout.field_offset(dot.rhs)
 
@@ -137,7 +137,7 @@ def codegen_dotop(cs: CodegenState, vs: VarState, dot: ir3.DotOp, dest_reg: str,
 
 
 def codegen_gep(cs: CodegenState, vs: VarState, expr: cgpseudo.GetElementPtr, dest_reg: str, stmt_id: int):
-	ptr = vs.load_var(expr.ptr)
+	ptr = vs.get_location(expr.ptr).register()
 	layout = cs.get_class_layout(vs.get_type(expr.ptr))
 
 	offset = layout.field_offset(expr.field)
@@ -188,12 +188,8 @@ def codegen_expr(cs: CodegenState, vs: VarState, expr: ir3.Expr, dest_reg: str, 
 
 
 def codegen_assign(cs: CodegenState, vs: VarState, assign: ir3.AssignOp):
-
-	dest_reg = vs.make_dest_available(assign.lhs)
-
+	dest_reg = vs.get_location(assign.lhs).register()
 	codegen_expr(cs, vs, assign.rhs, dest_reg, assign.id)
-
-	vs.writeback_dest(assign.lhs, dest_reg)
 
 
 
@@ -333,7 +329,7 @@ def codegen_call(cs: CodegenState, vs: VarState, call: ir3.FnCall, dest_reg: str
 
 
 def codegen_storefield(cs: CodegenState, vs: VarState, store: cgpseudo.StoreField):
-	ptr = vs.load_var(store.ptr)
+	ptr = vs.get_location(store.ptr).register()
 	value, _ = codegen_value(cs, vs, store.value)
 
 	if store.type == "Bool":
@@ -367,14 +363,12 @@ def codegen_stmt(cs: CodegenState, vs: VarState, stmt: ir3.Stmt):
 
 	elif isinstance(stmt, cgpseudo.AssignConstInt) or isinstance(stmt, cgpseudo.AssignConstString):
 		foo: Union[cgpseudo.AssignConstInt, cgpseudo.AssignConstString] = stmt
-		dest_reg = vs.make_dest_available(foo.lhs)
+		dest_reg = vs.get_location(foo.lhs).register()
 
 		if isinstance(foo, cgpseudo.AssignConstInt):
 			cs.emit(f"ldr {dest_reg}, =#{foo.rhs}")
 		else:
 			cs.emit(f"ldr {dest_reg}, ={cs.add_string(foo.rhs)}")
-
-		vs.writeback_dest(foo.lhs, dest_reg)
 
 	elif isinstance(stmt, cgpseudo.SpillVariable):
 		vs.spill_variable(stmt.var)

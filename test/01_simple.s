@@ -95,14 +95,14 @@ main_dummy:
 .type _J3Foo_3fooiiiiiE, %function
 _J3Foo_3fooiiiiiE:
 	@ spills:  'm', 'w'
-	@ assigns: '_c15' = v1;  '_c18' = v1;  '_c20' = v1;  '_c29' = v1;  '_c31' = v1
-	@          '_c39' = v1;  '_c50' = v1;  '_c53' = v1;  '_c59' = v1;  '_c62' = v1
-	@          '_g25' = v1;  '_g36' = v1;  '_g40' = v1;   '_g9' = v1;   '_t1' = v1
+	@ assigns: '_c17' = v1;  '_c20' = v1;  '_c22' = v1;  '_c31' = v1;  '_c33' = v1
+	@          '_c41' = v1;  '_c52' = v1;  '_c55' = v1;  '_c61' = v1;  '_c64' = v1
+	@          '_g27' = v1;  '_g38' = v1;  '_g42' = v1;   '_g9' = v1;   '_t1' = v1
 	@          '_t10' = v1;   '_t2' = v1;   '_t3' = v1;   '_t4' = v1;   '_t5' = v1
 	@           '_t6' = v1;   '_t7' = v1;   '_t8' = v1;   '_t9' = v1;     'm' = v1
 	@             'w' = v1;     'y' = v1;   '_t0' = v2;     'k' = v2;     'x' = v2
-	@          'this' = v3;   '_c1' = v4;  '_c47' = v4;  '_c56' = v4;  '_g24' = v4
-	@          '_g35' = v4;  '_g39' = v4;   '_g8' = v4
+	@          'this' = v3;   '_c1' = v4;  '_c49' = v4;  '_c58' = v4;  '_g26' = v4
+	@          '_g37' = v4;  '_g41' = v4;   '_g8' = v4
 	stmfd sp!, {fp, lr}
 	mov fp, sp
 	sub sp, sp, #0
@@ -132,9 +132,13 @@ _J3Foo_3fooiiiiiE:
 	ldr a1, =.string1_raw
 	mov a2, v2
 	bl printf(PLT)
-	@ _c15 = 627;
+	@ m = 50;
+	mov v1, #50
+	@ spill m;
+	str v1, [sp, #12]                      @ spill/wb m
+	@ _c17 = 627;
 	ldr v1, =#627
-	@ _t2 = k == _c15;
+	@ _t2 = k == _c17;
 	cmp v2, v1
 	moveq v1, #1
 	movne v1, #0
@@ -142,62 +146,61 @@ _J3Foo_3fooiiiiiE:
 	cmp v1, #0
 	bne ._J3Foo_3fooiiiiiE_L1
 ._J3Foo_3fooiiiiiE_L2:
-	@ _c18 = "omegalul";
+	@ _c20 = "omegalul";
 	ldr v1, =.string4
-	@ println(_c18);
+	@ println(_c20);
 	mov a1, v1
 	add a1, a1, #4
 	bl puts(PLT)
-	@ _c20 = 5;
+	@ _c22 = 5;
 	ldr v1, =#5
-	@ _t4 = k * _c20;
+	@ _t4 = k * _c22;
 	mul v1, v2, v1
 	@ k = _t4;
 	mov v2, v1
-	@ _g24 = getelementptr this, f2;
+	@ _g26 = getelementptr this, f2;
 	add v4, v3, #4
-	@ _g25 = 19;
+	@ _g27 = 19;
 	mov v1, #19
-	@ storefield: Int, *_g24 = _g25;
+	@ storefield: Int, *_g26 = _g27;
 	str v1, [v4]
 	@ goto .L3;
 	b ._J3Foo_3fooiiiiiE_L3
 ._J3Foo_3fooiiiiiE_L1:
-	@ _c29 = "kekw";
+	@ _c31 = "kekw";
 	ldr v1, =.string5
-	@ println(_c29);
+	@ println(_c31);
 	mov a1, v1
 	add a1, a1, #4
 	bl puts(PLT)
-	@ _c31 = 2;
+	@ _c33 = 2;
 	ldr v1, =#2
-	@ _t3 = k * _c31;
+	@ _t3 = k * _c33;
 	mul v1, v2, v1
 	@ k = _t3;
 	mov v2, v1
-	@ _g35 = getelementptr this, f2;
+	@ _g37 = getelementptr this, f2;
 	add v4, v3, #4
-	@ _g36 = 69;
+	@ _g38 = 69;
 	mov v1, #69
-	@ storefield: Int, *_g35 = _g36;
+	@ storefield: Int, *_g37 = _g38;
 	str v1, [v4]
 ._J3Foo_3fooiiiiiE_L3:
-	@ _c39 = 420;
+	@ _c41 = 420;
 	ldr v1, =#420
-	@ _g39 = getelementptr this, f1;
+	@ _g41 = getelementptr this, f1;
 	add v4, v3, #0
-	@ _g40 = _c39;
+	@ _g42 = _c41;
 	mov v1, v1
-	@ storefield: Int, *_g39 = _g40;
+	@ storefield: Int, *_g41 = _g42;
 	str v1, [v4]
 	@ restore w;
 	ldr v1, [sp, #8]                       @ restore w
 	@ _t5 = w + 1;
-	ldr v1, [sp, #8]                       @ restore w
 	add v1, v1, #1
-	@ _c47 = 69420;
+	@ _c49 = 69420;
 	ldr v4, =#69420
-	@ _t6 = _t5 != _c47;
+	@ _t6 = _t5 != _c49;
 	cmp v1, v4
 	movne v1, #1
 	moveq v1, #0
@@ -205,28 +208,27 @@ _J3Foo_3fooiiiiiE:
 	cmp v1, #0
 	bne ._J3Foo_3fooiiiiiE_L4
 ._J3Foo_3fooiiiiiE_L5:
-	@ _c50 = "sadge";
+	@ _c52 = "sadge";
 	ldr v1, =.string6
-	@ println(_c50);
+	@ println(_c52);
 	mov a1, v1
 	add a1, a1, #4
 	bl puts(PLT)
 	@ goto .L6;
 	b ._J3Foo_3fooiiiiiE_L6
 ._J3Foo_3fooiiiiiE_L4:
-	@ _c53 = "poggers";
+	@ _c55 = "poggers";
 	ldr v1, =.string7
-	@ println(_c53);
+	@ println(_c55);
 	mov a1, v1
 	add a1, a1, #4
 	bl puts(PLT)
 ._J3Foo_3fooiiiiiE_L6:
-	@ _c56 = 12345;
+	@ _c58 = 12345;
 	ldr v4, =#12345
 	@ restore m;
 	ldr v1, [sp, #12]                      @ restore m
-	@ _t7 = m == _c56;
-	ldr v1, [sp, #12]                      @ restore m
+	@ _t7 = m == _c58;
 	cmp v1, v4
 	moveq v1, #1
 	movne v1, #0
@@ -234,18 +236,18 @@ _J3Foo_3fooiiiiiE:
 	cmp v1, #0
 	bne ._J3Foo_3fooiiiiiE_L7
 ._J3Foo_3fooiiiiiE_L8:
-	@ _c59 = "riperino";
+	@ _c61 = "riperino";
 	ldr v1, =.string8
-	@ println(_c59);
+	@ println(_c61);
 	mov a1, v1
 	add a1, a1, #4
 	bl puts(PLT)
 	@ goto .L9;
 	b ._J3Foo_3fooiiiiiE_L9
 ._J3Foo_3fooiiiiiE_L7:
-	@ _c62 = "poggerino";
+	@ _c64 = "poggerino";
 	ldr v1, =.string9
-	@ println(_c62);
+	@ println(_c64);
 	mov a1, v1
 	add a1, a1, #4
 	bl puts(PLT)
