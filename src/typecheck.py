@@ -441,10 +441,30 @@ def typecheck_println(ts: TypecheckState, stmt: ast.PrintLnCall) -> List[ir3.Stm
 	return stmts
 
 
+def has_side_effects(expr: ast.Expr) -> bool:
+	if isinstance(expr, ast.FuncCall):
+		return True
+
+	elif isinstance(expr, ast.BinaryOp):
+		return has_side_effects(expr.lhs) or has_side_effects(expr.rhs)
+
+	elif isinstance(expr, ast.UnaryOp):
+		return has_side_effects(expr.expr)
+
+	elif isinstance(expr, ast.ParenExpr):
+		return has_side_effects(expr.expr)
+
+	elif isinstance(expr, ast.DotOp):
+		return has_side_effects(expr.lhs) or has_side_effects(expr.rhs)
+
+	return False
+
+
 def typecheck_cond(ts: TypecheckState, expr: ast.Expr) -> Tuple[List[ir3.Stmt], ir3.Value]:
 	stmts: List[ir3.Stmt] = []
+
 	if isinstance(expr, ast.BinaryOp):
-		if expr.op == "&&":
+		if expr.op in ["&&", "||"]:
 			# it doesn't matter when we call this, as long as the statement lists get
 			# inserted in the right place.
 			s1, v1 = typecheck_cond(ts, expr.lhs)
@@ -458,73 +478,73 @@ def typecheck_cond(ts: TypecheckState, expr: ast.Expr) -> Tuple[List[ir3.Stmt], 
 
 			result = ts.make_temp(expr.loc, "Bool")
 
-			ltrue_block = ir3.Label(expr.lhs.loc, ts.get_new_label())
-			rtrue_block = ir3.Label(expr.lhs.loc, ts.get_new_label())
-			merge_block = ir3.Label(expr.lhs.loc, ts.get_new_label())
+			# if the right-side has no side effects, we can just elide the entire
+			# short-circuiting logic, since it is irrelevant.
+			if not has_side_effects(expr.rhs):
+				binop = ir3.BinaryOp(expr.loc, v1, expr.op, v2)
+				return [ *s1, *s2, ir3.AssignOp(expr.loc, result.name, binop) ], ir3.VarRef(expr.loc, result.name)
 
-			stmts.extend(s1)
-			stmts += [
-				ir3.CondBranch(expr.lhs.loc, v1, ltrue_block.name),
 
-				# now in the implicit false case
-				ir3.AssignOp(expr.loc, result.name, ir3.ValueExpr(expr.loc, ir3.ConstantBool(expr.loc, False))),
-				ir3.Branch(expr.loc, merge_block.name),
+			elif expr.op == "&&":
+				ltrue_block = ir3.Label(expr.lhs.loc, ts.get_new_label())
+				rtrue_block = ir3.Label(expr.lhs.loc, ts.get_new_label())
+				merge_block = ir3.Label(expr.lhs.loc, ts.get_new_label())
 
-				# now in the lhs-true case
-				ltrue_block,
+				stmts.extend(s1)
+				stmts += [
+					ir3.CondBranch(expr.lhs.loc, v1, ltrue_block.name),
 
-			] + s2 + [
-				# rhs got generated.
-				ir3.CondBranch(expr.rhs.loc, v2, rtrue_block.name),
+					# now in the implicit false case
+					ir3.AssignOp(expr.loc, result.name, ir3.ValueExpr(expr.loc, ir3.ConstantBool(expr.loc, False))),
+					ir3.Branch(expr.loc, merge_block.name),
 
-				# implicit rhs-false case
-				ir3.AssignOp(expr.loc, result.name, ir3.ValueExpr(expr.loc, ir3.ConstantBool(expr.loc, False))),
-				ir3.Branch(expr.loc, merge_block.name),
+					# now in the lhs-true case
+					ltrue_block,
 
-				# true case
-				rtrue_block,
-				ir3.AssignOp(expr.loc, result.name, ir3.ValueExpr(expr.loc, ir3.ConstantBool(expr.loc, True))),
+				] + s2 + [
+					# rhs got generated.
+					ir3.CondBranch(expr.rhs.loc, v2, rtrue_block.name),
 
-				merge_block
-			]
+					# implicit rhs-false case
+					ir3.AssignOp(expr.loc, result.name, ir3.ValueExpr(expr.loc, ir3.ConstantBool(expr.loc, False))),
+					ir3.Branch(expr.loc, merge_block.name),
 
-			return (stmts, ir3.VarRef(expr.loc, result.name))
+					# true case
+					rtrue_block,
+					ir3.AssignOp(expr.loc, result.name, ir3.ValueExpr(expr.loc, ir3.ConstantBool(expr.loc, True))),
 
-		elif expr.op == "||":
-			s1, v1 = typecheck_cond(ts, expr.lhs)
-			s2, v2 = typecheck_cond(ts, expr.rhs)
+					merge_block
+				]
 
-			if (t1 := ts.get_value_type(v1)) != "Bool":
-				raise TCException(v1.loc, f"expected boolean value on lhs of '||', got '{t1}' instead")
+				return (stmts, ir3.VarRef(expr.loc, result.name))
 
-			if (t2 := ts.get_value_type(v2)) != "Bool":
-				raise TCException(v2.loc, f"expected boolean value on rhs of '||', got '{t2}' instead")
+			elif expr.op == "||":
+				true_block = ir3.Label(expr.lhs.loc, ts.get_new_label())
+				merge_block = ir3.Label(expr.lhs.loc, ts.get_new_label())
 
-			result = ts.make_temp(expr.loc, "Bool")
+				stmts.extend(s1)
+				stmts += [
+					cast(ir3.Stmt, ir3.CondBranch(expr.lhs.loc, v1, true_block.name)),
 
-			true_block = ir3.Label(expr.lhs.loc, ts.get_new_label())
-			merge_block = ir3.Label(expr.lhs.loc, ts.get_new_label())
+					# implicit false-case
+				] + s2 + [
+					ir3.CondBranch(expr.rhs.loc, v2, true_block.name),
 
-			stmts.extend(s1)
-			stmts += [
-				cast(ir3.Stmt, ir3.CondBranch(expr.lhs.loc, v1, true_block.name)),
+					# implicit false-false case:
+					ir3.AssignOp(expr.loc, result.name, ir3.ValueExpr(expr.loc, ir3.ConstantBool(expr.loc, False))),
+					ir3.Branch(expr.loc, merge_block.name),
 
-				# implicit false-case
-			] + s2 + [
-				ir3.CondBranch(expr.rhs.loc, v2, true_block.name),
+					# true case:
+					true_block,
+					ir3.AssignOp(expr.loc, result.name, ir3.ValueExpr(expr.loc, ir3.ConstantBool(expr.loc, True))),
 
-				# implicit false-false case:
-				ir3.AssignOp(expr.loc, result.name, ir3.ValueExpr(expr.loc, ir3.ConstantBool(expr.loc, False))),
-				ir3.Branch(expr.loc, merge_block.name),
+					# merge:
+					merge_block
+				]
+				return (stmts, ir3.VarRef(expr.loc, result.name))
 
-				# true case:
-				true_block,
-				ir3.AssignOp(expr.loc, result.name, ir3.ValueExpr(expr.loc, ir3.ConstantBool(expr.loc, True))),
-
-				# merge:
-				merge_block
-			]
-			return (stmts, ir3.VarRef(expr.loc, result.name))
+			else:
+				assert False and "unreachable"
 
 	return typecheck_expr(ts, expr)
 

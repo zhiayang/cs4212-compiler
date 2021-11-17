@@ -10,22 +10,9 @@ TODO
 	- ideally we want some way to automatically spill a1-a4 across a function call
 	- maybe by having calls "def" a1-a4, but those are registers and not variables...
 
-7. make spilled bools 1 byte instead of 4
-
 8. locals should be cleared to 0 i guess.
 
 11. see if we need (want) to toposort the basic blocks before renumbering/allocating
-
-16. in ir3, don't generate short-circuiting code if the potentially-elided operand has no side effects.
-	-- no need to short circuit:
-	foo   || bar
-	foo() || bar
-
-	-- must short circuit:
-	foo   || bar()
-	foo() || bar()
-
-	(same applies for &&)
 
 17. register allocation coalescing
 
