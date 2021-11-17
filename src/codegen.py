@@ -418,6 +418,49 @@ def codegen_stmt(cs: CodegenState, vs: VarState, stmt: ir3.Stmt):
 		cs.comment("NOT IMPLEMENTED")
 
 
+def gen_regalloc_annotations(assigns: Dict[str, str], spills: Set[str]) -> Tuple[List[str], List[str]]:
+	assign_lines: List[str] = ["assigns: "]
+
+	max_var_len = 7 + max(map(lambda x: len(x), assigns))
+
+	assign_list: Iterable = map(lambda x: (x, assigns[x]), assigns)
+	assign_list = sorted(assign_list, key = lambda x: x[1])
+	assign_list = map(lambda x: "{:>{w}}".format(f"'{x[0]}' = {x[1]}", w = max_var_len), assign_list)
+
+	max_width = 70
+
+	first = True
+	for a in assign_list:
+		if len(assign_lines[-1]) >= max_width:
+			assign_lines.append(9 * ' ')
+			first = True
+
+		if not first:
+			assign_lines[-1] += ";  "
+
+		first = False
+		assign_lines[-1] += a
+
+	first = True
+	spill_lines: List[str] = ["spills:  "]
+
+	if len(spills) == 0:
+		spill_lines[0] += "<none>"
+
+	for s in sorted(spills):
+		if len(spill_lines[-1]) >= max_width:
+			spill_lines.append(9 * ' ')
+			first = True
+
+		if not first:
+			spill_lines[-1] += ", "
+
+		first = False
+		spill_lines[-1] += f"'{s}'"
+
+	return assign_lines, spill_lines
+
+
 
 def codegen_method(cs: CodegenState, method: ir3.FuncDefn):
 	cs.set_current_method(method)
@@ -428,8 +471,15 @@ def codegen_method(cs: CodegenState, method: ir3.FuncDefn):
 	cs.emit(f"{method.name}:", indent = 0)
 
 	assigns, spills, reg_live_ranges = regalloc.allocate_registers(method)
-	cs.comment(f"assigns: {', '.join(map(lambda k: f'{k} = {assigns[k]}', assigns))}")
-	cs.comment(f"spills:  {spills}")
+
+	annot_assigns, annot_spills = gen_regalloc_annotations(assigns, spills)
+
+	for s in annot_spills:
+		cs.comment(s)
+
+	for a in annot_assigns:
+		cs.comment(a)
+
 
 	# start sending stuff to the gulag, from which we will later rescue them
 	cs.begin_scope()

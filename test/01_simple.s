@@ -2,8 +2,10 @@
 .global main_dummy
 .type main_dummy, %function
 main_dummy:
-	@ assigns: _t4 = v1, r = v1, _t3 = v1, z = v2, _c21 = v1, _t2 = v1, j = v3, k = v1, _t1 = v1, _c9 = v1, _c8 = v2, _c6 = v3, _t0 = v4, _c1 = v1
-	@ spills:  set()
+	@ spills:  <none>
+	@ assigns:  '_t4' = v1;     'r' = v1;   '_t3' = v1;  '_c21' = v1;   '_t2' = v1
+	@             'k' = v1;   '_t1' = v1;   '_c9' = v1;   '_c1' = v1;     'z' = v2
+	@           '_c8' = v2;     'j' = v3;   '_c6' = v3;   '_t0' = v4
 	stmfd sp!, {fp, lr}
 	mov fp, sp
 	sub sp, sp, #0
@@ -92,8 +94,15 @@ main_dummy:
 .global _J3Foo_3fooiiiiiE
 .type _J3Foo_3fooiiiiiE, %function
 _J3Foo_3fooiiiiiE:
-	@ assigns: this = v1, y = v2, x = v3, _t10 = v1, _t9 = v2, k = v3, _t8 = v2, _c62 = v2, _c59 = v2, _t7 = v2, m = v2, _c56 = v4, _c53 = v2, _c50 = v2, _t6 = v2, _c47 = v2, _t5 = v4, w = v2, _g40 = v2, _g39 = v4, _c39 = v2, _g36 = v2, _g35 = v4, _t3 = v2, _c31 = v2, _c29 = v2, _g25 = v2, _g24 = v4, _t4 = v2, _c20 = v2, _c18 = v2, _t2 = v2, _c15 = v2, _g9 = v2, _g8 = v4, _t1 = v2, _t0 = v3, _c1 = v4
-	@ spills:  {'w', 'm'}
+	@ spills:  'm', 'w'
+	@ assigns: 'this' = v1;  '_t10' = v1;     'y' = v2;   '_t9' = v2;   '_t8' = v2
+	@          '_c62' = v2;  '_c59' = v2;   '_t7' = v2;     'm' = v2;  '_c53' = v2
+	@          '_c50' = v2;   '_t6' = v2;  '_c47' = v2;     'w' = v2;  '_g40' = v2
+	@          '_c39' = v2;  '_g36' = v2;   '_t3' = v2;  '_c31' = v2;  '_c29' = v2
+	@          '_g25' = v2;   '_t4' = v2;  '_c20' = v2;  '_c18' = v2;   '_t2' = v2
+	@          '_c15' = v2;   '_g9' = v2;   '_t1' = v2;     'x' = v3;     'k' = v3
+	@           '_t0' = v3;  '_c56' = v4;   '_t5' = v4;  '_g39' = v4;  '_g35' = v4
+	@          '_g24' = v4;   '_g8' = v4;   '_c1' = v4
 	stmfd sp!, {fp, lr}
 	mov fp, sp
 	sub sp, sp, #0
