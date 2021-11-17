@@ -22,8 +22,6 @@ TODO
 
 13. use fp as a GPR; calculate all offsets from sp.
 
-14. make register allocation deterministic (right now it looks like it depends on the hashset/hashmap ordering)
-
 16. in ir3, don't generate short-circuiting code if the potentially-elided operand has no side effects.
 	-- no need to short circuit:
 	foo   || bar
