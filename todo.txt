@@ -3,16 +3,6 @@ TODO
 1. all the other statement and expression types
 	- readln
 	- conditional branch (on relops and consts)
-	- dotop assigns
-
-
-3. insert pseudo-ops for GetElementPtr and StoreField so we can safely perform dotop assigns.
-	as it stands now, if we have `a.x = p + q`, and a, p, and q are all spilled, then we
-	simply do not have enough scratch registers to deal with this.
-
-	if we split it up into 2 operations, then we solve this problem since we only need 2
-	scratch registers.
-
 
 
 4. find some way to tell the register allocator about caller-saved registers

@@ -32,18 +32,25 @@ class Foo
 	{
 		Int k;
 		k = 3 * x + y;
-/*
+
+		f3 = 102;
+		println(k);
+
 		if(k == 627)
 		{
 			println("kekw");
 			k = 2 * k;
+			f2 = 59 + 10;
 		}
 		else
 		{
 			println("omegalul");
 			k = 5 * k;
+			f2 = 19;
 		}
-*/
+
+		f1 = 420;
+
 		if(w + 1 != 69420)
 		{
 			println("poggers");

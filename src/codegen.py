@@ -80,47 +80,11 @@ def codegen_binop(cs: CodegenState, vs: VarState, expr: ir3.BinaryOp, dest_reg: 
 			lhs, rhs = rhs, lhs
 			flip = True
 
-		cs.emit(f"{'rsb' if negate else 'sub'} {dest_reg}, {lhs}, {rhs}")
+		cs.emit(f"{'rsb' if flip else 'sub'} {dest_reg}, {lhs}, {rhs}")
 
 	elif expr.op == "*":
-		# ok so, we can't have an immediate in a multiply instruction because arm
-		# instruction encoding is inferior. since it's a constant though, we just
-		# emit the required number of adds and shifts...
-
-		if lc or rc:
-			# keep the constant on the right i guess
-			if lc:
-				lhs, rhs = rhs, lhs
-
-			# anyway this should be an integer
-			constant_thing = expr.lhs if lc else expr.rhs
-
-			assert isinstance(constant_thing, ir3.ConstantInt)
-			mult: int = constant_thing.value
-
-			negate: bool = False
-			if mult == 0:
-				cs.emit(f"add {dest_reg}, {lhs}, #0")
-				return
-
-			elif mult < 0:
-				negate = True
-
-			# to be not entirely 3 head, optimise by trying to shift if possible.
-			p2 = 1 << math.floor(math.log2(mult))
-			mult -= p2
-
-			cs.emit(f"lsl {dest_reg}, {lhs}, #{p2 - 1}")
-
-			while mult > 0:
-				cs.emit(f"add {dest_reg}, {dest_reg}, {lhs}")
-				mult -= 1
-
-			if negate:
-				cs.emit(f"rsb {dest_reg}, {dest_reg}, #0")
-
-		else:
-			cs.emit(f"mul {dest_reg}, {lhs}, {rhs}")
+		assert (not lc) and (not rc)
+		cs.emit(f"mul {dest_reg}, {lhs}, {rhs}")
 
 	elif expr.op in ["==", "!=", "<=", ">=", "<", ">"]:
 		instr_map   = {"==": "eq", "!=": "ne", "<=": "le", ">=": "ge", "<": "lt", ">": "gt"}
@@ -169,6 +133,16 @@ def codegen_dotop(cs: CodegenState, vs: VarState, dot: ir3.DotOp, dest_reg: str,
 
 
 
+
+def codegen_gep(cs: CodegenState, vs: VarState, expr: cgpseudo.GetElementPtr, dest_reg: str, stmt_id: int):
+	ptr = vs.load_var(expr.ptr)
+	layout = cs.get_class_layout(vs.get_type(expr.ptr))
+
+	offset = layout.field_offset(expr.field)
+	cs.emit(f"add {dest_reg}, {ptr}, #{offset}")
+
+
+
 def codegen_expr(cs: CodegenState, vs: VarState, expr: ir3.Expr, dest_reg: str, stmt_id: int):
 	if isinstance(expr, ir3.BinaryOp):
 		codegen_binop(cs, vs, expr, dest_reg)
@@ -202,6 +176,9 @@ def codegen_expr(cs: CodegenState, vs: VarState, expr: ir3.Expr, dest_reg: str, 
 
 		restore_arg_regs(cs, vs, spills)
 
+	elif isinstance(expr, cgpseudo.GetElementPtr):
+		codegen_gep(cs, vs, expr, dest_reg, stmt_id)
+
 	else:
 		cs.comment(f"NOT IMPLEMENTED (expression)")
 
@@ -232,14 +209,6 @@ def codegen_assign(cs: CodegenState, vs: VarState, assign: ir3.AssignOp):
 	codegen_expr(cs, vs, assign.rhs, dest_reg, assign.id)
 
 	vs.writeback_dest(assign.lhs, dest_reg)
-
-
-def codegen_dotop_assign(cs: CodegenState, vs: VarState, ado: ir3.AssignDotOp):
-
-	# the liveness analysis should have ensured that
-
-	pass
-
 
 
 
@@ -377,6 +346,17 @@ def codegen_call(cs: CodegenState, vs: VarState, call: ir3.FnCall, dest_reg: str
 	restore_arg_regs(cs, vs, spills)
 
 
+def codegen_storefield(cs: CodegenState, vs: VarState, store: cgpseudo.StoreField):
+	ptr = vs.load_var(store.ptr)
+	value, _ = codegen_value(cs, vs, store.value)
+
+	if store.type == "Bool":
+		cs.emit(f"strb {value}, [{ptr}]")
+	else:
+		cs.emit(f"str {value}, [{ptr}]")
+
+
+
 
 
 def codegen_stmt(cs: CodegenState, vs: VarState, stmt: ir3.Stmt):
@@ -428,6 +408,9 @@ def codegen_stmt(cs: CodegenState, vs: VarState, stmt: ir3.Stmt):
 
 		cs.emit(f"ldr {loc.register()}, [fp, #{loc.stack_ofs()}]")
 		cs.comment_line(f"restore {stmt.var}")
+
+	elif isinstance(stmt, cgpseudo.StoreField):
+		codegen_storefield(cs, vs, stmt)
 
 	elif isinstance(stmt, cgpseudo.DummyStmt):
 		pass

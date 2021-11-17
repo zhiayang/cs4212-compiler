@@ -9,7 +9,19 @@ from . import cgpseudo
 from .util import Location, TCException, CGException, StringView, print_warning, escape_string
 
 
-def lower_const_value(value: ir3.Value, ctr: List[int]) -> Tuple[List[ir3.Stmt], List[ir3.VarDecl], ir3.Value]:
+
+def split_constant_multiply(lhs: ir3.Value, mult: int, ctr: List[int]) -> Tuple[List[ir3.Stmt], List[ir3.VarDecl], ir3.Expr]:
+	# there is a whole field about optimising this, apparently.
+	# "Single Constant Multiplication". unfortunately i'm too 3head to understand any of the papers,
+	# so this is a 3head solution.
+
+	# it's far easier to do this...
+	ss, vs, mul = lower_const_value(ir3.ConstantInt(lhs.loc, mult), ctr, force_int = True)
+	return ss, vs, ir3.BinaryOp(lhs.loc, lhs, '*', mul)
+
+
+
+def lower_const_value(value: ir3.Value, ctr: List[int], force_int: bool = False) -> Tuple[List[ir3.Stmt], List[ir3.VarDecl], ir3.Value]:
 	stm: ir3.Stmt
 	vname = f"_c{ctr[0]}"
 	ctr[0] += 1
@@ -17,7 +29,7 @@ def lower_const_value(value: ir3.Value, ctr: List[int]) -> Tuple[List[ir3.Stmt],
 	if isinstance(value, ir3.ConstantInt):
 		# we know "for sure" that any value between -256 and +256 (inclusive) can be encoded as
 		# an immediate operand
-		if -256 <= value.value <= 256:
+		if (not force_int) and (-256 <= value.value <= 256):
 			return [], [], value
 
 		var = ir3.VarDecl(value.loc, vname, "Int")
@@ -39,6 +51,14 @@ def lower_const_value(value: ir3.Value, ctr: List[int]) -> Tuple[List[ir3.Stmt],
 # for constants that cannot fit in an immediate (ie. strings, integers out of range),
 def lower_expr(expr: ir3.Expr, ctr: List[int]) -> Tuple[List[ir3.Stmt], List[ir3.VarDecl], ir3.Expr]:
 	if isinstance(expr, ir3.BinaryOp):
+		# special case '*' here. we cannot multiply by a constant on arm, because it sucks.
+		if (expr.op == '*') and (isinstance(expr.lhs, ir3.ConstantInt) or isinstance(expr.rhs, ir3.ConstantInt)):
+			if isinstance(expr.lhs, ir3.ConstantInt):
+				return split_constant_multiply(expr.rhs, expr.lhs.value, ctr)
+			elif isinstance(expr.rhs, ir3.ConstantInt):
+				return split_constant_multiply(expr.lhs, expr.rhs.value, ctr)
+
+
 		s1, vrs1, v1 = lower_const_value(expr.lhs, ctr)
 		s2, vrs2, v2 = lower_const_value(expr.rhs, ctr)
 		if len(s1) == 0 and len(s2) == 0:
@@ -82,10 +102,26 @@ def lower_stmt(stmt: ir3.Stmt, ctr: List[int]) -> Tuple[List[ir3.Stmt], List[ir3
 		return [ *ss, ir3.AssignOp(stmt.loc, stmt.lhs, e) ], vr
 
 	elif isinstance(stmt, ir3.AssignDotOp):
+		# this must be lowered into a GEP and a store. we also split the store into two pieces;
+		# the rhs must first be saved into a temporary, because we don't want to (re)introduce
+		# scratch registers (to place the result of the rhs expr)
+		gep = cgpseudo.GetElementPtr(stmt.loc, stmt.lhs1, stmt.lhs2)
+		ptr = ir3.VarDecl(stmt.loc, f"_g{ctr[0] + 0}", "Int")
+		tmp = ir3.VarDecl(stmt.loc, f"_g{ctr[0] + 1}", "Int")
+
 		ss, vr, e = lower_expr(stmt.rhs, ctr)
-		if len(ss) == 0:
-			return [ stmt ], []
-		return [ *ss, ir3.AssignDotOp(stmt.loc, stmt.lhs1, stmt.lhs2, e) ], vr
+		ss.extend([
+			ir3.AssignOp(stmt.loc, ptr.name, gep),
+			ir3.AssignOp(stmt.loc, tmp.name, e),
+			cgpseudo.StoreField(stmt.loc, ptr.name, ir3.VarRef(tmp.loc, tmp.name), stmt.type)
+		])
+
+		# we used 2 vars here
+		ctr[0] += 2
+		vr.append(ptr)
+		vr.append(tmp)
+
+		return ss, vr
 
 	elif isinstance(stmt, ir3.PrintLnCall):
 		ss, vr, v = lower_const_value(stmt.value, ctr)

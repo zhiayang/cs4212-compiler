@@ -30,6 +30,8 @@ def get_defs_and_uses(stmt: ir3.Stmt) -> Tuple[Set[str], Set[str]]:
 		elif isinstance(expr, ir3.FnCallExpr):
 			tmp: Set[str] = set()       # stupidest language ever designed
 			return tmp.union(*map(lambda a: get_value_uses(a), expr.call.args))
+		elif isinstance(expr, cgpseudo.GetElementPtr):
+			return set([expr.ptr])
 		else:
 			return set()
 
@@ -73,6 +75,9 @@ def get_defs_and_uses(stmt: ir3.Stmt) -> Tuple[Set[str], Set[str]]:
 
 	elif isinstance(stmt, cgpseudo.RestoreVariable):
 		return set([ stmt.var ]), set()
+
+	elif isinstance(stmt, cgpseudo.StoreField):
+		return set(), get_value_uses(stmt.value).union([stmt.ptr])
 
 	else:
 		return set(), set()

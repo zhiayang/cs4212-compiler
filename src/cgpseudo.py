@@ -51,3 +51,23 @@ class RestoreVariable(ir3.Stmt):
 
 	def __str__(self) -> str:
 		return f"restore {self.var};"
+
+class GetElementPtr(ir3.Expr):
+	def __init__(self, loc: Location, ptr: str, field: str) -> None:
+		super().__init__(loc)
+		self.ptr = ptr
+		self.field = field
+
+	def __str__(self) -> str:
+		return f"getelementptr {self.ptr}, {self.field}"
+
+class StoreField(ir3.Stmt):
+	def __init__(self, loc: Location, ptr: str, value: ir3.Value, ty: str) -> None:
+		super().__init__(loc)
+		self.ptr = ptr
+		self.value = value
+		self.type = ty
+
+	def __str__(self) -> str:
+		return f"storefield: {self.type}, *{self.ptr} = {self.value};"
+

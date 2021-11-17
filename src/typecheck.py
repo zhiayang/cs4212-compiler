@@ -634,7 +634,7 @@ def typecheck_assign(ts: TypecheckState, stmt: ast.AssignStmt) -> List[ir3.Stmt]
 
 		ensure_compatible_types(field_ty, ts.get_value_type(v2))
 		return stmts + [
-			ir3.AssignDotOp(stmt.loc, tmp.name, field_name, ir3.ValueExpr(stmt.rhs.loc, v2))
+			ir3.AssignDotOp(stmt.loc, tmp.name, field_name, ir3.ValueExpr(stmt.rhs.loc, v2), field_ty)
 		]
 
 	# normal var = var
@@ -646,7 +646,7 @@ def typecheck_assign(ts: TypecheckState, stmt: ast.AssignStmt) -> List[ir3.Stmt]
 	rhs_expr = ir3.ValueExpr(stmt.rhs.loc, v2)
 
 	if (var := ts.get_var(stmt.lhs.loc, var_name))[1]:
-		assign: ir3.Stmt = ir3.AssignDotOp(stmt.loc, "this", var_name, rhs_expr)
+		assign: ir3.Stmt = ir3.AssignDotOp(stmt.loc, "this", var_name, rhs_expr, var[0].type)
 	else:
 		assign = ir3.AssignOp(stmt.loc, var_name, rhs_expr)
 

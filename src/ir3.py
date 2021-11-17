@@ -179,11 +179,12 @@ class AssignOp(Stmt):
 		return f"{self.lhs} = {self.rhs};"
 
 class AssignDotOp(Stmt):
-	def __init__(self, loc: Location, lhs1: str, lhs2: str, rhs: Expr) -> None:
+	def __init__(self, loc: Location, lhs1: str, lhs2: str, rhs: Expr, ty: str) -> None:
 		super().__init__(loc)
 		self.lhs1: str = lhs1
 		self.lhs2: str = lhs2
 		self.rhs: Expr = rhs
+		self.type: str = ty
 
 	def __str__(self) -> str:
 		return f"{self.lhs1}.{self.lhs2} = {self.rhs};"
