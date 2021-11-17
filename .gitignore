@@ -3,3 +3,5 @@
 __pycache__
 deploy
 *.out
+toolchain/
+m5out/
