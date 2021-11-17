@@ -7,6 +7,7 @@ from copy import *
 from . import ir3
 from . import cgreg
 from . import cgpseudo
+from . import cgannotate
 
 from .util import Location, TCException, CGException, StringView, print_warning, escape_string
 from .cgstate import *
@@ -186,23 +187,6 @@ def codegen_expr(cs: CodegenState, vs: VarState, expr: ir3.Expr, dest_reg: str, 
 
 
 
-def make_available(cs: CodegenState, vs: VarState, var: str) -> Tuple[VarLoc, str, bool]:
-	loc = vs.get_location(var)
-	if not loc.have_register():
-		raise CGException(f"did not get register for '{var}'")
-
-	spill = False
-	dest_reg = loc.register()
-
-	return loc, dest_reg, spill
-
-def writeback_spill(cs: CodegenState, vs: VarState, spill: bool, loc: VarLoc, dest_reg: str, var: str):
-	if spill and vs.is_var_used(var):
-		cs.emit(f"str {dest_reg}, [fp, #{loc.stack_ofs()}]")
-		cs.comment_line(f"spill/wb {var}")
-
-
-
 def codegen_assign(cs: CodegenState, vs: VarState, assign: ir3.AssignOp):
 
 	dest_reg = vs.make_dest_available(assign.lhs)
@@ -259,13 +243,16 @@ def save_arg_regs(cs: CodegenState, vs: VarState, stmt_id: int) -> List[str]:
 
 	if len(spills) > 0:
 		cs.emit(f"stmfd sp!, {{{', '.join(spills)}}}")
+		vs.stack_offset_32n(len(spills))
 
 	return spills
+
 
 def restore_arg_regs(cs: CodegenState, vs: VarState, spills: List[str]) -> None:
 	# now, restore a1-a4 (if we spilled them)
 	if len(spills) > 0:
 		cs.emit(f"ldmfd sp!, {{{', '.join(spills)}}}")
+		vs.stack_offset_32n(-1 * len(spills))
 
 
 
@@ -323,7 +310,7 @@ def codegen_call(cs: CodegenState, vs: VarState, call: ir3.FnCall, dest_reg: str
 			if const:
 				cs.emit(f"mov a1, {val}")
 
-			cs.emit(f"str {val}, [sp, #-4]!")
+			vs.stack_push(val)
 
 	for i, arg in enumerate(call.args[:4]):
 		reg = f"a{i + 1}"
@@ -337,7 +324,7 @@ def codegen_call(cs: CodegenState, vs: VarState, call: ir3.FnCall, dest_reg: str
 	# after the call, we need to increment the stack pointer by however many
 	# extra arguments we passed.
 	if len(call.args) > 4:
-		cs.emit(f"add sp, sp, #{4 * (len(call.args) - 4)}")
+		vs.stack_pop_32n(len(call.args) - 4)
 
 	if dest_reg != "" and dest_reg != "a1":
 		cs.emit(f"mov {dest_reg}, a1")
@@ -389,24 +376,11 @@ def codegen_stmt(cs: CodegenState, vs: VarState, stmt: ir3.Stmt):
 
 		vs.writeback_dest(foo.lhs, dest_reg)
 
-	# the reason that we have to assert we have a register, even when we're spilling, is because
-	# we must spill from somewhere. by the virtue of inserting these spill/reload pseudo-ops, the
-	# live range of the var should have split, giving us a variable to assign it.
 	elif isinstance(stmt, cgpseudo.SpillVariable):
-		loc = vs.get_location(stmt.var)
-		if not loc.have_register():
-			raise CGException(f"no register to spill '{stmt.var}'")
-
-		cs.emit(f"str {loc.register()}, [fp, #{loc.stack_ofs()}]")
-		cs.comment_line(f"spill/wb {stmt.var}")
+		vs.spill_variable(stmt.var)
 
 	elif isinstance(stmt, cgpseudo.RestoreVariable):
-		loc = vs.get_location(stmt.var)
-		if not loc.have_register():
-			raise CGException(f"could not restore '{stmt.var}'")
-
-		cs.emit(f"ldr {loc.register()}, [fp, #{loc.stack_ofs()}]")
-		cs.comment_line(f"restore {stmt.var}")
+		vs.restore_variable(stmt.var)
 
 	elif isinstance(stmt, cgpseudo.StoreField):
 		codegen_storefield(cs, vs, stmt)
@@ -416,50 +390,6 @@ def codegen_stmt(cs: CodegenState, vs: VarState, stmt: ir3.Stmt):
 
 	else:
 		cs.comment("NOT IMPLEMENTED")
-
-
-def gen_regalloc_annotations(assigns: Dict[str, str], spills: Set[str]) -> Tuple[List[str], List[str]]:
-	assign_lines: List[str] = ["assigns: "]
-
-	max_var_len = 7 + max(map(lambda x: len(x), assigns))
-
-	assign_list: Iterable = list(map(lambda x: (x, assigns[x]), assigns))
-	assign_list = sorted(assign_list, key = lambda x: (x[1], x[0]))
-	assign_list = map(lambda x: "{:>{w}}".format(f"'{x[0]}' = {x[1]}", w = max_var_len), assign_list)
-
-	max_width = 70
-
-	first = True
-	for a in assign_list:
-		if len(assign_lines[-1]) >= max_width:
-			assign_lines.append(9 * ' ')
-			first = True
-
-		if not first:
-			assign_lines[-1] += ";  "
-
-		first = False
-		assign_lines[-1] += a
-
-	first = True
-	spill_lines: List[str] = ["spills:  "]
-
-	if len(spills) == 0:
-		spill_lines[0] += "<none>"
-
-	for s in sorted(spills):
-		if len(spill_lines[-1]) >= max_width:
-			spill_lines.append(9 * ' ')
-			first = True
-
-		if not first:
-			spill_lines[-1] += ", "
-
-		first = False
-		spill_lines[-1] += f"'{s}'"
-
-	return assign_lines, spill_lines
-
 
 
 
@@ -475,7 +405,7 @@ def codegen_method(cs: CodegenState, method: ir3.FuncDefn):
 
 	assigns, spills, reg_live_ranges = cgreg.allocate_registers(method)
 
-	annot_assigns, annot_spills = gen_regalloc_annotations(assigns, spills)
+	annot_assigns, annot_spills = cgannotate.annotate_reg_allocs(assigns, spills)
 
 	for s in annot_spills:
 		cs.comment(s)

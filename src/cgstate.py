@@ -156,8 +156,16 @@ class VarState:
 
 		# locals shadow parameters, which means that we should do the params first.
 		# note that we don't need to worry about stuff not fitting in 1 register, since everything is <= 4 bytes.
-
 		# note also that params never affect our local frame.
+
+		# since we opt to not use the frame pointer, this is how the stack frame is laid out:
+		# the stack_loc of a variable is always with reference to the *imaginary stack frame*.
+		# we can always calculate this value from the current rsp, because we don't have allocas.
+		#
+		# so caller-stack-params (ie. arg 5 onwards) have a positive offset from the imaginary frame,
+		# and the local spill area has a negative offset. bools take up 4 bytes on the stack, because there's
+		# not much benefit to optimising that part, and it takes a lot of effort.
+
 		for i, param in enumerate(params):
 			if param.name in set(map(lambda x: x.name, vars)):
 				continue
@@ -240,30 +248,6 @@ class VarState:
 	def is_register_live(self, reg: str, stmt: int) -> bool:
 		return (reg in self.reg_live_ranges) and (stmt in self.reg_live_ranges[reg])
 
-	def push_extra(self, num: int) -> None:
-		self.stack_extra_offset += num
-
-	def pop_extra(self, num: int) -> None:
-		self.stack_extra_offset -= num
-		assert self.stack_extra_offset >= 0
-
-
-	def load_var(self, var: str) -> str:
-		# because of our pseudo-ops, there *must* be a register for this guy.
-		loc = self.get_location(var)
-		if not loc.have_register():
-			print(f"no reg for '{var}'")
-		assert loc.have_register()
-
-		reg = loc.register()
-
-		# if this was a spilled var, we must load it from memory first.
-		if var in self.spilled:
-			self.cs.emit(f"ldr {reg}, [fp, #{self.get_location(var).stack_ofs()}]")
-			self.cs.comment_line(f"restore {var}")
-
-		return reg
-
 
 	def make_dest_available(self, var: str) -> str:
 		loc = self.get_location(var)
@@ -273,12 +257,74 @@ class VarState:
 		# because of our pseudo-ops, there *must* be a register for this guy.
 		return loc.register()
 
-	def writeback_dest(self, var: str, dest_reg: str) -> None:
-		loc = self.get_location(var)
 
+	def calculate_stack_offset(self, ofs: int) -> int:
+		# starting from the current sp, we must *ADD* our frame size,
+		# and *ADD* the extra_offset, and *ADD* the actual offset.
+		return ofs + self.frame_size + self.stack_extra_offset
+
+
+	def load_stack_location(self, var: str, reg: str) -> None:
+		ofs = self.calculate_stack_offset(self.get_location(var).stack_ofs())
+		self.cs.emit(f"ldr {reg}, [sp, #{ofs}]")
+		self.cs.comment_line(f"restore {var}")
+
+	def store_stack_location(self, var: str, reg: str) -> None:
+		ofs = self.calculate_stack_offset(self.get_location(var).stack_ofs())
+		self.cs.emit(f"str {reg}, [sp, #{ofs}]")
+		self.cs.comment_line(f"spill/wb {var}")
+
+
+
+
+	def load_var(self, var: str) -> str:
+		# because of our pseudo-ops, there *must* be a register for this guy.
+		loc = self.get_location(var)
+		assert loc.have_register()
+
+		# if this was a spilled var, we must load it from memory first.
+		if var in self.spilled:
+			self.load_stack_location(var, loc.register())
+
+		return loc.register()
+
+
+	def writeback_dest(self, var: str, dest_reg: str) -> None:
 		if var in self.spilled and self.is_var_used(var):
-			self.cs.emit(f"str {dest_reg}, [fp, #{loc.stack_ofs()}]")
-			self.cs.comment_line(f"spill/wb {var}")
+			self.store_stack_location(var, dest_reg)
+
+
+	# the reason that we have to assert we have a register, even when we're spilling, is because
+	# we must spill from somewhere. by the virtue of inserting these spill/reload pseudo-ops, the
+	# live range of the var should have split, giving us a variable to assign it.
+	def spill_variable(self, var: str) -> None:
+		loc = self.get_location(var)
+		if not loc.have_register():
+			raise CGException(f"no register to spill '{var}'")
+
+		self.store_stack_location(var, loc.register())
+
+
+	def restore_variable(self, var: str) -> None:
+		loc = self.get_location(var)
+		if not loc.have_register():
+			raise CGException(f"could not restore '{var}'")
+
+		self.load_stack_location(var, loc.register())
+
+
+
+	def stack_push(self, reg: str) -> None:
+		self.cs.emit(f"str {reg}, [sp, #-4]!")
+		self.stack_extra_offset += 4
+
+	def stack_pop_32n(self, num: int) -> None:
+		self.cs.emit(f"add sp, sp, #{num * 4}")
+		self.stack_extra_offset -= (4 * num)
+		assert self.stack_extra_offset >= 0
+
+	def stack_offset_32n(self, num: int) -> None:
+		self.stack_extra_offset += (4 * num)
 
 
 

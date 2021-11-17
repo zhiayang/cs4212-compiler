@@ -1,16 +1,14 @@
 TODO
 
-1. all the other statement and expression types
+1. support functions:
 	- readln
+	- string concat
+	- long division
 
 
 4. find some way to tell the register allocator about caller-saved registers
 	- ideally we want some way to automatically spill a1-a4 across a function call
 	- maybe by having calls "def" a1-a4, but those are registers and not variables...
-
-5. string concat
-
-6. long division
 
 7. make spilled bools 1 byte instead of 4
 

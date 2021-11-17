@@ -191,9 +191,9 @@ _J3Foo_3fooiiiiiE:
 	@ storefield: Int, *_g39 = _g40;
 	str v1, [v4]
 	@ restore w;
-	ldr v1, [fp, #8]                       @ restore w
+	ldr v1, [sp, #8]                       @ restore w
 	@ _t5 = w + 1;
-	ldr v1, [fp, #8]                       @ restore w
+	ldr v1, [sp, #8]                       @ restore w
 	add v1, v1, #1
 	@ _c47 = 69420;
 	ldr v4, =#69420
@@ -224,9 +224,9 @@ _J3Foo_3fooiiiiiE:
 	@ _c56 = 12345;
 	ldr v4, =#12345
 	@ restore m;
-	ldr v1, [fp, #12]                      @ restore m
+	ldr v1, [sp, #12]                      @ restore m
 	@ _t7 = m == _c56;
-	ldr v1, [fp, #12]                      @ restore m
+	ldr v1, [sp, #12]                      @ restore m
 	cmp v1, v4
 	moveq v1, #1
 	movne v1, #0
