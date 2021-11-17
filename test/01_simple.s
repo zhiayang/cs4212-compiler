@@ -92,7 +92,7 @@ main_dummy:
 .global _J3Foo_3fooiiiiiE
 .type _J3Foo_3fooiiiiiE, %function
 _J3Foo_3fooiiiiiE:
-	@ assigns: y = v1, x = v2, this = v3, _t10 = v1, _t9 = v1, k = v2, _t8 = v1, _c62 = v1, _c59 = v1, _t7 = v1, m = v1, _c56 = v4, _c53 = v1, _c50 = v1, _t6 = v1, _c47 = v1, _t5 = v4, w = v1, _g40 = v1, _g39 = v4, _c39 = v1, _g36 = v1, _g35 = v4, _t3 = v1, _c31 = v1, _c29 = v1, _g25 = v1, _g24 = v4, _t4 = v1, _c20 = v1, _c18 = v1, _t2 = v1, _c15 = v1, _g9 = v1, _g8 = v4, _t1 = v1, _t0 = v2, _c1 = v4
+	@ assigns: this = v1, y = v2, x = v3, _t10 = v1, _t9 = v2, k = v3, _t8 = v2, _c62 = v2, _c59 = v2, _t7 = v2, m = v2, _c56 = v4, _c53 = v2, _c50 = v2, _t6 = v2, _c47 = v2, _t5 = v4, w = v2, _g40 = v2, _g39 = v4, _c39 = v2, _g36 = v2, _g35 = v4, _t3 = v2, _c31 = v2, _c29 = v2, _g25 = v2, _g24 = v4, _t4 = v2, _c20 = v2, _c18 = v2, _t2 = v2, _c15 = v2, _g9 = v2, _g8 = v4, _t1 = v2, _t0 = v3, _c1 = v4
 	@ spills:  {'w', 'm'}
 	stmfd sp!, {fp, lr}
 	mov fp, sp
@@ -100,167 +100,167 @@ _J3Foo_3fooiiiiiE:
 	stmfd sp!, {v1, v2, v3, v4}
 	@ prologue
 
-	mov v3, a1
-	mov v2, a2
-	mov v1, a3
+	mov v1, a1
+	mov v3, a2
+	mov v2, a3
 ._J3Foo_3fooiiiiiE_entry:
 	@ dummy;
 	@ _c1 = 3;
 	ldr v4, =#3
 	@ _t0 = x * _c1;
-	mul v2, v2, v4
+	mul v3, v3, v4
 	@ _t1 = _t0 + y;
-	add v1, v2, v1
+	add v2, v3, v2
 	@ k = _t1;
-	mov v2, v1
+	mov v3, v2
 	@ _g8 = getelementptr this, f3;
-	add v4, v3, #8
+	add v4, v1, #8
 	@ _g9 = 102;
-	mov v1, #102
+	mov v2, #102
 	@ storefield: Int, *_g8 = _g9;
-	str v1, [v4]
+	str v2, [v4]
 	@ println(k);
 	ldr a1, =.string1_raw
-	mov a2, v2
+	mov a2, v3
 	bl printf(PLT)
 	@ _c15 = 627;
-	ldr v1, =#627
+	ldr v2, =#627
 	@ _t2 = k == _c15;
-	cmp v2, v1
-	moveq v1, #1
-	movne v1, #0
+	cmp v3, v2
+	moveq v2, #1
+	movne v2, #0
 	@ if (_t2) goto .L1;
-	cmp v1, #0
+	cmp v2, #0
 	bne ._J3Foo_3fooiiiiiE_L1
 ._J3Foo_3fooiiiiiE_L2:
 	@ _c18 = "omegalul";
-	ldr v1, =.string4
+	ldr v2, =.string4
 	@ println(_c18);
-	mov a1, v1
+	mov a1, v2
 	add a1, a1, #4
 	bl puts(PLT)
 	@ _c20 = 5;
-	ldr v1, =#5
+	ldr v2, =#5
 	@ _t4 = k * _c20;
-	mul v1, v2, v1
+	mul v2, v3, v2
 	@ k = _t4;
-	mov v2, v1
+	mov v3, v2
 	@ _g24 = getelementptr this, f2;
-	add v4, v3, #4
+	add v4, v1, #4
 	@ _g25 = 19;
-	mov v1, #19
+	mov v2, #19
 	@ storefield: Int, *_g24 = _g25;
-	str v1, [v4]
+	str v2, [v4]
 	@ goto .L3;
 	b ._J3Foo_3fooiiiiiE_L3
 ._J3Foo_3fooiiiiiE_L1:
 	@ _c29 = "kekw";
-	ldr v1, =.string5
+	ldr v2, =.string5
 	@ println(_c29);
-	mov a1, v1
+	mov a1, v2
 	add a1, a1, #4
 	bl puts(PLT)
 	@ _c31 = 2;
-	ldr v1, =#2
+	ldr v2, =#2
 	@ _t3 = k * _c31;
-	mul v1, v2, v1
+	mul v2, v3, v2
 	@ k = _t3;
-	mov v2, v1
+	mov v3, v2
 	@ _g35 = getelementptr this, f2;
-	add v4, v3, #4
+	add v4, v1, #4
 	@ _g36 = 69;
-	mov v1, #69
+	mov v2, #69
 	@ storefield: Int, *_g35 = _g36;
-	str v1, [v4]
+	str v2, [v4]
 ._J3Foo_3fooiiiiiE_L3:
 	@ _c39 = 420;
-	ldr v1, =#420
+	ldr v2, =#420
 	@ _g39 = getelementptr this, f1;
-	add v4, v3, #0
+	add v4, v1, #0
 	@ _g40 = _c39;
-	mov v1, v1
+	mov v2, v2
 	@ storefield: Int, *_g39 = _g40;
-	str v1, [v4]
+	str v2, [v4]
 	@ restore w;
-	ldr v1, [fp, #8]                       @ restore w
+	ldr v2, [fp, #8]                       @ restore w
 	@ _t5 = w + 1;
-	ldr v1, [fp, #8]                       @ restore w
-	add v4, v1, #1
+	ldr v2, [fp, #8]                       @ restore w
+	add v4, v2, #1
 	@ _c47 = 69420;
-	ldr v1, =#69420
+	ldr v2, =#69420
 	@ _t6 = _t5 != _c47;
-	cmp v4, v1
-	movne v1, #1
-	moveq v1, #0
+	cmp v4, v2
+	movne v2, #1
+	moveq v2, #0
 	@ if (_t6) goto .L4;
-	cmp v1, #0
+	cmp v2, #0
 	bne ._J3Foo_3fooiiiiiE_L4
 ._J3Foo_3fooiiiiiE_L5:
 	@ _c50 = "sadge";
-	ldr v1, =.string6
+	ldr v2, =.string6
 	@ println(_c50);
-	mov a1, v1
+	mov a1, v2
 	add a1, a1, #4
 	bl puts(PLT)
 	@ goto .L6;
 	b ._J3Foo_3fooiiiiiE_L6
 ._J3Foo_3fooiiiiiE_L4:
 	@ _c53 = "poggers";
-	ldr v1, =.string7
+	ldr v2, =.string7
 	@ println(_c53);
-	mov a1, v1
+	mov a1, v2
 	add a1, a1, #4
 	bl puts(PLT)
 ._J3Foo_3fooiiiiiE_L6:
 	@ _c56 = 12345;
 	ldr v4, =#12345
 	@ restore m;
-	ldr v1, [fp, #12]                      @ restore m
+	ldr v2, [fp, #12]                      @ restore m
 	@ _t7 = m == _c56;
-	ldr v1, [fp, #12]                      @ restore m
-	cmp v1, v4
-	moveq v1, #1
-	movne v1, #0
+	ldr v2, [fp, #12]                      @ restore m
+	cmp v2, v4
+	moveq v2, #1
+	movne v2, #0
 	@ if (_t7) goto .L7;
-	cmp v1, #0
+	cmp v2, #0
 	bne ._J3Foo_3fooiiiiiE_L7
 ._J3Foo_3fooiiiiiE_L8:
 	@ _c59 = "riperino";
-	ldr v1, =.string8
+	ldr v2, =.string8
 	@ println(_c59);
-	mov a1, v1
+	mov a1, v2
 	add a1, a1, #4
 	bl puts(PLT)
 	@ goto .L9;
 	b ._J3Foo_3fooiiiiiE_L9
 ._J3Foo_3fooiiiiiE_L7:
 	@ _c62 = "poggerino";
-	ldr v1, =.string9
+	ldr v2, =.string9
 	@ println(_c62);
-	mov a1, v1
+	mov a1, v2
 	add a1, a1, #4
 	bl puts(PLT)
 ._J3Foo_3fooiiiiiE_L9:
 	@ _t8 = this.f1;
-	ldr v1, [v3, #0]
+	ldr v2, [v1, #0]
 	@ println(_t8);
 	ldr a1, =.string1_raw
-	mov a2, v1
+	mov a2, v2
 	bl printf(PLT)
 	@ _t9 = this.f2;
-	ldr v1, [v3, #4]
+	ldr v2, [v1, #4]
 	@ println(_t9);
 	ldr a1, =.string1_raw
-	mov a2, v1
+	mov a2, v2
 	bl printf(PLT)
 	@ _t10 = this.f3;
-	ldr v1, [v3, #8]
+	ldr v1, [v1, #8]
 	@ println(_t10);
 	ldr a1, =.string1_raw
 	mov a2, v1
 	bl printf(PLT)
 	@ return k;
-	mov a1, v2
+	mov a1, v3
 	b ._J3Foo_3fooiiiiiE_epilogue
 
 	@ epilogue

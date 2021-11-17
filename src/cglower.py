@@ -20,7 +20,6 @@ def split_constant_multiply(lhs: ir3.Value, mult: int, ctr: List[int]) -> Tuple[
 	return ss, vs, ir3.BinaryOp(lhs.loc, lhs, '*', mul)
 
 
-
 def lower_const_value(value: ir3.Value, ctr: List[int], force_int: bool = False) -> Tuple[List[ir3.Stmt], List[ir3.VarDecl], ir3.Value]:
 	stm: ir3.Stmt
 	vname = f"_c{ctr[0]}"
@@ -156,12 +155,16 @@ def lower_stmt(stmt: ir3.Stmt, ctr: List[int]) -> Tuple[List[ir3.Stmt], List[ir3
 		if not isinstance(stmt.cond, ir3.RelOp):
 			return [ stmt ], []
 
+		# we also lower this to only have a var or const in the condition.
 		ss1, vr1, v1 = lower_const_value(stmt.cond.lhs, ctr)
 		ss2, vr2, v2 = lower_const_value(stmt.cond.rhs, ctr)
-		if len(ss1) == 0 and len(ss2) == 0:
-			return [ stmt ], []
-		rel = ir3.RelOp(stmt.cond.loc, stmt.cond.lhs, stmt.cond.op, stmt.cond.rhs)
-		return [ *ss1, *ss2, ir3.CondBranch(stmt.loc, rel, stmt.label) ], [ *vr1, *vr2 ]
+		rel = ir3.BinaryOp(stmt.cond.loc, stmt.cond.lhs, stmt.cond.op, stmt.cond.rhs)
+		tmp_name = f"_b{ctr[0]}"
+		vr3 = [ ir3.VarDecl(stmt.loc, tmp_name, "Bool") ]
+		ss3 = [ ir3.AssignOp(stmt.loc, tmp_name, rel) ]
+		ctr[0] += 1
+
+		return [ *ss1, *ss2, *ss3, ir3.CondBranch(stmt.loc, ir3.VarRef(stmt.loc, tmp_name), stmt.label) ], [ *vr1, *vr2, *vr3 ]
 
 	else:
 		return [ stmt ], []

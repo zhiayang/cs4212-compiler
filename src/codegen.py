@@ -229,24 +229,22 @@ def codegen_uncond_branch(cs: CodegenState, vs: VarState, ubr: ir3.Branch):
 
 
 def codegen_cond_branch(cs: CodegenState, vs: VarState, cbr: ir3.CondBranch):
-	if isinstance(cbr.cond, ir3.RelOp):
-		cs.comment("NOT IMPLEMENTED (relop branch)")
+	# we should have lowered all conditions to be values (bringing the cond outside the loop).
+	assert isinstance(cbr.cond, ir3.Value)
+	assert get_value_type(cs, vs, cbr.cond) == "Bool"
 
-	else:
-		assert get_value_type(cs, vs, cbr.cond) == "Bool"
+	target = cs.mangle_label(cbr.label)
 
-		target = cs.mangle_label(cbr.label)
-
-		if isinstance(cbr.cond, ir3.ConstantBool):
-			if cbr.cond.value:
-				cs.emit(f"b {target}")
-			else:
-				cs.comment("constant branch eliminated; fallthrough")
-				pass
+	if isinstance(cbr.cond, ir3.ConstantBool):
+		if cbr.cond.value:
+			cs.emit(f"b {target}")
 		else:
-			value, _ = codegen_value(cs, vs, cbr.cond)
-			cs.emit(f"cmp {value}, #0")
-			cs.emit(f"bne {target}")
+			cs.comment("constant branch eliminated; fallthrough")
+			pass
+	else:
+		value, _ = codegen_value(cs, vs, cbr.cond)
+		cs.emit(f"cmp {value}, #0")
+		cs.emit(f"bne {target}")
 
 
 def save_arg_regs(cs: CodegenState, vs: VarState, stmt_id: int) -> List[str]:
