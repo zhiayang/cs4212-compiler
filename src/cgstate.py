@@ -290,13 +290,20 @@ class VarState:
 		self.cs.emit(f"str {reg}, [sp, #-4]!")
 		self.stack_extra_offset += 4
 
+	def stack_push_32n(self, num: int) -> None:
+		self.cs.emit(f"sub sp, sp, #{num * 4}")
+		self.stack_extra_offset += (4 * num)
+
 	def stack_pop_32n(self, num: int) -> None:
 		self.cs.emit(f"add sp, sp, #{num * 4}")
 		self.stack_extra_offset -= (4 * num)
 		assert self.stack_extra_offset >= 0
 
-	def stack_offset_32n(self, num: int) -> None:
+	def stack_extra_32n(self, num: int) -> None:
 		self.stack_extra_offset += (4 * num)
+
+	def current_stack_offset(self) -> int:
+		return self.frame_size + self.stack_extra_offset
 
 
 	def sort_registers(self, regs: Iterable[str]) -> List[str]:

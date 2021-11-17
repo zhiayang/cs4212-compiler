@@ -167,7 +167,7 @@ def codegen_expr(cs: CodegenState, vs: VarState, expr: ir3.Expr, dest_reg: str, 
 		cls_size = cs.get_class_layout(expr.cls).size()
 		assert cls_size > 0
 
-		spills = save_arg_regs(cs, vs, stmt_id)
+		spills, stack_adjust = pre_function_call(cs, vs, stmt_id)
 
 		cs.emit(f"mov a1, #1")
 		cs.emit(f"ldr a2, =#{cls_size}")    # note: rely on the assembler to optimise this away
@@ -176,7 +176,7 @@ def codegen_expr(cs: CodegenState, vs: VarState, expr: ir3.Expr, dest_reg: str, 
 		if dest_reg != "a1":
 			cs.emit(f"mov {dest_reg}, a1")
 
-		restore_arg_regs(cs, vs, spills)
+		post_function_call(cs, vs, spills, stack_adjust)
 
 	elif isinstance(expr, cgpseudo.GetElementPtr):
 		codegen_gep(cs, vs, expr, dest_reg, stmt_id)
@@ -228,7 +228,7 @@ def codegen_cond_branch(cs: CodegenState, vs: VarState, cbr: ir3.CondBranch):
 		cs.emit(f"bne {target}")
 
 
-def save_arg_regs(cs: CodegenState, vs: VarState, stmt_id: int) -> List[str]:
+def pre_function_call(cs: CodegenState, vs: VarState, stmt_id: int) -> Tuple[List[str], int]:
 	# for each of a1-a4, if there is some value in there, we need to save/restore across
 	# the call boundary. this also acts as a spill for those values, so we don't need to
 	# handle spilling separately.
@@ -239,24 +239,34 @@ def save_arg_regs(cs: CodegenState, vs: VarState, stmt_id: int) -> List[str]:
 
 	if len(spills) > 0:
 		cs.emit(f"stmfd sp!, {{{', '.join(spills)}}}")
-		vs.stack_offset_32n(len(spills))
+		vs.stack_extra_32n(len(spills))
 
-	return spills
+	if vs.current_stack_offset() % 8 == 0:
+		stack_adjust = 0
+	else:
+		vs.stack_push_32n(1)
+		cs.comment_line("align adjustment")
+		stack_adjust = 1
+
+	return spills, stack_adjust
 
 
-def restore_arg_regs(cs: CodegenState, vs: VarState, spills: List[str]) -> None:
+def post_function_call(cs: CodegenState, vs: VarState, spills: List[str], stack_adjust: int) -> None:
 	# now, restore a1-a4 (if we spilled them)
 	if len(spills) > 0:
 		cs.emit(f"ldmfd sp!, {{{', '.join(spills)}}}")
-		vs.stack_offset_32n(-1 * len(spills))
+		vs.stack_extra_32n(-1 * len(spills))
 
+	if stack_adjust > 0:
+		vs.stack_pop_32n(stack_adjust)
+		cs.comment_line("align adjustment")
 
 
 def codegen_println(cs: CodegenState, vs: VarState, stmt: ir3.PrintLnCall):
 	value, _ = codegen_value(cs, vs, stmt.value)
 	ty = get_value_type(cs, vs, stmt.value)
 
-	spills = save_arg_regs(cs, vs, stmt.id)
+	spills, stack_adjust = pre_function_call(cs, vs, stmt.id)
 
 	# strings are always in registers
 	if ty == "String":
@@ -286,14 +296,14 @@ def codegen_println(cs: CodegenState, vs: VarState, stmt: ir3.PrintLnCall):
 	else:
 		assert False and f"unknown type {ty}"
 
-	restore_arg_regs(cs, vs, spills)
+	post_function_call(cs, vs, spills, stack_adjust)
 
 
 def codegen_call(cs: CodegenState, vs: VarState, call: ir3.FnCall, dest_reg: str, stmt_id: int):
 	# if the number of arguments is > 4, then we set up the stack first; this
 	# is so we can just use a1 as a scratch register
 
-	spills = save_arg_regs(cs, vs, stmt_id)
+	spills, stack_adjust = pre_function_call(cs, vs, stmt_id)
 
 	if len(call.args) > 4:
 		# to match the C calling convention, stack arguments go right-to-left.
@@ -325,7 +335,7 @@ def codegen_call(cs: CodegenState, vs: VarState, call: ir3.FnCall, dest_reg: str
 	if dest_reg != "" and dest_reg != "a1":
 		cs.emit(f"mov {dest_reg}, a1")
 
-	restore_arg_regs(cs, vs, spills)
+	post_function_call(cs, vs, spills, stack_adjust)
 
 
 def codegen_storefield(cs: CodegenState, vs: VarState, store: cgpseudo.StoreField):

@@ -16,10 +16,6 @@ TODO
 
 11. see if we need (want) to toposort the basic blocks before renumbering/allocating
 
-12. ensure stack alignment on function calls
-
-13. use fp as a GPR; calculate all offsets from sp.
-
 16. in ir3, don't generate short-circuiting code if the potentially-elided operand has no side effects.
 	-- no need to short circuit:
 	foo   || bar
@@ -41,25 +37,16 @@ TODO
 
 
 
-20. peephole optimisations.....
+20. change asm generation into some kind of datastructure.
+	- this would allow us to *not* do string matching for...
+
+21. peephole optimisations
 
 
 
 
 
 
-
-
--- done
-12. potentially preprocess ir3 (or just change it in ir3 itself...) so that we:
-	- always make temporaries for strings, since they need a register. this way the register allocator can
-	  give them a register "normally", without relying on scratch. this would depend on (13)
-
-	- make temporaries for nums outside of [-128, 127] or [0, 255] (same reason).
-
-	these depend on (13) -- more intelligent scratch allocation. or rather, they are mutually dependent. if
-	we don't have scratch registers, then we must have a register allocated for strings and numbers. if we
-	don't have registers allocated, then we must have scratch.
 
 
 
