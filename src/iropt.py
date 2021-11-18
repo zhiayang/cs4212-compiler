@@ -3,7 +3,7 @@
 from __future__ import annotations
 from typing import *
 from copy import *
-from functools import reduce
+from functools import reduce, partial
 
 from . import ast
 from . import ir3
@@ -109,7 +109,7 @@ def remove_redundant_temporaries(func: ir3.FuncDefn) -> bool:
 			parent_blocks[s.id] = blk.name
 
 	num_removed = 0
-	for temp in filter(lambda x: x.name.startswith("_"), func.vars):
+	for temp in filter(lambda x: is_temporary(x.name), func.vars):
 		assigns = get_var_assigns(func, temp.name)
 		# can only be assigned once. anyway for temporary variables we essentially generate SSA,
 		# so we shouldn't encounter this case... by right.
@@ -183,6 +183,34 @@ def remove_unused_variables(func: ir3.FuncDefn) -> bool:
 
 
 def eliminate_common_subexpressions(func: ir3.FuncDefn, all_stmts: List[ir3.Stmt], all_exprs: List[ir3.Expr]) -> bool:
+
+	def get_stmt_gen_exprs(stmt: ir3.Stmt, _: List[ir3.Expr]) -> Set[int]:
+		# a statement only "generates" an expression when there is an expression on its rhs.
+		# we do not want to consider dotops to "generate" their expressions (since it would
+		# be too expensive to load from memory versus just doing arithmetic), so we are left
+		# with only normal assigns. further, only consider temporaries, since they are in SSA.
+		# we also also do not consider phi nodes, since there's no expression there.
+
+		# since normal vars are not constrained to SSA, we cannot just assign (x = b) since b
+		# might have been redefined somewhere in the middle. with SSA, we can be sure that is
+		# not the case.
+		if isinstance(stmt, ir3.AssignOp) and is_temporary(stmt.lhs):
+			return set([ stmt.rhs.id ])
+		else:
+			return set()
+
+	def get_stmt_kill_exprs(stmt: ir3.Stmt, all_exprs: List[ir3.Expr]) -> Set[int]:
+		stmt_defs = get_statement_defs(stmt)
+
+		# an expression is "killed" by this statement if the statement defines
+		# some value that the expression uses.
+		def is_killed(expr: ir3.Expr) -> bool:
+			return len(get_expr_uses(expr).intersection(stmt_defs)) > 0
+
+		# a statement can kill any expression, so we need them all
+		return set(map(lambda x: x.id, filter(is_killed, all_exprs)))
+
+
 	# perform forward flow analysis.
 	ins, outs, gens, kills = forward_dataflow(func, all_stmts, int, all_exprs,
 		get_stmt_gen_exprs, get_stmt_kill_exprs)
@@ -190,7 +218,6 @@ def eliminate_common_subexpressions(func: ir3.FuncDefn, all_stmts: List[ir3.Stmt
 	# gens is a map of stmt -> gen-ed expr
 	# we want to invert it. to get expr -> variable name
 	# we know that only assignments generate expressions.
-
 	expr_generators: Dict[int, str] = dict()
 	for n, gs in enumerate(gens):
 		# there isn't a statement that generates more than 1 expression
@@ -237,11 +264,48 @@ def eliminate_common_subexpressions(func: ir3.FuncDefn, all_stmts: List[ir3.Stmt
 	return num_removed > 0
 
 
+def propagate_copies(func: ir3.FuncDefn, all_stmts: List[ir3.Stmt]):
+	# given that:
+	# 1. we only operate on temporary variables (ie. both sides are temporaries)
+	# 2. temporaries are in SSA form
+	# 3. for `_t1 = _t0`, the definition of _t0 must be visible at this point.
+
+	def get_stmt_gen_temps(stmt: ir3.Stmt, _: List[Any]) -> Set[str]:
+		if (isinstance(stmt, ir3.AssignOp) or isinstance(stmt, cgpseudo.PhiNode)) and is_temporary(stmt.lhs):
+			return set([ stmt.lhs ])
+		else:
+			return set()
+
+	# we operate in SSA for temporaries, so a value is never killed.
+	def get_stmt_kill_temps(stmt: ir3.Stmt, _: List[Any]) -> Set[str]:
+		return set()
+
+	ins, outs, gens, kills = forward_dataflow(func, all_stmts, str, [],
+		get_stmt_gen_temps, get_stmt_kill_temps)
+
+
+	num_removed = 0
+	# find all statements that are copies
+	for i, stmt in enumerate(all_stmts):
+		if isinstance(stmt, ir3.AssignOp) and is_temporary(stmt.lhs):
+			# check that the right hand is also a temporary
+			if isinstance(stmt.rhs, ir3.ValueExpr) and isinstance(stmt.rhs.value, ir3.VarRef):
+				old_name = stmt.lhs
+				new_name = stmt.rhs.value.name
+				if not is_temporary(new_name):
+					continue
+
+				# ok, now we can replace all uses of `old_name` with `new_name`
+				replace_variables(func, old_name, ir3.VarRef(stmt.loc, new_name))
+				num_removed += 1
+
+	log_opt(func, "copies", num_removed)
+	return num_removed > 0
+
 
 
 
 def optimise(func: ir3.FuncDefn):
-
 	passes = 0
 	while True:
 		passes += 1
@@ -261,6 +325,9 @@ def optimise(func: ir3.FuncDefn):
 		if remove_unused_variables(func):       continue
 
 		if eliminate_common_subexpressions(func, all_stmts, all_exprs):
+			continue
+
+		if propagate_copies(func, all_stmts):
 			continue
 
 		# finished
@@ -285,8 +352,6 @@ def forward_dataflow(func: ir3.FuncDefn, all_stmts: List[ir3.Stmt], set_types: T
 	successors = compute_successors(func)
 	predecessors = compute_predecessors(func)
 
-	# ins are empty by default, but outs are the gens of each statement by default.
-
 	ins: List[Set[T]]  = list(map(lambda _: set(), all_stmts))
 	outs: List[Set[T]] = list(map(lambda _: set(), all_stmts))
 
@@ -304,7 +369,7 @@ def forward_dataflow(func: ir3.FuncDefn, all_stmts: List[ir3.Stmt], set_types: T
 		if len(predecessors[n]) == 0:
 			ins[n] = set()
 		else:
-			ins[n]  = reduce(set.intersection, map(lambda pred: outs[pred], predecessors[n]))
+			ins[n] = reduce(set.intersection, map(lambda p: outs[p], predecessors[n]))
 
 		outs[n] = gens[n].union(ins[n] - kills[n])
 		if old_out != outs[n] and n in successors:
@@ -313,31 +378,89 @@ def forward_dataflow(func: ir3.FuncDefn, all_stmts: List[ir3.Stmt], set_types: T
 	return ins, outs, gens, kills
 
 
-def get_stmt_gen_exprs(stmt: ir3.Stmt, _: List[ir3.Expr]) -> Set[int]:
-	# a statement only "generates" an expression when there is an expression on its rhs.
-	# we do not want to consider dotops to "generate" their expressions (since it would
-	# be too expensive to load from memory versus just doing arithmetic), so we are left
-	# with only normal assigns. further, only consider temporaries, since they are in SSA.
-
-	# since normal vars are not constrained to SSA, we cannot just assign (x = b) since b
-	# might have been redefined somewhere in the middle. with SSA, we can be sure that is
-	# not the case.
-	if isinstance(stmt, ir3.AssignOp) and stmt.lhs.startswith("_"):
-		return set([ stmt.rhs.id ])
-	else:
-		return set()
 
 
-def get_stmt_kill_exprs(stmt: ir3.Stmt, all_exprs: List[ir3.Expr]) -> Set[int]:
-	stmt_defs = get_statement_defs(stmt)
 
-	# an expression is "killed" by this statement if the statement defines
-	# some value that the expression uses.
-	def is_killed(expr: ir3.Expr) -> bool:
-		return len(get_expr_uses(expr).intersection(stmt_defs)) > 0
+def replace_variables(func: ir3.FuncDefn, old_name: str, new_value: ir3.Value) -> None:
+	for blk in func.blocks:
+		for i, stmt in enumerate(blk.stmts):
+			def visit(value: ir3.Value) -> ir3.Value:
+				if isinstance(value, ir3.VarRef) and value.name == old_name:
+					return new_value
+				else:
+					return value
 
-	# a statement can kill any expression, so we need them all
-	return set(map(lambda x: x.id, filter(is_killed, all_exprs)))
+			if isinstance(stmt, ir3.AssignDotOp) and isinstance(new_value, ir3.VarRef):
+				if stmt.lhs1 == old_name:
+					stmt.lhs1 = new_value.name
+
+			visit_values_in_stmt(visit, stmt)
+
+
+
+
+
+
+
+
+
+def visit_stmts(visitor: Callable[[ir3.Stmt], Any], func: ir3.FuncDefn) -> None:
+	for blk in func.blocks:
+		for stmt in blk.stmts:
+			visitor(stmt)
+
+def visit_exprs_in_stmt(visitor: Callable[[ir3.Expr], Any], stmt: ir3.Stmt) -> None:
+	if isinstance(stmt, ir3.AssignOp) or isinstance(stmt, ir3.AssignDotOp):
+		visitor(stmt.rhs)
+
+def visit_values_in_expr(visitor_: Callable[[ir3.Value], Optional[ir3.Value]], expr: ir3.Expr) -> None:
+	def visitor(value: ir3.Value) -> ir3.Value:
+		if (new := visitor_(value)) is not None:
+			return new
+		else:
+			return value
+
+	if isinstance(expr, ir3.BinaryOp):
+		expr.lhs = visitor(expr.lhs)
+		expr.rhs = visitor(expr.rhs)
+
+	elif isinstance(expr, ir3.UnaryOp):
+		expr.expr = visitor(expr.expr)
+
+	elif isinstance(expr, ir3.ValueExpr):
+		expr.value = visitor(expr.value)
+
+	elif isinstance(expr, ir3.FnCallExpr):
+		for i, a in enumerate(expr.call.args):
+			expr.call.args[i] = visitor(a)
+
+def visit_values_in_stmt(visitor_: Callable[[ir3.Value], Optional[ir3.Value]], stmt: ir3.Stmt) -> None:
+	def visitor(value: ir3.Value) -> ir3.Value:
+		if (new := visitor_(value)) is not None:
+			return new
+		else:
+			return value
+
+	if isinstance(stmt, ir3.FnCallStmt):
+		for i, a in enumerate(stmt.call.args):
+			stmt.call.args[i] = visitor(a)
+
+	elif isinstance(stmt, ir3.AssignOp) or isinstance(stmt, ir3.AssignDotOp):
+		visit_values_in_expr(visitor_, stmt.rhs)
+
+	elif isinstance(stmt, ir3.ReturnStmt):
+		if stmt.value is not None:
+			stmt.value = visitor(stmt.value)
+
+	elif isinstance(stmt, ir3.PrintLnCall):
+		stmt.value = visitor(stmt.value)
+
+	elif isinstance(stmt, ir3.CondBranch):
+		if isinstance(stmt.cond, ir3.RelOp):
+			stmt.cond.lhs = visitor(stmt.cond.lhs)
+			stmt.cond.rhs = visitor(stmt.cond.rhs)
+		else:
+			stmt.cond = visitor(stmt.cond)
 
 
 
@@ -391,6 +514,7 @@ def compute_successors(func: ir3.FuncDefn) -> Dict[int, Set[int]]:
 
 
 def get_statement_defs(stmt: ir3.Stmt) -> Set[str]:
+	# readln gives a new value to the var, so it is considered to "define" it
 	if isinstance(stmt, ir3.ReadLnCall):
 		return set([ stmt.name ])
 
@@ -496,13 +620,13 @@ def renumber_expressions(all_stmts: List[ir3.Stmt]) -> List[ir3.Expr]:
 		if isinstance(stmt, ir3.AssignOp) or isinstance(stmt, ir3.AssignDotOp):
 			stmt.rhs.id = counter
 			all_exprs.append(stmt.rhs)
-
-		counter += 1
+			counter += 1
 
 	return all_exprs
 
 
-
+def is_temporary(name: str) -> bool:
+	return name.startswith('_')
 
 
 def log_opt(func: ir3.FuncDefn, kind: str, num: int):
