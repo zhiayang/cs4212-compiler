@@ -51,7 +51,7 @@ def remove_unreachable_blocks(func: ir3.FuncDefn) -> bool:
 		for unr in unreachables:
 			func.blocks.remove(unr)
 			removed_blocks.append(unr)
-			print(f"removing {unr.name}")
+			# print(f"removing {unr.name}")
 
 	for rem in removed_blocks:
 		for blk in func.blocks:
@@ -80,10 +80,10 @@ def remove_double_jumps(func: ir3.FuncDefn) -> bool:
 				for j in pred.stmts:
 					if isinstance(j, ir3.Branch) and j.label == blk.name:
 						j.label = target
+						num_removed += 1
 					elif isinstance(j, ir3.CondBranch) and j.label == blk.name:
 						j.label = target
-
-			num_removed += 1
+						num_removed += 1
 
 	# note that we only eliminate the double jump. the unreachable-block pruning actually
 	# removes the "middle" block, since it is now unreachable.
@@ -191,9 +191,12 @@ def eliminate_common_subexpressions(func: ir3.FuncDefn, all_stmts: List[ir3.Stmt
 		# with only normal assigns. further, only consider temporaries, since they are in SSA.
 		# we also also do not consider phi nodes, since there's no expression there.
 
-		# since normal vars are not constrained to SSA, we cannot just assign (x = b) since b
-		# might have been redefined somewhere in the middle. with SSA, we can be sure that is
-		# not the case.
+		# since normal vars are not constrained to SSA, for something like:
+		# b = <expr>
+		# ...
+		# x = <expr.
+		# we cannot just assign `x = b` since `b` might have been redefined somewhere in the middle.
+		# with SSA, we can be sure that is not the case.
 		if isinstance(stmt, ir3.AssignOp) and is_temporary(stmt.lhs):
 			return set([ stmt.rhs.id ])
 		else:
@@ -212,7 +215,7 @@ def eliminate_common_subexpressions(func: ir3.FuncDefn, all_stmts: List[ir3.Stmt
 
 
 	# perform forward flow analysis.
-	ins, outs, gens, kills = forward_dataflow(func, all_stmts, int, all_exprs, gen_func, kill_func)
+	ins, outs, gens, kills = forward_dataflow(func, all_stmts, int, all_exprs, gen_func, kill_func, union = False)
 
 	# gens is a map of stmt -> gen-ed expr
 	# we want to invert it. to get expr -> variable name
@@ -264,7 +267,7 @@ def eliminate_common_subexpressions(func: ir3.FuncDefn, all_stmts: List[ir3.Stmt
 	return num_removed > 0
 
 
-def propagate_copies(func: ir3.FuncDefn, all_stmts: List[ir3.Stmt]):
+def propagate_copies(func: ir3.FuncDefn, all_stmts: List[ir3.Stmt]) -> bool:
 	# given that:
 	# 1. we only operate on temporary variables (ie. both sides are temporaries)
 	# 2. temporaries are in SSA form
@@ -280,7 +283,7 @@ def propagate_copies(func: ir3.FuncDefn, all_stmts: List[ir3.Stmt]):
 	def kill_func(stmt: ir3.Stmt, _: List[Any]) -> Set[str]:
 		return set()
 
-	ins, outs, gens, kills = forward_dataflow(func, all_stmts, str, [], gen_func, kill_func)
+	ins, outs, gens, kills = forward_dataflow(func, all_stmts, str, [], gen_func, kill_func, union = False)
 
 	# which statements does a particular value reach
 	reaching_stmts: Dict[str, Set[int]] = dict()
@@ -317,13 +320,15 @@ def propagate_copies(func: ir3.FuncDefn, all_stmts: List[ir3.Stmt]):
 	return num_removed > 0
 
 
-def propagate_constants(func: ir3.FuncDefn, all_stmts: List[ir3.Stmt]):
+def propagate_constants(func: ir3.FuncDefn, all_stmts: List[ir3.Stmt]) -> bool:
 	# similar in theory to propagating copies.
 
 	# a constant is generated when you assign a constant to a variable.
 	# pregenerate this (since we'll need it later anyway_
 	constants: Dict[str, Dict[int, ir3.Value]] = dict()
 
+	# which statement uses which variables
+	used_variables: Dict[int, Set[str]] = dict()
 
 	def visit1(stmt: ir3.Stmt):
 		nonlocal constants
@@ -332,65 +337,177 @@ def propagate_constants(func: ir3.FuncDefn, all_stmts: List[ir3.Stmt]):
 			if is_constant_value(stmt.rhs.value):
 				constants.setdefault(stmt.lhs, dict())[stmt.id] = stmt.rhs.value
 
+		used_variables[stmt.id] = get_statement_uses(stmt)
+
 	visit_stmts(visit1, func)
 
-	def gen_func(stmt: ir3.Stmt, _: List[Any]) -> Set[str]:
+	def gen_func(stmt: ir3.Stmt, _: List[Any]) -> Set[tuple]:
 		if isinstance(stmt, ir3.AssignOp) and isinstance(stmt.rhs, ir3.ValueExpr):
 			if is_constant_value(stmt.rhs.value):
-				return set([ stmt.lhs ])
+				return set([ (stmt.lhs, stmt.rhs.value) ])
 
 		return set()
 
 	# a constant is killed if the variable (to which you assigned a constant) is re-assigned
-	def kill_func(stmt: ir3.Stmt, _: List[Any]) -> Set[str]:
+	def kill_func(stmt: ir3.Stmt, _: List[Any]) -> Set[tuple]:
 		if isinstance(stmt, ir3.AssignOp) or isinstance(stmt, cgpseudo.PhiNode):
-			return set([ stmt.lhs ])
+			# this kills all.
+			killed: Set[tuple] = set()
+			if stmt.lhs in constants:
+				for vals in constants[stmt.lhs].values():
+					killed.add((stmt.lhs, vals))
+
+			return killed
 		else:
 			return set()
 
-	ins, outs, gens, kills = forward_dataflow(func, all_stmts, str, [], gen_func, kill_func)
-
-	# which statements does a particular value reach
-	reaching_stmts: Dict[str, Set[int]] = dict()
-	for n, vars in enumerate(ins):
-		for v in vars:
-			reaching_stmts.setdefault(v, set()).add(n)
-
-	predecessors = compute_predecessors(func)
+	ins, outs, _, _ = forward_dataflow(func, all_stmts, tuple, [], gen_func, kill_func, union = False)
 
 	num_removed = 0
-	for var, stmts in reaching_stmts.items():
-		if var not in constants:
-			continue
+	for stmt in all_stmts:
+		avail_consts: Dict[str, Set[ir3.Value]] = dict()
+		for const in ins[stmt.id]:
+			avail_consts.setdefault(const[0], set()).add(const[1])
 
-		consts = constants[var]
-		for sid in stmts:
-			# if, at this statement, we can 'see' more than one value of the constant, abort.
-			all_preds = get_transitive_predecessors(sid, predecessors)
+		cands: Iterable = used_variables[stmt.id].intersection(avail_consts.keys())
+		cands = filter(lambda x: len(avail_consts[x]) == 1, cands)
 
-			visible_consts = all_preds.intersection(set(consts.keys()))
+		for cand in cands:
+			replacement = next(iter(avail_consts[cand]))
+			num_removed += replace_variables_in_stmt(stmt, cand, deepcopy(replacement))
 
-			# print(f"'{var}' reaches {sid} -- {all_preds}, {list(consts.keys())}")
+		# filter out all constants with 0
 
-			if len(visible_consts) != 1:
-				continue
-
-			replacement = consts[visible_consts.pop()]
-			# print(f"one value of '{var}' visible at {sid}, replacing with '{replacement}'")
-			# print(f"  {all_stmts[sid]}")
-
-			tmp = replace_variables_in_stmt(all_stmts[sid], var, deepcopy(replacement))
-			if tmp > 0:
-				num_removed += tmp
+			# tmp = replace_variables_in_stmt(all_stmts[sid], var, deepcopy(replacement))
+			# if tmp > 0:
+			# 	num_removed += tmp
 
 
 	log_opt(func, "constant", "propagated", num_removed)
 	return num_removed > 0
 
 
+def evaluate_constants(func: ir3.FuncDefn) -> bool:
+	# after we propagate copies and constants, we're likely left with a lot of constants to fold
+
+	eval_ops = {
+		"==": lambda a, b: a == b,
+		"!=": lambda a, b: a != b,
+		"<=": lambda a, b: a <= b,
+		">=": lambda a, b: a >= b,
+		"&&": lambda a, b: a and b,
+		"||": lambda a, b: a or b,
+		"<":  lambda a, b: a < b,
+		">":  lambda a, b: a > b,
+
+		"+":  lambda a, b: a + b,
+		"-":  lambda a, b: a - b,
+		"*":  lambda a, b: a * b,
+		"/":  lambda a, b: a / b,
+		"s+":  lambda a, b: a + b,
+	}
+
+	num_changed = 0
+	def expr_visitor(expr: ir3.Expr) -> ir3.Expr:
+		nonlocal eval_ops
+		nonlocal num_changed
+		if isinstance(expr, ir3.UnaryOp):
+			if isinstance(expr.expr, ir3.ConstantInt) and expr.op == "-":
+				num_changed += 1
+				expr.expr = ir3.ConstantInt(expr.expr.loc, -expr.expr.value)
+			elif isinstance(expr.expr, ir3.ConstantBool) and expr.op == "!":
+				num_changed += 1
+				expr.expr = ir3.ConstantBool(expr.expr.loc, not expr.expr.value)
+
+		elif isinstance(expr, ir3.BinaryOp):
+			if not is_constant_value(expr.lhs) or not is_constant_value(expr.rhs):
+				return expr
+
+			if type(expr.lhs) != type(expr.rhs):
+				return expr
+
+			if isinstance(expr.lhs, ir3.ConstantInt):
+				const = ir3.ConstantInt(expr.loc, eval_ops[expr.op](expr.lhs.value, expr.rhs.value)) # type: ignore
+				num_changed += 1
+				return ir3.ValueExpr(expr.loc, const)
+
+			elif isinstance(expr.lhs, ir3.ConstantBool):
+				const = ir3.ConstantBool(expr.loc, eval_ops[expr.op](expr.lhs.value, expr.rhs.value)) # type: ignore
+				num_changed += 1
+				return ir3.ValueExpr(expr.loc, const)
+
+			elif isinstance(expr.lhs, ir3.ConstantString):
+				const = ir3.ConstantString(expr.loc, eval_ops[expr.op](expr.lhs.value, expr.rhs.value)) # type: ignore
+				num_changed += 1
+				return ir3.ValueExpr(expr.loc, const)
+
+		return expr
 
 
-# def simplify
+
+	def stmt_visitor(stmt: ir3.Stmt) -> ir3.Stmt:
+		nonlocal eval_ops
+		nonlocal num_changed
+
+		# this mostly involves conditional branches.
+		if isinstance(stmt, ir3.CondBranch):
+			# if the thing inside is already a constant:
+			if isinstance(stmt.cond, ir3.Value) and is_constant_value(stmt.cond):
+				num_changed += 1
+				assert isinstance(stmt.cond, ir3.ConstantBool)
+				if stmt.cond.value:
+					return ir3.Branch(stmt.loc, stmt.label)
+				else:
+					return cgpseudo.DummyStmt(stmt.loc)
+
+			elif isinstance(stmt.cond, ir3.RelOp):
+
+				if is_constant_value(stmt.cond.lhs) and is_constant_value(stmt.cond.rhs):
+					num_changed += 1
+					if eval_ops[stmt.cond.op](stmt.cond.lhs.value, stmt.cond.rhs.value): # type: ignore
+						return ir3.Branch(stmt.loc, stmt.label)
+					else:
+						return cgpseudo.DummyStmt(stmt.loc)
+
+		elif isinstance(stmt, ir3.AssignOp) or isinstance(stmt, ir3.AssignDotOp):
+			stmt.rhs = expr_visitor(stmt.rhs)
+
+		return stmt
+
+	visit_stmts(stmt_visitor, func)
+
+	log_opt(func, "constant", "folded", num_changed)
+	return num_changed > 0
+
+
+def remove_unreachable_stmts(func: ir3.FuncDefn) -> bool:
+	# very simple; in the course of changing cond branches to uncond ones, we might
+	# end up with two uncond branches in a row; obviously the second one will not
+	# be executed.
+
+	num_removed = 0
+	for blk in func.blocks:
+		if len(blk.stmts) < 2:
+			continue
+
+		# yeet dummies.
+		for s in blk.stmts[:]:
+			if isinstance(s, cgpseudo.DummyStmt):
+				blk.stmts.remove(s)
+				num_removed += 1
+
+		for i in range(0, len(blk.stmts)):
+			if isinstance(blk.stmts[i], ir3.Branch) and i + 1 < len(blk.stmts):
+				# remove all further statements.
+				for k in range(i + 1, len(blk.stmts)):
+					# just keep popping the (i + 1)th element
+					blk.stmts.pop(i + 1)
+					num_removed += 1
+
+				break
+
+	log_opt(func, "unreachable statement", "removed", num_removed)
+	return num_removed > 0
 
 
 
@@ -398,7 +515,9 @@ def propagate_constants(func: ir3.FuncDefn, all_stmts: List[ir3.Stmt]):
 
 def optimise(func: ir3.FuncDefn):
 	passes = 0
-	while True:
+
+	# just in case we don't terminate...
+	while passes < 500:
 		passes += 1
 
 		# print(func)
@@ -427,6 +546,12 @@ def optimise(func: ir3.FuncDefn):
 		if propagate_constants(func, all_stmts):
 			continue
 
+		if evaluate_constants(func):
+			continue
+
+		if remove_unreachable_stmts(func):
+			continue
+
 		# finished
 		break
 
@@ -440,8 +565,8 @@ def optimise(func: ir3.FuncDefn):
 T = TypeVar("T")
 K = TypeVar("K")
 def forward_dataflow(func: ir3.FuncDefn, all_stmts: List[ir3.Stmt], set_types: Type[T], all_things: List[K],
-	get_gens: Callable[[ir3.Stmt, List[K]], Set[T]],
-	get_kills: Callable[[ir3.Stmt, List[K]], Set[T]]) -> Tuple[List[Set[T]], List[Set[T]], List[Set[T]], List[Set[T]]]:
+	get_gens: Callable[[ir3.Stmt, List[K]], Set[T]], get_kills: Callable[[ir3.Stmt, List[K]], Set[T]],
+	union: bool) -> Tuple[List[Set[T]], List[Set[T]], List[Set[T]], List[Set[T]]]:
 
 	# forward dataflow analysis. determines the in/out for expressions.
 	# we do this on a statement basis. similar algorithm to liveness in cgliveness.py, but forward.
@@ -466,7 +591,7 @@ def forward_dataflow(func: ir3.FuncDefn, all_stmts: List[ir3.Stmt], set_types: T
 		if len(predecessors[n]) == 0:
 			ins[n] = set()
 		else:
-			ins[n] = reduce(set.intersection, map(lambda p: outs[p], predecessors[n]))
+			ins[n] = reduce((set.union if union else set.intersection), map(lambda p: outs[p], predecessors[n]))
 
 		outs[n] = gens[n].union(ins[n] - kills[n])
 		if old_out != outs[n] and n in successors:
@@ -498,14 +623,26 @@ def replace_variables_in_stmt(stmt: ir3.Stmt, old_name: str, new_value: ir3.Valu
 	return total
 
 
-def visit_stmts(visitor: Callable[[ir3.Stmt], Any], func: ir3.FuncDefn) -> None:
-	for blk in func.blocks:
-		for stmt in blk.stmts:
-			visitor(stmt)
+def visit_stmts(visitor_: Callable[[ir3.Stmt], Optional[ir3.Stmt]], func: ir3.FuncDefn) -> None:
+	def visitor(stmt: ir3.Stmt) -> ir3.Stmt:
+		if (new := visitor_(stmt)) is not None:
+			return new
+		else:
+			return stmt
 
-def visit_exprs_in_stmt(visitor: Callable[[ir3.Expr], Any], stmt: ir3.Stmt) -> None:
+	for blk in func.blocks:
+		for i, stmt in enumerate(blk.stmts):
+			blk.stmts[i] = visitor(stmt)
+
+def visit_exprs_in_stmt(visitor_: Callable[[ir3.Expr], Optional[ir3.Expr]], stmt: ir3.Stmt) -> None:
+	def visitor(expr: ir3.Expr) -> ir3.Expr:
+		if (new := visitor_(expr)) is not None:
+			return new
+		else:
+			return expr
+
 	if isinstance(stmt, ir3.AssignOp) or isinstance(stmt, ir3.AssignDotOp):
-		visitor(stmt.rhs)
+		stmt.rhs = visitor(stmt.rhs)
 
 def visit_values_in_expr(visitor_: Callable[[ir3.Value], Optional[ir3.Value]], expr: ir3.Expr) -> None:
 	def visitor(value: ir3.Value) -> ir3.Value:
