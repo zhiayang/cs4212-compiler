@@ -13,7 +13,11 @@ from src import lexer
 from src import ast
 
 
+print_ir3 = False
+
 def parse_args(args: List[str]) -> Tuple[str, str]:
+	global print_ir3
+
 	input_file: Optional[str] = None
 	output_file: Optional[str] = None
 
@@ -33,6 +37,9 @@ def parse_args(args: List[str]) -> Tuple[str, str]:
 
 		elif (args[0] == "-v") or (args[0] == "--verbose"):
 			options.enable_verbose()
+
+		elif (args[0] == "--print-ir3"):
+			print_ir3 = True
 
 		elif args[0] == "-o":
 			if output_file is not None:
@@ -69,9 +76,11 @@ def print_usage():
 	print(f"usage: ./compile.py [options] <source_file>")
 	print("""
 options:
-    --opt, -O               enable optimisations
-    --annotate, -a          enable annotations on the generated assembly
-    --no-annotate, -na      disable annotations
+    --opt           -O      enable optimisations
+    --annotate      -a      enable annotations on the generated assembly
+    --no-annotate   -na     disable annotations
+    --verbose       -v      print logging statements (mostly optimisation-related)
+    --print-ir3             print the generated ir3 to stdout
     -o <filename>           set the output filename
 """)
 
@@ -91,6 +100,10 @@ if __name__ == "__main__":
 
 	prog = parse_file(input_file)
 	ir3p = typecheck.typecheck_program(prog)
+
+	if print_ir3:
+		print(ir3p)
+
 	asms = codegen.codegen(ir3p, ' '.join(sys.argv))
 
 	with open(output_file, "w") as f:

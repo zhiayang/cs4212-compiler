@@ -8,8 +8,9 @@ from functools import reduce
 from . import ast
 from . import ir3
 from . import simp
+from . import iropt
 
-from .util import Location, TCException, StringView, print_warning
+from .util import options, Location, TCException, StringView, print_warning
 
 
 # just a little hack -- this should *not* leave this module. we should never have values of type void.
@@ -947,6 +948,10 @@ def typecheck_method(ts: TypecheckState, meth: ast.MethodDefn) -> ir3.FuncDefn:
 		if not uwu:
 			assert loc is not None
 			raise TCException(loc, f"non-void function does not return a value in all control paths")
+
+
+	if options.optimisations_enabled():
+		iropt.optimise(func)
 
 	return func
 

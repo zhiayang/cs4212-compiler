@@ -6,6 +6,7 @@ class Main
 		Int z;
 		Bool j;
 		Bool r;
+		Int mm;
 
 		println("asdf");
 		z = new Foo().foo(69, 420, 77, 69420, 12345);
