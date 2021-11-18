@@ -267,6 +267,7 @@ def compute_successors(func: ir3.FuncDefn) -> Dict[int, Set[int]]:
 	successors: Dict[int, Set[int]] = dict()
 
 	for b in func.blocks:
+		first_id = b.stmts[0].id
 		for i, stmt in enumerate(b.stmts):
 			if isinstance(stmt, ir3.Branch):
 				successors[stmt.id] = set([ labels[stmt.label] ])
@@ -274,13 +275,14 @@ def compute_successors(func: ir3.FuncDefn) -> Dict[int, Set[int]]:
 			elif isinstance(stmt, ir3.CondBranch):
 				successors[stmt.id] = set([ labels[stmt.label] ])
 				if i + 1 < len(b.stmts):
-					successors[stmt.id].add(i + 1)
+					successors[stmt.id].add(first_id + i + 1)
 
 			elif i + 1 < len(b.stmts):
-				successors[stmt.id] = set([i + 1])
+				successors[stmt.id] = set([first_id + i + 1])
 
 			else:
 				assert isinstance(stmt, ir3.Branch) or isinstance(stmt, ir3.ReturnStmt)
+				successors[stmt.id] = set()
 
 	return successors
 

@@ -79,7 +79,7 @@ _J3Foo_4asdfE:
 .global _J3Foo_3fooiiiiiE
 .type _J3Foo_3fooiiiiiE, %function
 _J3Foo_3fooiiiiiE:
-	@ spills:  '_c43', 'm', 'w'
+	@ spills:  'm', 'w'
 	@ assigns: '_c13' = v1;  '_c16' = v1;  '_c20' = v1;  '_c22' = v1;  '_c28' = v1
 	@          '_c30' = v1;  '_c36' = v1;  '_c47' = v1;  '_c50' = v1;  '_c58' = v1
 	@          '_c61' = v1;  '_g25' = v1;  '_g33' = v1;  '_g37' = v1;   '_g7' = v1
@@ -88,7 +88,6 @@ _J3Foo_3fooiiiiiE:
 	@           '_t0' = v2;     'k' = v2;     'x' = v2;  'this' = v3;   '_c1' = v4
 	@          '_c43' = v4
 	stmfd sp!, {lr}
-	sub sp, sp, #8
 	stmfd sp!, {v1, v2, v3, v4}
 	mov v3, a1
 	mov v2, a2
@@ -103,7 +102,7 @@ _J3Foo_3fooiiiiiE:
 	mov a2, v2
 	bl printf(PLT)
 	mov v1, #50                             @ m = 50;
-	str v1, [sp, #20]                       @ spill m;
+	str v1, [sp, #12]                       @ spill m;
 	mov v1, #1                              @ _c13 = 1;
 	mul v2, v2, v1                          @ k = k * _c13;
 	ldr v1, =#627                           @ _c16 = 627;
@@ -137,11 +136,9 @@ _J3Foo_3fooiiiiiE:
 	ldr v1, =#420                           @ _c36 = 420;
 	mov v1, v1                              @ _g37 = _c36;
 	str v1, [v3, #0]                        @ storefield: Int, *this.f1 = _g37;
-	ldr v1, [sp, #16]                       @ restore w;
+	ldr v1, [sp, #8]                        @ restore w;
 	add v1, v1, #1                          @ _t6 = w + 1;
 	ldr v4, =#69420                         @ _c43 = 69420;
-	str v4, [sp, #4]                        @ spill _c43;
-	ldr v4, [sp, #4]                        @ restore _c43;
 	cmp v1, v4                              @ _t7 = _t6 != _c43;
 	movne v1, #1
 	moveq v1, #0
@@ -161,7 +158,7 @@ _J3Foo_3fooiiiiiE:
 	bl puts(PLT)
 	b ._J3Foo_3fooiiiiiE_L6                 @ goto .L6;
 ._J3Foo_3fooiiiiiE_L6:
-	ldr v1, [sp, #20]                       @ restore m;
+	ldr v1, [sp, #12]                       @ restore m;
 	cmp v1, #50                             @ _t8 = m == 50;
 	moveq v1, #1
 	movne v1, #0
@@ -197,7 +194,6 @@ _J3Foo_3fooiiiiiE:
 	b ._J3Foo_3fooiiiiiE_exit
 ._J3Foo_3fooiiiiiE_exit:
 	ldmfd sp!, {v1, v2, v3, v4}
-	add sp, sp, #8
 	ldmfd sp!, {pc}
 
 

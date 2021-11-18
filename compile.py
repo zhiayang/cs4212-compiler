@@ -38,8 +38,11 @@ def parse_args(args: List[str]) -> Tuple[str, str]:
 		elif (args[0] == "-v") or (args[0] == "--verbose"):
 			options.enable_verbose()
 
-		elif (args[0] == "--print-ir3"):
+		elif (args[0] == "--dump-ir3"):
 			print_ir3 = True
+
+		elif (args[0] == "--dump-ir3-lowered"):
+			options.enable_print_lowered_ir(True)
 
 		elif args[0] == "-o":
 			if output_file is not None:
@@ -80,7 +83,8 @@ options:
     --annotate      -a      enable annotations on the generated assembly
     --no-annotate   -na     disable annotations
     --verbose       -v      print logging statements (mostly optimisation-related)
-    --print-ir3             print the generated ir3 to stdout
+    --dump-ir3              print the generated ir3 to stdout
+    --dump-ir3-lowered      print the lowered ir3 to stdout
     -o <filename>           set the output filename
 """)
 

@@ -7,7 +7,7 @@ from copy import *
 from . import ir3
 from . import iropt
 from . import cgpseudo
-from .util import Location, TCException, CGException, StringView, print_warning, escape_string
+from .util import options, Location, TCException, CGException, StringView, print_warning, escape_string
 
 
 
@@ -168,7 +168,6 @@ def lower_stmt(stmt: ir3.Stmt, ctr: List[int]) -> Tuple[List[ir3.Stmt], List[ir3
 
 def lower_function(func: ir3.FuncDefn) -> None:
 
-	# first, lower all statements.
 	const_nums = [0]
 	func.blocks[0].stmts.insert(0, cgpseudo.DummyStmt(func.loc))
 
@@ -181,3 +180,7 @@ def lower_function(func: ir3.FuncDefn) -> None:
 
 			b.stmts.extend(ss)
 			const_nums[0] += 1
+
+
+	if options.should_print_lowered_ir():
+		print(f"{func}")

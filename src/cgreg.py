@@ -99,7 +99,7 @@ def alloc_function(func: ir3.FuncDefn, prespilled: Set[str] = set()) -> Tuple[Di
 
 	# print(f"\nprespilled = {prespilled}")
 	# print(f"ranges: { {k: v  for k, v in map(lambda k: (k, live_ranges[k]), prespilled) } }")
-	assigns, spills, retry = colour_graph(graph, registers, var_uses, preassigned, prespilled)
+	assigns, spills, retry = colour_graph(graph, registers, var_uses, live_ranges, preassigned, prespilled)
 	if retry:
 		# now we must spill the new variable.
 		assert len(spills) == 1
@@ -159,8 +159,8 @@ def alloc_function(func: ir3.FuncDefn, prespilled: Set[str] = set()) -> Tuple[Di
 
 
 
-def colour_graph(graph_: Graph, registers: List[str], uses: Dict[str, Set[int]], preassigned: Dict[str, str],
-	prespilled_: Set[str]) -> Tuple[Dict[str, str], Set[str], bool]:
+def colour_graph(graph_: Graph, registers: List[str], uses: Dict[str, Set[int]], live_ranges: Dict[str, Set[int]],
+	preassigned: Dict[str, str], prespilled_: Set[str]) -> Tuple[Dict[str, str], Set[str], bool]:
 
 	graph = deepcopy(graph_)
 	prespilled = copy(prespilled_)
@@ -189,19 +189,19 @@ def colour_graph(graph_: Graph, registers: List[str], uses: Dict[str, Set[int]],
 			"""
 			choose a node to spill. we have a few heuristics to use:
 			1. its degree, ie. how many other vars it interferes with
-				spilling such a variable would make colouring easier later on
+				spilling such a variable would make colouring easier later on.
 			2. how many times it is used
-				spilling such a variable would be bad, because we need to touch memory more
-			3. other stuff, but i can't be bothered.
-
-			so we just calculate a score here that is: num_uses / degree, and spill the smallest one.
+				spilling such a variable would be bad, because we need to touch memory more.
+			3. the size of its live range. we actually want to prefer spilling stuff with
+				a bigger live range, so this goes in the denominator.
 			"""
 
 			def get_spill_cost(var: str) -> float:
-				return len(uses[var]) / graph.get_degree(var)
+				return len(uses[var]) / (len(live_ranges[var]) + graph.get_degree(var))
 
 			remaining_unspilled = graph.get_remaining_nodes() - prespilled
 			foo: Iterable = map(lambda x: (x, get_spill_cost(x)), remaining_unspilled)
+			foo = sorted(foo, key = lambda x: x[0])     # sort by name, so we get a reproducible spill order
 			foo = list(foo)
 
 			foo.sort(key = lambda x: x[1])
