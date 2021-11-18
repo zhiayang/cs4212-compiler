@@ -9,7 +9,7 @@ class Main
 		Int mm;
 
 		println("asdf");
-		z = new Foo().foo(69, 420, 77, 69420, 12345);
+		z = new Foo().asdf() + new Foo().foo(69, 420, 77, 69420, 12345);
 
 		k = 69;
 		j = true;
@@ -19,7 +19,7 @@ class Main
 		r = !j;
 		println(!true);
 		println(!r);
-		println(z);
+		// println(z);
 	}
 }
 
@@ -28,6 +28,11 @@ class Foo
 	Int f1;
 	Int f2;
 	Int f3;
+
+	Int asdf()
+	{
+		return 69;
+	}
 
 	Int foo(Int x, Int y, Int z, Int w, Int m)
 	{
@@ -38,6 +43,7 @@ class Foo
 		println(k);
 
 		m = 50;
+		k = k * 1;
 		if(k == 627)
 		{
 			println("kekw");

@@ -9,7 +9,7 @@ from copy import *
 def annotate_reg_allocs(assigns: Dict[str, str], spills: Set[str]) -> Tuple[List[str], List[str]]:
 	assign_lines: List[str] = ["assigns: "]
 
-	max_var_len = 7 + max(map(lambda x: len(x), assigns))
+	max_var_len = 7 + max(map(lambda x: len(x), assigns), default = 0)
 
 	assign_list: Iterable = list(map(lambda x: (x, assigns[x]), assigns))
 	assign_list = sorted(assign_list, key = lambda x: (x[1], x[0]))

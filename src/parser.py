@@ -7,7 +7,7 @@ from copy import *
 from . import ast
 
 from .lexer import *
-from .util import StringView
+from .util import StringView, print_warning
 
 class ParserState:
 	def __init__(self, filename: str, s: StringView):
@@ -115,6 +115,7 @@ def parse_atom_chain(ps: ParserState, lhs: ast.Expr) -> ast.Expr:
 			rhs = ast.VarRef(ident.loc, ident.text)
 
 		return parse_atom_chain(ps, ast.DotOp(tok.loc, lhs, rhs))
+
 	elif ps.peek().type == "LParen":
 		return parse_func_call(ps, lhs)
 	else:
@@ -145,7 +146,11 @@ def parse_primary(ps: ParserState) -> ast.Expr:
 		ps.expect("LParen")
 		ps.expect("RParen")
 
-		return ast.NewExpr(tok.loc, cls_name)
+		new = ast.NewExpr(tok.loc, cls_name)
+		if ps.peek().type == "Period":
+			return parse_atom_chain(ps, new)
+		else:
+			return new
 
 	elif ps.next_if("LParen"):
 		inside: ast.Expr = parse_expr(ps)

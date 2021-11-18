@@ -12,7 +12,7 @@ from . import cglower
 from . import util
 
 
-def prune_unreachable_blocks(func: ir3.FuncDefn) -> bool:
+def remove_unreachable_blocks(func: ir3.FuncDefn) -> bool:
 	block_names: Dict[str, ir3.BasicBlock] = {}
 	for block in func.blocks:
 		block_names[block.name] = block
@@ -149,6 +149,8 @@ def remove_unused_variables(func: ir3.FuncDefn) -> bool:
 	# we can't eliminate dotop assigns, but that's fine; otherwise, we
 	# can eliminate params, user-defined locals, and temporaries.
 
+	# we also must note to extract any side effects from the rhs of the assign.
+
 	parent_blocks: Dict[int, ir3.BasicBlock] = dict()
 	for blk in func.blocks:
 		for s in blk.stmts:
@@ -160,7 +162,18 @@ def remove_unused_variables(func: ir3.FuncDefn) -> bool:
 		if len(uses) == 0:
 			assigns = get_var_assigns(func, var.name)
 			for ass in assigns:
-				parent_blocks[ass.id].stmts.remove(ass)
+				assert isinstance(ass, ir3.AssignOp) or isinstance(ass, ir3.AssignDotOp)
+
+				# check if the rhs has side effects
+				side_effect = get_side_effects(ass.rhs)
+				if side_effect is not None:
+					# if it does, replace the assign with the side effect. the variable
+					# still gets yeeted, but any side effects used to assign it (ie. function calls)
+					# are still executed.
+					parent_blocks[ass.id].stmts[parent_blocks[ass.id].stmts.index(ass)] = side_effect
+
+				else:
+					parent_blocks[ass.id].stmts.remove(ass)
 
 			func.vars.remove(var)
 			num_removed += 1
@@ -174,17 +187,20 @@ def remove_unused_variables(func: ir3.FuncDefn) -> bool:
 
 def optimise(func: ir3.FuncDefn):
 
+	passes = 0
+
 	changed = True
 	while changed:
 		changed = False
 		renumber_statements(func)
 
-		changed |= prune_unreachable_blocks(func)
+		changed |= remove_unreachable_blocks(func)
 		changed |= remove_double_jumps(func)
 		changed |= remove_redundant_temporaries(func)
 		changed |= remove_unused_variables(func)
+		passes += 1
 
-
+	util.log(f"opt({func.name}): completed in {passes} pass{'' if passes == 1 else 'es'}")
 
 
 
@@ -196,7 +212,7 @@ def renumber_statements(func: ir3.FuncDefn):
 
 def log_opt(func: ir3.FuncDefn, kind: str, num: int):
 	if num > 0:
-		util.log(f"opt: ({func.name}): removed {num} {kind}{'' if num == 1 else 's'}")
+		util.log(f"opt({func.name}): removed {num} {kind}{'' if num == 1 else 's'}")
 
 def get_var_uses(func: ir3.FuncDefn, var: str) -> List[ir3.Stmt]:
 	ret: List[ir3.Stmt] = []
@@ -212,6 +228,15 @@ def get_var_assigns(func: ir3.FuncDefn, var: str) -> List[ir3.Stmt]:
 		ret.extend(filter(lambda x: isinstance(x, ir3.AssignOp) and x.lhs == var, blk.stmts))
 
 	return ret
+
+
+def get_side_effects(expr: ir3.Expr) -> Optional[ir3.Stmt]:
+	# actually, the only expressions with side effects in IR3 are call expressions.
+	# unary and binary ops only take a Value, which is either a constant or a variable.
+	if isinstance(expr, ir3.FnCallExpr):
+		return ir3.FnCallStmt(expr.loc, expr.call)
+
+	return None
 
 
 def is_var_used_in_value(value: ir3.Value, var: str) -> bool:
