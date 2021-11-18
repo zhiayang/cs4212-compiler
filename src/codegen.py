@@ -456,6 +456,37 @@ main:
 """)
 
 
+	# other helper functions
+	cs.emit_raw("""
+.global __string_concat
+.type __string_concat, %function
+__string_concat:
+	stmfd sp!, {v1, v2, v3, v4, v5, lr}
+
+	@ takes two args: (the strings, duh) and returns 1 (the result, duh)
+
+	@ 0. save the string pointers into not-a1 and not-a2
+	mov v1, a1
+	mov v2, a2
+
+	@ 1. load the lengths of the two strings (they are pascal-style but 4 bytes)
+	ldr a1, [v1, #0]
+	ldr a2, [v2, #0]
+
+	@ 2. get the new length; a1 contains the +5 (for length + null term), v3 the real length
+	add v3, a1, a2
+	add a1, v3, #5
+
+	@ 3. malloc some memory (memory in a1)
+	bl malloc(PLT)
+
+
+
+
+	ldmfd sp!, {v1, v2, v3, v4, v5, pc}
+""")
+
+
 	cs.emit_raw(".data")
 	for string, id in cs.strings.items():
 		cs.emit_raw(f".string{id}:")

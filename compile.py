@@ -54,7 +54,14 @@ def parse_args(args: List[str]) -> Tuple[str, str]:
 				sys.exit(1)
 
 			output_file = args[1]
+			if output_file == "-":
+				output_file = "/dev/stdout"
+
 			args = args[1:]
+
+		elif args[0].startswith('-'):
+			print(f"error: unknown option '{args}'")
+			sys.exit(1)
 
 		else:
 			if input_file is not None:

@@ -17,6 +17,7 @@ TODO
 
 
 22. when doing -O0 code, zero locals?
+	- no bonus for this so wgt
 
 
 

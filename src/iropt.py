@@ -330,7 +330,7 @@ def propagate_copies(func: ir3.FuncDefn, all_stmts: List[ir3.Stmt]) -> bool:
 	def kill_func(stmt: ir3.Stmt, _: List[Any]) -> Set[str]:
 		return set()
 
-	ins, outs, gens, kills = forward_dataflow(func, all_stmts, str, [], gen_func, kill_func, union = False)
+	ins, outs, gens, kills = forward_dataflow(func, all_stmts, str, [], gen_func, kill_func, union = True)
 
 	# which statements does a particular value reach
 	reaching_stmts: Dict[str, Set[int]] = dict()
@@ -411,7 +411,9 @@ def propagate_constants(func: ir3.FuncDefn, all_stmts: List[ir3.Stmt]) -> bool:
 		else:
 			return set()
 
-	ins, outs, _, _ = forward_dataflow(func, all_stmts, tuple, [], gen_func, kill_func, union = False)
+	ins, outs, _, _ = forward_dataflow(func, all_stmts, tuple, [], gen_func, kill_func, union = True)
+
+	preds = compute_predecessors(func)
 
 	num_removed = 0
 	for stmt in all_stmts:
@@ -425,12 +427,6 @@ def propagate_constants(func: ir3.FuncDefn, all_stmts: List[ir3.Stmt]) -> bool:
 		for cand in cands:
 			replacement = next(iter(avail_consts[cand]))
 			num_removed += replace_variables_in_stmt(stmt, cand, deepcopy(replacement))
-
-		# filter out all constants with 0
-
-			# tmp = replace_variables_in_stmt(all_stmts[sid], var, deepcopy(replacement))
-			# if tmp > 0:
-			# 	num_removed += tmp
 
 
 	log_opt(func, "constant", "propagated", num_removed)
@@ -522,7 +518,6 @@ def evaluate_constants(func: ir3.FuncDefn) -> bool:
 				# x * 1 = x
 				elif isinstance(the_const, ir3.ConstantInt) and expr.op == "*" and the_const.value == 1:
 					num_changed += 1
-					print(f"replace {expr}")
 					return ir3.ValueExpr(expr.loc, not_const)
 
 				# x + 0 = x
@@ -646,6 +641,7 @@ def forward_dataflow(func: ir3.FuncDefn, all_stmts: List[ir3.Stmt], set_types: T
 			ins[n] = reduce((set.union if union else set.intersection), map(lambda p: outs[p], predecessors[n]))
 
 		outs[n] = gens[n].union(ins[n] - kills[n])
+
 		if old_out != outs[n] and n in successors:
 			queue.extend(successors[n])
 

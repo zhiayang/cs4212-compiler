@@ -36,6 +36,33 @@ class Foo
 		return 69;
 	}
 
+	Int bsdf(Int m)
+	{
+		Int k;
+		Int c;
+		k = 2 * m;
+		c = 500;
+
+		while(k > 0)
+		{
+			if(k < 8) { println("you should see this 7 times"); }
+			else      { println("you should also see this 7 times"); }
+			println(k);
+			k = k - 1;
+
+			if(k == 0)
+			{
+				println(c + 69);
+			}
+			else
+			{
+				k = k;
+			}
+		}
+
+		return k;
+	}
+
 	Int foo(Int x, Int y, Int z, Int w, Int m)
 	{
 		Int k;
@@ -78,6 +105,7 @@ class Foo
 		println(f3);
 
 		new Foo().asdf();
+		new Foo().bsdf(7);
 
 		// k = 69;
 		return k;
