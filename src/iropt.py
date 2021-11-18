@@ -17,8 +17,6 @@ from . import util
 def optimise(func: ir3.FuncDefn):
 	passes = 0
 
-	# print(func)
-
 	# just in case we don't terminate...
 	while passes < 500:
 		passes += 1
@@ -38,6 +36,7 @@ def optimise(func: ir3.FuncDefn):
 			continue
 
 		if propagate_copies(func, all_stmts):
+			print(func)
 			continue
 
 		if propagate_constants(func, all_stmts):
@@ -361,6 +360,9 @@ def propagate_copies(func: ir3.FuncDefn, all_stmts: List[ir3.Stmt]) -> bool:
 			continue
 
 		copier = copiers[var]
+		if copier == var:
+			continue
+
 		for sid in stmts:
 			num_removed += replace_variables_in_stmt(all_stmts[sid], copier, ir3.VarRef(all_stmts[sid].loc, var))
 
@@ -469,30 +471,64 @@ def evaluate_constants(func: ir3.FuncDefn) -> bool:
 				return ir3.ValueExpr(expr.loc, ir3.ConstantBool(expr.expr.loc, not expr.expr.value))
 
 		elif isinstance(expr, ir3.BinaryOp):
-			if not is_constant_value(expr.lhs) or not is_constant_value(expr.rhs):
-				return expr
+			if is_constant_value(expr.lhs) and is_constant_value(expr.rhs):
+				if type(expr.lhs) != type(expr.rhs):
+					return expr
 
-			if type(expr.lhs) != type(expr.rhs):
-				return expr
+				def get_result(value: Any) -> Optional[ir3.Value]:
+					if isinstance(value, bool):
+						return ir3.ConstantBool(expr.loc, value)
+					elif isinstance(value, int):
+						return ir3.ConstantInt(expr.loc, value)
+					elif isinstance(value, str):
+						return ir3.ConstantString(expr.loc, value)
+					else:
+						return None
 
-			def get_result(value: Any) -> Optional[ir3.Value]:
-				if isinstance(value, bool):
-					return ir3.ConstantBool(expr.loc, value)
-				elif isinstance(value, int):
-					return ir3.ConstantInt(expr.loc, value)
-				elif isinstance(value, str):
-					return ir3.ConstantString(expr.loc, value)
-				else:
-					return None
+				if isinstance(expr.lhs, ir3.ConstantInt) or isinstance(expr.lhs, ir3.ConstantBool)  \
+					or isinstance(expr.lhs, ir3.ConstantString):
 
-			if isinstance(expr.lhs, ir3.ConstantInt) or isinstance(expr.lhs, ir3.ConstantBool)  \
-				or isinstance(expr.lhs, ir3.ConstantString):
+					res = get_result(eval_ops[expr.op](expr.lhs.value, expr.rhs.value)) # type: ignore
+					if res is not None:
+						num_changed += 1
+						return ir3.ValueExpr(expr.loc, res)
 
-				res = get_result(eval_ops[expr.op](expr.lhs.value, expr.rhs.value)) # type: ignore
-				if res is not None:
+			elif is_constant_value(expr.lhs) or is_constant_value(expr.rhs):
+				# these are not commutative, so do them first before swapping
+
+				# x / 1 = x
+				if isinstance(expr.rhs, ir3.ConstantInt) and expr.op == "/" and expr.rhs.value == 1:
 					num_changed += 1
-					return ir3.ValueExpr(expr.loc, res)
+					return ir3.ValueExpr(expr.loc, expr.lhs)
 
+				# x - 0 = x
+				elif isinstance(expr.rhs, ir3.ConstantInt) and expr.op == "-" and expr.rhs.value == 0:
+					num_changed += 1
+					return ir3.ValueExpr(expr.loc, expr.lhs)
+
+				# put the constant on the left just so we don't duplicate code
+				if is_constant_value(expr.rhs):
+					the_const = expr.rhs
+					not_const = expr.lhs
+				else:
+					the_const = expr.lhs
+					not_const = expr.rhs
+
+				# x * 0 = 0
+				if isinstance(the_const, ir3.ConstantInt) and expr.op == "*" and the_const.value == 0:
+					num_changed += 1
+					return ir3.ValueExpr(expr.loc, ir3.ConstantInt(expr.loc, 0))
+
+				# x * 1 = x
+				elif isinstance(the_const, ir3.ConstantInt) and expr.op == "*" and the_const.value == 1:
+					num_changed += 1
+					print(f"replace {expr}")
+					return ir3.ValueExpr(expr.loc, not_const)
+
+				# x + 0 = x
+				elif isinstance(the_const, ir3.ConstantInt) and expr.op == "+" and the_const.value == 0:
+					num_changed += 1
+					return ir3.ValueExpr(expr.loc, not_const)
 
 		return expr
 
@@ -527,6 +563,12 @@ def evaluate_constants(func: ir3.FuncDefn) -> bool:
 
 		elif isinstance(stmt, ir3.AssignOp) or isinstance(stmt, ir3.AssignDotOp):
 			stmt.rhs = expr_visitor(stmt.rhs)
+
+			# check if we are doing `x = x`
+			if isinstance(stmt.rhs, ir3.ValueExpr) and isinstance(stmt.rhs.value, ir3.VarRef):
+				if isinstance(stmt, ir3.AssignOp) and stmt.lhs == stmt.rhs.value.name:
+					num_changed += 1
+					return cgpseudo.DummyStmt(stmt.loc)
 
 		return stmt
 
