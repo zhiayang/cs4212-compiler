@@ -23,27 +23,12 @@ def prune_unreachable_blocks(func: ir3.FuncDefn) -> bool:
 			return ret
 
 		# again, we need some workarounds because ir3's branch is *not* a basic-block style jump
-		if len(block.stmts) == 0:
-			return ret
+		for stmt in block.stmts:
+			if isinstance(stmt, ir3.Branch):
+				ret = ret.union(check_reachability(block_names[stmt.label], seen.union(ret)))
 
-		elif isinstance(block.stmts[-1], ir3.Branch):
-			ret = ret.union(check_reachability(block_names[cast(ir3.Branch, block.stmts[-1]).label], seen.union(ret)))
-
-		elif isinstance(block.stmts[-1], ir3.CondBranch):
-			# get the subsequent block via a very inefficient method.
-			next_blk: Optional[ir3.BasicBlock] = None
-
-			for i in range(0, len(func.blocks)):
-				if func.blocks[i].name == block.name:
-					if i + 1 < len(func.blocks):
-						next_blk = func.blocks[i + 1]
-						break
-
-			br = cast(ir3.CondBranch, block.stmts[-1])
-			ret = ret.union(check_reachability(block_names[br.label], seen.union(ret)))
-
-			if next_blk is not None:
-				ret = ret.union(check_reachability(next_blk, seen.union(ret)))
+			elif isinstance(stmt, ir3.CondBranch):
+				ret = ret.union(check_reachability(block_names[stmt.label], seen.union(ret)))
 
 		return ret
 
@@ -51,7 +36,7 @@ def prune_unreachable_blocks(func: ir3.FuncDefn) -> bool:
 	# keep removing things until nothing changes.
 	visited: Set[str] = set()
 
-	num_removed = 0
+	removed_blocks = []
 	while True:
 		new_visited = check_reachability(func.blocks[0], set())
 		if new_visited == visited:
@@ -61,12 +46,19 @@ def prune_unreachable_blocks(func: ir3.FuncDefn) -> bool:
 
 		# remove any blocks that are not reachable
 		unreachables = set(func.blocks).difference(map(lambda x: block_names[x], visited))
-		num_removed += len(unreachables)
 		for unr in unreachables:
 			func.blocks.remove(unr)
+			removed_blocks.append(unr)
+			print(f"removing {unr.name}")
 
-	util.log(f"opt: ({func.name}): removed {num_removed} unreachable blocks")
-	return num_removed > 0
+	for rem in removed_blocks:
+		for blk in func.blocks:
+			blk.predecessors.discard(rem)
+
+	if len(removed_blocks) > 0:
+		util.log(f"opt: ({func.name}): removed {len(removed_blocks)} unreachable blocks")
+
+	return len(removed_blocks) > 0
 
 
 
@@ -101,7 +93,9 @@ def remove_double_jumps(func: ir3.FuncDefn) -> bool:
 		for blk in func.blocks:
 			blk.predecessors.discard(rem)
 
-	util.log(f"opt: ({func.name}): eliminated {len(removed_blocks)} double-jumps")
+	if len(removed_blocks) > 0:
+		util.log(f"opt: ({func.name}): eliminated {len(removed_blocks)} double-jumps")
+
 	return len(removed_blocks) > 0
 
 
@@ -115,5 +109,5 @@ def optimise(func: ir3.FuncDefn):
 	while changed:
 		changed = False
 
-		# changed = changed or prune_unreachable_blocks(func)
-		# changed = changed or remove_double_jumps(func)
+		changed = changed or prune_unreachable_blocks(func)
+		changed = changed or remove_double_jumps(func)
