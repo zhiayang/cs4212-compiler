@@ -1,4 +1,4 @@
-test/y_error_15.j:13:5: error: field 'x' already exists in class 'A'
+./y_error_15.j:13:5: error: field 'x' already exists in class 'A'
     |
  13 |     Int x;
     |     ^

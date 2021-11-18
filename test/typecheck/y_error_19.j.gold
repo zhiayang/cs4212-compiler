@@ -1,4 +1,4 @@
-test/y_error_19.j:12:1: error: class cannot be named 'String'
+./y_error_19.j:12:1: error: class cannot be named 'String'
     |
  12 |     class STRING
     |     ^

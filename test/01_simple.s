@@ -1,4 +1,4 @@
-@ jlite compiler: ./compile.py test/01_simple.j
+@ jlite compiler: compile.py test/01_simple.j
 .text
 .global main_dummy
 .type main_dummy, %function
@@ -64,14 +64,14 @@ main_dummy:
 .global _J3Foo_3fooiiiiiE
 .type _J3Foo_3fooiiiiiE, %function
 _J3Foo_3fooiiiiiE:
-	@ spills:  '_c45', '_t5', 'm', 'w'
-	@ assigns: '_c16' = v1;  '_c19' = v1;  '_c21' = v1;  '_c29' = v1;  '_c31' = v1
-	@          '_c38' = v1;  '_c48' = v1;  '_c51' = v1;  '_c57' = v1;  '_c60' = v1
-	@          '_g26' = v1;  '_g36' = v1;  '_g39' = v1;   '_g9' = v1;   '_t1' = v1
+	@ spills:  '_c47', 'm', 'w'
+	@ assigns: '_c16' = v1;  '_c20' = v1;  '_c22' = v1;  '_c30' = v1;  '_c32' = v1
+	@          '_c40' = v1;  '_c51' = v1;  '_c54' = v1;  '_c62' = v1;  '_c65' = v1
+	@          '_g27' = v1;  '_g37' = v1;  '_g41' = v1;   '_g9' = v1;   '_t1' = v1
 	@          '_t10' = v1;   '_t2' = v1;   '_t3' = v1;   '_t4' = v1;   '_t5' = v1
 	@           '_t6' = v1;   '_t7' = v1;   '_t8' = v1;   '_t9' = v1;     'm' = v1
 	@             'w' = v1;     'y' = v1;   '_t0' = v2;     'k' = v2;     'x' = v2
-	@          'this' = v3;   '_c1' = v4;  '_c45' = v4
+	@          'this' = v3;   '_c1' = v4;  '_c47' = v4
 	stmfd sp!, {lr}
 	sub sp, sp, #8
 	stmfd sp!, {v1, v2, v3, v4}
@@ -96,54 +96,56 @@ _J3Foo_3fooiiiiiE:
 	movne v1, #0
 	cmp v1, #0                              @ if (_t2) goto .L1;
 	bne ._J3Foo_3fooiiiiiE_L1
+	b ._J3Foo_3fooiiiiiE_L2                 @ goto .L2;
 ._J3Foo_3fooiiiiiE_L2:
-	ldr v1, =.string4                       @ _c19 = "omegalul";
-	mov a1, v1                              @ println(_c19);
+	ldr v1, =.string4                       @ _c20 = "omegalul";
+	mov a1, v1                              @ println(_c20);
 	add a1, a1, #4
 	bl puts(PLT)
-	mov v1, #5                              @ _c21 = 5;
-	mul v1, v2, v1                          @ _t4 = k * _c21;
+	mov v1, #5                              @ _c22 = 5;
+	mul v1, v2, v1                          @ _t4 = k * _c22;
 	mov v2, v1                              @ k = _t4;
-	mov v1, #19                             @ _g26 = 19;
-	str v1, [v3, #4]                        @ storefield: Int, *this.f2 = _g26;
+	mov v1, #19                             @ _g27 = 19;
+	str v1, [v3, #4]                        @ storefield: Int, *this.f2 = _g27;
 	b ._J3Foo_3fooiiiiiE_L3                 @ goto .L3;
 ._J3Foo_3fooiiiiiE_L1:
-	ldr v1, =.string5                       @ _c29 = "kekw";
-	mov a1, v1                              @ println(_c29);
+	ldr v1, =.string5                       @ _c30 = "kekw";
+	mov a1, v1                              @ println(_c30);
 	add a1, a1, #4
 	bl puts(PLT)
-	mov v1, #2                              @ _c31 = 2;
-	mul v1, v2, v1                          @ _t3 = k * _c31;
+	mov v1, #2                              @ _c32 = 2;
+	mul v1, v2, v1                          @ _t3 = k * _c32;
 	mov v2, v1                              @ k = _t3;
-	mov v1, #69                             @ _g36 = 69;
-	str v1, [v3, #4]                        @ storefield: Int, *this.f2 = _g36;
+	mov v1, #69                             @ _g37 = 69;
+	str v1, [v3, #4]                        @ storefield: Int, *this.f2 = _g37;
+	b ._J3Foo_3fooiiiiiE_L3                 @ goto .L3;
 ._J3Foo_3fooiiiiiE_L3:
-	ldr v1, =#420                           @ _c38 = 420;
-	mov v1, v1                              @ _g39 = _c38;
-	str v1, [v3, #0]                        @ storefield: Int, *this.f1 = _g39;
+	ldr v1, =#420                           @ _c40 = 420;
+	mov v1, v1                              @ _g41 = _c40;
+	str v1, [v3, #0]                        @ storefield: Int, *this.f1 = _g41;
 	ldr v1, [sp, #16]                       @ restore w;
 	add v1, v1, #1                          @ _t5 = w + 1;
-	str v1, [sp, #4]                        @ spill _t5;
-	ldr v4, =#69420                         @ _c45 = 69420;
-	str v4, [sp, #0]                        @ spill _c45;
-	ldr v1, [sp, #4]                        @ restore _t5;
-	ldr v4, [sp, #0]                        @ restore _c45;
-	cmp v1, v4                              @ _t6 = _t5 != _c45;
+	ldr v4, =#69420                         @ _c47 = 69420;
+	str v4, [sp, #4]                        @ spill _c47;
+	ldr v4, [sp, #4]                        @ restore _c47;
+	cmp v1, v4                              @ _t6 = _t5 != _c47;
 	movne v1, #1
 	moveq v1, #0
 	cmp v1, #0                              @ if (_t6) goto .L4;
 	bne ._J3Foo_3fooiiiiiE_L4
+	b ._J3Foo_3fooiiiiiE_L5                 @ goto .L5;
 ._J3Foo_3fooiiiiiE_L5:
-	ldr v1, =.string6                       @ _c48 = "sadge";
-	mov a1, v1                              @ println(_c48);
+	ldr v1, =.string6                       @ _c51 = "sadge";
+	mov a1, v1                              @ println(_c51);
 	add a1, a1, #4
 	bl puts(PLT)
 	b ._J3Foo_3fooiiiiiE_L6                 @ goto .L6;
 ._J3Foo_3fooiiiiiE_L4:
-	ldr v1, =.string7                       @ _c51 = "poggers";
-	mov a1, v1                              @ println(_c51);
+	ldr v1, =.string7                       @ _c54 = "poggers";
+	mov a1, v1                              @ println(_c54);
 	add a1, a1, #4
 	bl puts(PLT)
+	b ._J3Foo_3fooiiiiiE_L6                 @ goto .L6;
 ._J3Foo_3fooiiiiiE_L6:
 	ldr v1, [sp, #20]                       @ restore m;
 	cmp v1, #50                             @ _t7 = m == 50;
@@ -151,17 +153,19 @@ _J3Foo_3fooiiiiiE:
 	movne v1, #0
 	cmp v1, #0                              @ if (_t7) goto .L7;
 	bne ._J3Foo_3fooiiiiiE_L7
+	b ._J3Foo_3fooiiiiiE_L8                 @ goto .L8;
 ._J3Foo_3fooiiiiiE_L8:
-	ldr v1, =.string8                       @ _c57 = "riperino";
-	mov a1, v1                              @ println(_c57);
+	ldr v1, =.string8                       @ _c62 = "riperino";
+	mov a1, v1                              @ println(_c62);
 	add a1, a1, #4
 	bl puts(PLT)
 	b ._J3Foo_3fooiiiiiE_L9                 @ goto .L9;
 ._J3Foo_3fooiiiiiE_L7:
-	ldr v1, =.string9                       @ _c60 = "poggerino";
-	mov a1, v1                              @ println(_c60);
+	ldr v1, =.string9                       @ _c65 = "poggerino";
+	mov a1, v1                              @ println(_c65);
 	add a1, a1, #4
 	bl puts(PLT)
+	b ._J3Foo_3fooiiiiiE_L9                 @ goto .L9;
 ._J3Foo_3fooiiiiiE_L9:
 	ldr v1, [v3, #0]                        @ _t8 = this.f1;
 	ldr a1, =.string1_raw                   @ println(_t8);

@@ -1,4 +1,4 @@
-test/y_error_14.j:12:19: error: duplicate parameter 'a' in method declaration
+./y_error_14.j:12:19: error: duplicate parameter 'a' in method declaration
     |
  12 |     Int foo(Int a, Int a)
     |                   ^

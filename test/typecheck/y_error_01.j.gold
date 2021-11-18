@@ -1,4 +1,4 @@
-test/y_error_01.j:6:11: error: incompatible types in assignment (assigning '$NullObject' to 'Int')
+./y_error_01.j:6:11: error: incompatible types in assignment (assigning '$NullObject' to 'Int')
    |
  6 |     a = null;
    |       ^

@@ -1,4 +1,4 @@
-test/y_error_16.j:5:9: error: local variable 'a' has invalid type 'Void'
+./y_error_16.j:5:9: error: local variable 'a' has invalid type 'Void'
    |
  5 |     Void a;
    |     ^

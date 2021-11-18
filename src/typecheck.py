@@ -461,8 +461,6 @@ def has_side_effects(expr: ast.Expr) -> bool:
 
 
 def typecheck_cond(ts: TypecheckState, expr: ast.Expr) -> Tuple[List[ir3.Stmt], ir3.Value]:
-	stmts: List[ir3.Stmt] = []
-
 	if isinstance(expr, ast.BinaryOp):
 		if expr.op in ["&&", "||"]:
 			# it doesn't matter when we call this, as long as the statement lists get
@@ -487,31 +485,42 @@ def typecheck_cond(ts: TypecheckState, expr: ast.Expr) -> Tuple[List[ir3.Stmt], 
 
 			elif expr.op == "&&":
 				ltrue_block = ir3.Label(expr.lhs.loc, ts.get_new_label())
+				lfalse_block = ir3.Label(expr.lhs.loc, ts.get_new_label())
+
 				rtrue_block = ir3.Label(expr.lhs.loc, ts.get_new_label())
+				rfalse_block = ir3.Label(expr.lhs.loc, ts.get_new_label())
+
 				merge_block = ir3.Label(expr.lhs.loc, ts.get_new_label())
 
-				stmts.extend(s1)
-				stmts += [
-					ir3.CondBranch(expr.lhs.loc, v1, ltrue_block.name),
+				stmts = [
+					# generate the code for the lhs
+					*s1,
 
-					# now in the implicit false case
+					ir3.CondBranch(expr.lhs.loc, v1, ltrue_block.name),
+					ir3.Branch(expr.lhs.loc, lfalse_block.name),
+
+					# now in the left-false case
+					lfalse_block,
 					ir3.AssignOp(expr.loc, result.name, ir3.ValueExpr(expr.loc, ir3.ConstantBool(expr.loc, False))),
 					ir3.Branch(expr.loc, merge_block.name),
 
 					# now in the lhs-true case
 					ltrue_block,
+				 	*s2,
 
-				] + s2 + [
 					# rhs got generated.
 					ir3.CondBranch(expr.rhs.loc, v2, rtrue_block.name),
+					ir3.Branch(expr.rhs.loc, rfalse_block.name),
 
-					# implicit rhs-false case
+					# rhs-false case
+					rfalse_block,
 					ir3.AssignOp(expr.loc, result.name, ir3.ValueExpr(expr.loc, ir3.ConstantBool(expr.loc, False))),
 					ir3.Branch(expr.loc, merge_block.name),
 
 					# true case
 					rtrue_block,
 					ir3.AssignOp(expr.loc, result.name, ir3.ValueExpr(expr.loc, ir3.ConstantBool(expr.loc, True))),
+					ir3.Branch(expr.loc, merge_block.name),
 
 					merge_block
 				]
@@ -520,23 +529,33 @@ def typecheck_cond(ts: TypecheckState, expr: ast.Expr) -> Tuple[List[ir3.Stmt], 
 
 			elif expr.op == "||":
 				true_block = ir3.Label(expr.lhs.loc, ts.get_new_label())
+				false_block = ir3.Label(expr.lhs.loc, ts.get_new_label())
+				false_false_block = ir3.Label(expr.lhs.loc, ts.get_new_label())
+
 				merge_block = ir3.Label(expr.lhs.loc, ts.get_new_label())
 
-				stmts.extend(s1)
-				stmts += [
-					cast(ir3.Stmt, ir3.CondBranch(expr.lhs.loc, v1, true_block.name)),
+				stmts = [
+					*s1,
+
+					ir3.CondBranch(expr.lhs.loc, v1, true_block.name),
+					ir3.Branch(expr.lhs.loc, false_block.name),
 
 					# implicit false-case
-				] + s2 + [
-					ir3.CondBranch(expr.rhs.loc, v2, true_block.name),
+					false_block,
+					*s2,
 
-					# implicit false-false case:
+					ir3.CondBranch(expr.rhs.loc, v2, true_block.name),
+					ir3.Branch(expr.rhs.loc, false_false_block.name),
+
+					# false-false case:
+					false_false_block,
 					ir3.AssignOp(expr.loc, result.name, ir3.ValueExpr(expr.loc, ir3.ConstantBool(expr.loc, False))),
 					ir3.Branch(expr.loc, merge_block.name),
 
 					# true case:
 					true_block,
 					ir3.AssignOp(expr.loc, result.name, ir3.ValueExpr(expr.loc, ir3.ConstantBool(expr.loc, True))),
+					ir3.Branch(expr.loc, merge_block.name),
 
 					# merge:
 					merge_block
@@ -564,13 +583,14 @@ def typecheck_if(ts: TypecheckState, stmt: ast.IfStmt) -> List[ir3.Stmt]:
 
 	stmts += [
 		ir3.CondBranch(stmt.condition.loc, cv, true_label.name),
+		ir3.Branch(else_label.loc, else_label.name),
 		else_label,
 	] + else_stmts + [
 		ir3.Branch(true_stmts[0].loc, merge_label.name),
 		true_label
 	] + true_stmts + [
-		# this branch is not necessary, we just fallthrough
-		# ir3.Branch(else_stmts[0].loc, merge_label.name),
+		# this branch is not strictly necessary, but we leave it in.
+		ir3.Branch(else_stmts[0].loc, merge_label.name),
 		merge_label
 	]
 
@@ -602,7 +622,6 @@ def typecheck_while(ts: TypecheckState, stmt: ast.WhileLoop) -> List[ir3.Stmt]:
 		body_label
 	] + body_stmts + [
 		ir3.Branch(body_stmts[-1].loc, cond_label.name),
-
 		merge_label
 	]
 
@@ -767,6 +786,9 @@ def convert_to_basic_blocks(ts: TypecheckState, retty: str, stmts: List[ir3.Stmt
 		stmt = stmts[i]
 
 		if isinstance(stmt, ir3.Label):
+			if not exited_block:
+				print_warning(stmt.loc, "ir3 fallthrough")
+
 			if stmt.name in block_names:
 				next_blk = block_names[stmt.name]
 				next_blk.predecessors.add(current)
@@ -931,23 +953,6 @@ def convert_to_basic_blocks(ts: TypecheckState, retty: str, stmts: List[ir3.Stmt
 			blocks.remove(blk)
 
 	return blocks
-
-
-
-# def ensure_all_paths_return___(ts: TypecheckState, fn: ir3.FuncDefn):
-# 	# for void-returning functions, all is well.
-# 	if fn.return_type == "Void":
-# 		return
-
-# 	blocks: Dict[str, ir3.BasicBlock] = { name: blk for name, blk in map(lambda b: (b.name, b), fn.blocks) }
-
-# 	# every block must either branch or return.
-# 	for blk in fn.blocks:
-# 		last = blk.stmts[-1] if len(blk.stmts) > 0 else None
-# 		loc = last.loc if last is not None else blk.loc
-# 		if not (isinstance(last, ir3.Branch) or isinstance(last, ir3.CondBranch) or isinstance(last, ir3.ReturnStmt)):
-# 			raise TCException(loc, f"non-void function does not return a value in all control paths")
-# 			# print_warning(loc, f"not all control paths return a value ({blk.name})")
 
 
 

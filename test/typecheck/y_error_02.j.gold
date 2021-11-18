@@ -1,4 +1,4 @@
-test/y_error_02.j:6:11: error: incompatible types in assignment (assigning 'Int' to 'String')
+./y_error_02.j:6:11: error: incompatible types in assignment (assigning 'Int' to 'String')
    |
  6 |     a = 69;
    |       ^

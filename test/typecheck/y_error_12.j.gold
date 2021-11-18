@@ -1,4 +1,4 @@
-test/y_error_12.j:14:16: error: incompatible value in return; function returns 'Int', value has type 'String'
+./y_error_12.j:14:16: error: incompatible value in return; function returns 'Int', value has type 'String'
     |
  14 |     return "kekw";
     |            ^

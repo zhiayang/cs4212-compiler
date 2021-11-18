@@ -61,180 +61,212 @@ Void main(Uwu this)
     _t1 = _J1A_3fooE(a);
     _t2 = _t1 > 0;
     if (_t2) goto .L1;
-  Label .L44:
+    goto .L2;
+  Label .L2:
     _t3 = _J1A_3barE(a);
     _t4 = _t3 < 0;
     if (_t4) goto .L1;
-  Label .L45:
+    goto .L3;
+  Label .L3:
     _t5 = false;
-    goto .L2;
+    goto .L4;
   Label .L1:
     _t5 = true;
-  Label .L2:
-    if (_t5) goto .L3;
+    goto .L4;
   Label .L4:
+    if (_t5) goto .L5;
+    goto .L6;
+  Label .L6:
     println("bsdf");
-    goto .L5;
-  Label .L3:
-    println("asdf");
-    goto .L5;
+    goto .L7;
   Label .L5:
+    println("asdf");
+    goto .L7;
+  Label .L7:
     _t6 = _J1A_3fooE(a);
     _t7 = _t6 == 0;
-    if (_t7) goto .L6;
-  Label .L46:
+    if (_t7) goto .L8;
+    goto .L9;
+  Label .L9:
     _t10 = false;
-    goto .L8;
-  Label .L6:
+    goto .L12;
+  Label .L8:
     _t8 = _J1A_3barE(a);
     _t9 = _t8 == 0;
-    if (_t9) goto .L7;
-  Label .L47:
+    if (_t9) goto .L10;
+    goto .L11;
+  Label .L11:
     _t10 = false;
-    goto .L8;
-  Label .L7:
-    _t10 = true;
-  Label .L8:
-    if (_t10) goto .L9;
-  Label .L10:
-    println("dsdf");
     goto .L12;
-  Label .L9:
-    println("csdf");
+  Label .L10:
+    _t10 = true;
     goto .L12;
   Label .L12:
+    if (_t10) goto .L13;
+    goto .L14;
+  Label .L14:
+    println("dsdf");
+    goto .L16;
+  Label .L13:
+    println("csdf");
+    goto .L16;
+  Label .L16:
     _t11 = _J1A_3uwuE(a);
     _t12 = _t11 == "omegalul";
-    if (_t12) goto .L15;
-  Label .L48:
+    if (_t12) goto .L21;
+    goto .L22;
+  Label .L22:
     _t18 = false;
-    goto .L17;
-  Label .L15:
+    goto .L25;
+  Label .L21:
     _t13 = _J1A_3fooE(a);
     _t14 = _t13 == 1;
-    if (_t14) goto .L13;
-  Label .L49:
+    if (_t14) goto .L17;
+    goto .L18;
+  Label .L18:
     _t15 = _J1A_3barE(a);
     _t16 = _t15 == 69;
-    if (_t16) goto .L13;
-  Label .L50:
+    if (_t16) goto .L17;
+    goto .L19;
+  Label .L19:
     _t17 = false;
-    goto .L14;
-  Label .L13:
-    _t17 = true;
-  Label .L14:
-    if (_t17) goto .L16;
-  Label .L51:
-    _t18 = false;
-    goto .L17;
-  Label .L16:
-    _t18 = true;
-  Label .L17:
-    if (_t18) goto .L18;
     goto .L20;
-  Label .L18:
-    println("esdf");
-    goto .L12;
+  Label .L17:
+    _t17 = true;
+    goto .L20;
   Label .L20:
-    _t19 = _J1A_3uwuE(a);
-    _t20 = _t19 == "omegalul";
-    if (_t20) goto .L24;
-  Label .L53:
-    _t21 = _J1A_3fooE(a);
-    _t22 = _t21 == 1;
-    if (_t22) goto .L21;
-  Label .L54:
-    _t25 = false;
-    goto .L23;
-  Label .L21:
-    _t23 = _J1A_3barE(a);
-    _t24 = _t23 == 69;
-    if (_t24) goto .L22;
-  Label .L55:
-    _t25 = false;
-    goto .L23;
-  Label .L22:
-    _t25 = true;
-  Label .L23:
-    if (_t25) goto .L24;
-  Label .L56:
-    _t26 = false;
-    goto .L25;
+    if (_t17) goto .L23;
+    goto .L24;
   Label .L24:
-    _t26 = true;
+    _t18 = false;
+    goto .L25;
+  Label .L23:
+    _t18 = true;
+    goto .L25;
   Label .L25:
-    if (_t26) goto .L26;
+    if (_t18) goto .L26;
     goto .L28;
   Label .L26:
-    println("fsdf");
-    goto .L20;
+    println("esdf");
+    goto .L16;
   Label .L28:
-    _t27 = _J1A_3uwuE(a);
-    _t28 = _t27 == "omegalul";
-    if (_t28) goto .L29;
-  Label .L58:
-    _t29 = _J1A_3fooE(a);
-    _t30 = _t29 == 1;
-    if (_t30) goto .L29;
-  Label .L59:
-    _t31 = false;
+    _t19 = _J1A_3uwuE(a);
+    _t20 = _t19 == "omegalul";
+    if (_t20) goto .L34;
+    goto .L35;
+  Label .L35:
+    _t21 = _J1A_3fooE(a);
+    _t22 = _t21 == 1;
+    if (_t22) goto .L29;
     goto .L30;
-  Label .L29:
-    _t31 = true;
   Label .L30:
-    if (_t31) goto .L31;
-  Label .L60:
-    _t34 = false;
+    _t25 = false;
+    goto .L33;
+  Label .L29:
+    _t23 = _J1A_3barE(a);
+    _t24 = _t23 == 69;
+    if (_t24) goto .L31;
+    goto .L32;
+  Label .L32:
+    _t25 = false;
     goto .L33;
   Label .L31:
+    _t25 = true;
+    goto .L33;
+  Label .L33:
+    if (_t25) goto .L34;
+    goto .L36;
+  Label .L36:
+    _t26 = false;
+    goto .L37;
+  Label .L34:
+    _t26 = true;
+    goto .L37;
+  Label .L37:
+    if (_t26) goto .L38;
+    goto .L40;
+  Label .L38:
+    println("fsdf");
+    goto .L28;
+  Label .L40:
+    _t27 = _J1A_3uwuE(a);
+    _t28 = _t27 == "omegalul";
+    if (_t28) goto .L41;
+    goto .L42;
+  Label .L42:
+    _t29 = _J1A_3fooE(a);
+    _t30 = _t29 == 1;
+    if (_t30) goto .L41;
+    goto .L43;
+  Label .L43:
+    _t31 = false;
+    goto .L44;
+  Label .L41:
+    _t31 = true;
+    goto .L44;
+  Label .L44:
+    if (_t31) goto .L45;
+    goto .L46;
+  Label .L46:
+    _t34 = false;
+    goto .L49;
+  Label .L45:
     _t32 = _J1A_3barE(a);
     _t33 = _t32 == 69;
-    if (_t33) goto .L32;
-  Label .L61:
+    if (_t33) goto .L47;
+    goto .L48;
+  Label .L48:
     _t34 = false;
-    goto .L33;
-  Label .L32:
+    goto .L49;
+  Label .L47:
     _t34 = true;
-  Label .L33:
-    if (_t34) goto .L34;
-    goto .L36;
-  Label .L34:
+    goto .L49;
+  Label .L49:
+    if (_t34) goto .L50;
+    goto .L52;
+  Label .L50:
     println("gsdf");
-    goto .L28;
-  Label .L36:
+    goto .L40;
+  Label .L52:
     _t35 = _J1A_3uwuE(a);
     _t36 = _t35 == "omegalul";
-    if (_t36) goto .L37;
-  Label .L63:
+    if (_t36) goto .L53;
+    goto .L54;
+  Label .L54:
     _t39 = false;
-    goto .L39;
-  Label .L37:
+    goto .L57;
+  Label .L53:
     _t37 = _J1A_3fooE(a);
     _t38 = _t37 == 1;
-    if (_t38) goto .L38;
-  Label .L64:
+    if (_t38) goto .L55;
+    goto .L56;
+  Label .L56:
     _t39 = false;
-    goto .L39;
-  Label .L38:
+    goto .L57;
+  Label .L55:
     _t39 = true;
-  Label .L39:
-    if (_t39) goto .L40;
-  Label .L65:
+    goto .L57;
+  Label .L57:
+    if (_t39) goto .L58;
+    goto .L59;
+  Label .L59:
     _t40 = _J1A_3barE(a);
     _t41 = _t40 == 69;
-    if (_t41) goto .L40;
-  Label .L66:
+    if (_t41) goto .L58;
+    goto .L60;
+  Label .L60:
     _t42 = false;
-    goto .L41;
-  Label .L40:
+    goto .L61;
+  Label .L58:
     _t42 = true;
-  Label .L41:
-    if (_t42) goto .L42;
-    goto .L43;
-  Label .L42:
+    goto .L61;
+  Label .L61:
+    if (_t42) goto .L62;
+    goto .L63;
+  Label .L62:
     println("hsdf");
-    goto .L36;
-  Label .L43:
+    goto .L52;
+  Label .L63:
     return;
 }
 

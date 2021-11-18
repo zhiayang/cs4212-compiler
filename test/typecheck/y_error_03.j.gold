@@ -1,4 +1,4 @@
-test/y_error_03.j:6:9: error: variable 'a' does not exist
+./y_error_03.j:6:9: error: variable 'a' does not exist
    |
  6 |     a = 1;
    |     ^

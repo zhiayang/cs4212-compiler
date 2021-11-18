@@ -1,4 +1,4 @@
-test/y_error_08.j:6:10: error: cannot access field 'foo' on non-class type 'Int'
+./y_error_08.j:6:10: error: cannot access field 'foo' on non-class type 'Int'
    |
  6 |     a.foo = 69;
    |      ^

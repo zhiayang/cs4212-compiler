@@ -1,4 +1,4 @@
-test/y_error_11.j:6:13: error: invalid unary operator '-' on non-Int type 'String'
+./y_error_11.j:6:13: error: invalid unary operator '-' on non-Int type 'String'
    |
  6 |     a = -a;
    |         ^

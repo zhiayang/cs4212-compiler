@@ -1,4 +1,4 @@
-test/x_misc_ok.j:30:12: warning: unreachable statement
+./x_misc_ok.j:30:12: warning: unreachable statement
     |
  30 |     i4 = 1 + 2;
     |        ^
@@ -34,7 +34,6 @@ Void main(Uwu this)
     String _t7;
     A _t8;
     A _t9;
-    Void _t10;
 
   Label .entry:
     i1 = 489;
@@ -48,17 +47,17 @@ Void main(Uwu this)
     i4 = i1;
     b = false;
     s = "ab";
-    _t5 = "a" + s;
+    _t5 = "a" s+ s;
     s = _t5;
     s = null;
-    _t6 = "1 + 2" + s;
-    _t7 = _t6 + "3 + 4";
+    _t6 = "1 + 2" s+ s;
+    _t7 = _t6 s+ "3 + 4";
     s = _t7;
     _t8 = new A();
     a = _t8;
     a = null;
     _t9 = new A();
-    _t10 = _J1A_3fooiE(_t9, 69);
+    _J1A_3fooiE(_t9, 69);
     return;
 }
 

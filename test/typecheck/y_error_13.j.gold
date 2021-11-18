@@ -1,4 +1,4 @@
-test/y_error_13.j:14:9: error: invalid void return in function returning 'Int'
+./y_error_13.j:14:9: error: invalid void return in function returning 'Int'
     |
  14 |     return;
     |     ^

@@ -16,6 +16,7 @@ Void main(Main this)
 
   Label .entry:
     if (true) goto .L1;
+    goto .L2;
   Label .L2:
     println(420);
     goto .L3;
@@ -33,23 +34,25 @@ Int _J3Foo_3barE(Foo this)
 {
   Label .entry:
     println("a");
-    if (false) goto .L10;
-  Label .L11:
+    if (false) goto .L11;
+    goto .L12;
+  Label .L12:
     println(4);
-    if (true) goto .L7;
-  Label .L8:
+    if (true) goto .L8;
+    goto .L9;
+  Label .L9:
     return 1;
-  Label .L7:
+  Label .L8:
     this.asdf = "foozle";
-    goto .L4;
-  Label .L4:
-    if (true) goto .L5;
-    goto .L6;
+    goto .L5;
   Label .L5:
-    println("kekw");
-    goto .L4;
+    if (true) goto .L6;
+    goto .L7;
   Label .L6:
+    println("kekw");
+    goto .L5;
+  Label .L7:
     return 0;
-  Label .L10:
+  Label .L11:
     return 69;
 }

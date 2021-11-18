@@ -1,4 +1,4 @@
-test/exhaustive_return_4.j:22:9: error: non-void function does not return a value in all control paths
+./exhaustive_return_4.j:22:9: error: non-void function does not return a value in all control paths
     |
  22 |     while(true)
     |     ^

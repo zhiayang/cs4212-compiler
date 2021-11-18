@@ -1,10 +1,7 @@
 #!/usr/bin/env bash
 
-if [ -f "gen.py" ]; then
-	PARSER_EXEC="gen.py"
-	DIR="test"
-elif [ -f "../gen.py"]; then
-	PARSER_EXEC="../gen.py"
+if [ -f "../../gen.py" ]; then
+	PARSER_EXEC="../../gen.py"
 	DIR="."
 else
 	printf "\ncannot find gen.py\n"
