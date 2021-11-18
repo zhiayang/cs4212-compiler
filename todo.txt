@@ -10,7 +10,6 @@ TODO
 	- ideally we want some way to automatically spill a1-a4 across a function call
 	- maybe by having calls "def" a1-a4, but those are registers and not variables...
 
-8. locals should be cleared to 0 i guess.
 
 11. see if we need (want) to toposort the basic blocks before renumbering/allocating
 
@@ -30,7 +29,7 @@ TODO
 21. peephole optimisations
 
 
-
+22. when doing -O0 code, zero locals?
 
 
 

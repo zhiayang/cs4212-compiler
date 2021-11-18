@@ -5,6 +5,8 @@ from typing import *
 from copy import *
 
 from . import ir3
+from . import cgopt
+from . import cgarm
 
 from .util import Location, TCException, CGException, StringView, print_warning, escape_string
 
@@ -18,26 +20,25 @@ class CodegenState:
 	def __init__(self, opt: bool, classes: List[ir3.ClassDefn]) -> None:
 		self.opt = opt
 		self.lines: List[str] = []
-		self.classes_defs: Dict[str, ir3.ClassDefn] = { cls.name: cls for cls in classes }
-		self.builtin_sizes = { "Void": 0, "Int": 4, "Bool": 4, "String": 4 }
+		self.instructions: List[cgarm.Instruction] = []
 
-		self.prologue_label = ""
+		self.epilogue_label = ""
 		self.current_method: ir3.FuncDefn
 		self.strings: Dict[str, int] = dict()
 
 		self.class_layouts: Dict[str, CGClass] = { cls.name: CGClass(self, cls) for cls in classes }
 
-	# gets the size of a type, but objects are always size 4
-	def sizeof_type_pointers(self, name: str) -> int:
-		if name in self.builtin_sizes:
-			return self.builtin_sizes[name]
 
-		if name not in self.classes_defs:
-			raise CGException(f"unknown class '{name}'")
+	def emit(self, instr: cgarm.Instruction) -> None:
+		self.instructions.append(instr)
 
-		return POINTER_SIZE
+	def get_lines(self) -> List[str]:
+		pass
 
-	def emit(self, line: str, indent: int = 1) -> None:
+
+
+
+	def emit_raw(self, line: str, indent: int = 1) -> None:
 		self.lines.append('\t' * indent + line)
 
 	def comment(self, line: str = "", indent: int = 1) -> None:
@@ -56,8 +57,8 @@ class CodegenState:
 
 		self.lines[-1] += msg
 
-	def set_prologue(self, label: str) -> None:
-		self.prologue_label = label
+	def set_epilogue(self, label: str) -> None:
+		self.epilogue_label = label
 
 	def set_current_method(self, method: ir3.FuncDefn) -> None:
 		self.current_method = method
@@ -144,7 +145,7 @@ class VarLoc:
 
 
 
-class VarState:
+class FuncState:
 	def __init__(self, cs: CodegenState, vars: List[ir3.VarDecl], params: List[ir3.VarDecl],
 		assignments: Dict[str, str], spills: Set[str], reg_ranges: Dict[str, Set[int]]) -> None:
 
@@ -174,8 +175,6 @@ class VarState:
 			if i < 4:
 				arg_reg = f"a{i + 1}"
 				if param.name in spills:
-					# fp[0] is actually the lr, so we start from fp - 4
-
 					# note that we don't insert code to spill it, because our pseudo-op SpillVariable
 					# should have already been inserted on spills.
 					stack_loc = -(frame_size + 4)
@@ -184,7 +183,7 @@ class VarState:
 
 				if param.name in assignments:
 					if assignments[param.name] != arg_reg:
-						cs.emit(f"mov {assignments[param.name]}, {arg_reg}")
+						cs.emit_raw(f"mov {assignments[param.name]}, {arg_reg}")
 
 					ploc.set_register(assignments[param.name])
 
@@ -257,12 +256,12 @@ class VarState:
 
 	def load_stack_location(self, var: str, reg: str) -> None:
 		ofs = self.calculate_stack_offset(self.get_location(var).stack_ofs())
-		self.cs.emit(f"ldr {reg}, [sp, #{ofs}]")
+		self.cs.emit_raw(f"ldr {reg}, [sp, #{ofs}]")
 		self.cs.comment_line(f"restore {var}")
 
 	def store_stack_location(self, var: str, reg: str) -> None:
 		ofs = self.calculate_stack_offset(self.get_location(var).stack_ofs())
-		self.cs.emit(f"str {reg}, [sp, #{ofs}]")
+		self.cs.emit_raw(f"str {reg}, [sp, #{ofs}]")
 		self.cs.comment_line(f"spill/wb {var}")
 
 
@@ -287,15 +286,15 @@ class VarState:
 
 
 	def stack_push(self, reg: str) -> None:
-		self.cs.emit(f"str {reg}, [sp, #-4]!")
+		self.cs.emit_raw(f"str {reg}, [sp, #-4]!")
 		self.stack_extra_offset += 4
 
 	def stack_push_32n(self, num: int) -> None:
-		self.cs.emit(f"sub sp, sp, #{num * 4}")
+		self.cs.emit_raw(f"sub sp, sp, #{num * 4}")
 		self.stack_extra_offset += (4 * num)
 
 	def stack_pop_32n(self, num: int) -> None:
-		self.cs.emit(f"add sp, sp, #{num * 4}")
+		self.cs.emit_raw(f"add sp, sp, #{num * 4}")
 		self.stack_extra_offset -= (4 * num)
 		assert self.stack_extra_offset >= 0
 
@@ -325,13 +324,13 @@ class VarState:
 		else:
 			restore_str = (", ".join(restore))
 
-		cs.emit(f"stmfd sp!, {{lr}}")
+		cs.emit_raw(f"stmfd sp!, {{lr}}")
 
 		if self.frame_size > 0:
-			cs.emit(f"sub sp, sp, #{self.frame_size}")
+			cs.emit_raw(f"sub sp, sp, #{self.frame_size}")
 
 		if restore_str != "":
-			cs.emit(f"stmfd sp!, {{{restore_str}}}")
+			cs.emit_raw(f"stmfd sp!, {{{restore_str}}}")
 
 		cs.comment("prologue")
 		cs.comment()
@@ -348,15 +347,20 @@ class VarState:
 
 		cs.comment()
 		cs.comment("epilogue")
-		cs.emit(f"{cs.prologue_label}:", indent = 0)
+		cs.emit_raw(f"{cs.epilogue_label}:", indent = 0)
 
 		if restore_str != "":
-			cs.emit(f"ldmfd sp!, {{{restore_str}}}")
+			cs.emit_raw(f"ldmfd sp!, {{{restore_str}}}")
 
 		if self.frame_size > 0:
-			cs.emit(f"add sp, sp, #{self.frame_size}")
+			cs.emit_raw(f"add sp, sp, #{self.frame_size}")
 
-		cs.emit(f"ldmfd sp!, {{pc}}")
+		cs.emit_raw(f"ldmfd sp!, {{pc}}")
+
+
+
+
+
 
 
 
@@ -373,7 +377,6 @@ class CGClass:
 		# put bools at the end so they pack better.
 		offset = 0
 		for field in filter(lambda x: x.type != "Bool", self.base.fields):
-			assert cs.sizeof_type_pointers(field.type) == POINTER_SIZE
 			self.fields[field.name] = offset
 			offset += POINTER_SIZE
 
