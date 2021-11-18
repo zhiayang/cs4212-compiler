@@ -1,3 +1,4 @@
+@ jlite compiler: ./compile.py test/01_simple.j
 .text
 .global main_dummy
 .type main_dummy, %function
@@ -58,12 +59,12 @@ main_dummy:
 .main_dummy_exit:
 	ldmfd sp!, {v1, v2, v3, v4}
 	ldmfd sp!, {pc}
-	
+
 
 .global _J3Foo_3fooiiiiiE
 .type _J3Foo_3fooiiiiiE, %function
 _J3Foo_3fooiiiiiE:
-	@ spills:  '_t5', 'm', 'w'
+	@ spills:  '_c45', '_t5', 'm', 'w'
 	@ assigns: '_c16' = v1;  '_c19' = v1;  '_c21' = v1;  '_c29' = v1;  '_c31' = v1
 	@          '_c38' = v1;  '_c48' = v1;  '_c51' = v1;  '_c57' = v1;  '_c60' = v1
 	@          '_g26' = v1;  '_g36' = v1;  '_g39' = v1;   '_g9' = v1;   '_t1' = v1
@@ -124,7 +125,9 @@ _J3Foo_3fooiiiiiE:
 	add v1, v1, #1                          @ _t5 = w + 1;
 	str v1, [sp, #4]                        @ spill _t5;
 	ldr v4, =#69420                         @ _c45 = 69420;
+	str v4, [sp, #0]                        @ spill _c45;
 	ldr v1, [sp, #4]                        @ restore _t5;
+	ldr v4, [sp, #0]                        @ restore _c45;
 	cmp v1, v4                              @ _t6 = _t5 != _c45;
 	movne v1, #1
 	moveq v1, #0
@@ -178,9 +181,9 @@ _J3Foo_3fooiiiiiE:
 	ldmfd sp!, {v1, v2, v3, v4}
 	add sp, sp, #8
 	ldmfd sp!, {pc}
-	
 
-	
+
+
 .global main
 .type main, %function
 main:
@@ -199,52 +202,52 @@ main:
 
 .data
 .string0:
-	.word 4
+    .word 4
 .string0_raw:
-	.asciz "asdf"
+    .asciz "asdf"
 
 .string1:
-	.word 3
+    .word 3
 .string1_raw:
-	.asciz "%d\n"
+    .asciz "%d\n"
 
 .string2:
-	.word 5
+    .word 5
 .string2_raw:
-	.asciz "false"
+    .asciz "false"
 
 .string3:
-	.word 4
+    .word 4
 .string3_raw:
-	.asciz "true"
+    .asciz "true"
 
 .string4:
-	.word 8
+    .word 8
 .string4_raw:
-	.asciz "omegalul"
+    .asciz "omegalul"
 
 .string5:
-	.word 4
+    .word 4
 .string5_raw:
-	.asciz "kekw"
+    .asciz "kekw"
 
 .string6:
-	.word 5
+    .word 5
 .string6_raw:
-	.asciz "sadge"
+    .asciz "sadge"
 
 .string7:
-	.word 7
+    .word 7
 .string7_raw:
-	.asciz "poggers"
+    .asciz "poggers"
 
 .string8:
-	.word 8
+    .word 8
 .string8_raw:
-	.asciz "riperino"
+    .asciz "riperino"
 
 .string9:
-	.word 9
+    .word 9
 .string9_raw:
-	.asciz "poggerino"
+    .asciz "poggerino"
 

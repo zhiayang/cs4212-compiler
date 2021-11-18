@@ -17,9 +17,6 @@ TODO
 	(right now we emit 2 consecutive stmfd/ldmfd instructions)
 	(we might do this as an optimisation pass)
 
-13. get rid of the gep abstraction; we just need a storefield, and then ensure the
-	rhs is a separate variable.
-
 17. register allocation coalescing
 
 19. see if it's possible to "properly split" the live ranges. right now, even though there might be disjoint parts in a var's
@@ -28,10 +25,6 @@ TODO
 	if possible, split it up, so that we can (eg.) perform partial spills, and/or use a different register for different
 	subranges of the live range.
 
-
-
-20. change asm generation into some kind of datastructure.
-	- this would allow us to *not* do string matching for...
 
 21. peephole optimisations
 
@@ -42,14 +35,3 @@ TODO
 
 
 
-
--- for now, we only consider IN.
-11. investigate whether the live range of a def should consider statements where the def only
-	appears in OUT, and not in IN.
-
-
-
--- for now, we decided to just modify the caller stack.
-8. investigate whether the spilling "backup" is required. arm specs say:
-	"A callee can modify any stack space used for receiving parameter values from the caller."
-	Procedure Call Standard for the Arm Architecture, Release 2020Q2 (page 24)

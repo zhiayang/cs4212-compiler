@@ -108,6 +108,9 @@ class Instruction():
 		self.annotations.append(msg)
 		return self
 
+	def clear_annotations(self) -> None:
+		self.annotations.clear()
+
 	def conditional(self, cond: Condition) -> Instruction:
 		self.instr += cond.cond
 		return self

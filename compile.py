@@ -12,6 +12,7 @@ from src import lexer
 from src import ast
 
 from src import cgopt
+from src import cgannotate
 
 def parse_file(filename) -> ast.Program:
 	with open(sys.argv[1], "rb") as file:
@@ -32,10 +33,10 @@ def parse_args(args: List[str]) -> Tuple[str, str]:
 			cgopt.enable_optimisations()
 
 		elif (args[0] == "-a") or (args[0] == "--annotate"):
-			cgopt.enable_annotations()
+			cgannotate.enable_annotations()
 
 		elif (args[0] == "-na") or (args[0] == "--no-annotate"):
-			cgopt.disable_annotations()
+			cgannotate.disable_annotations()
 
 		elif args[0] == "-o":
 			if output_file is not None:
@@ -88,7 +89,7 @@ if __name__ == "__main__":
 
 	prog = parse_file(input_file)
 	ir3p = typecheck.typecheck_program(prog)
-	asms = codegen.codegen(ir3p, opt=False)
+	asms = codegen.codegen(ir3p, ' '.join(sys.argv))
 
 	with open(output_file, "w") as f:
 		f.write('\n'.join(asms))

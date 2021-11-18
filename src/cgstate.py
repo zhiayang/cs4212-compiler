@@ -24,9 +24,8 @@ class CodegenState:
 
 		self.class_layouts: Dict[str, CGClass] = { cls.name: CGClass(self, cls) for cls in classes }
 
-
-	def emit_raw(self, line: str, indent: int = 1) -> None:
-		self.lines.append('\t' * indent + line)
+	def emit_raw(self, line: str) -> None:
+		self.lines.append(line)
 
 	def comment(self, line: str = "", indent: int = 1) -> None:
 		if line != "":
@@ -34,15 +33,6 @@ class CodegenState:
 		else:
 			self.lines.append("")
 
-	def comment_line(self, msg: str) -> None:
-		padding = 40 - len(self.lines[-1])
-		if padding > 0:
-			self.lines[-1] += (' ' * padding)
-
-		if '@' not in self.lines[-1]:
-			msg = f"@ {msg}"
-
-		self.lines[-1] += msg
 
 	# returns the label of the thing
 	def add_string(self, s: str) -> str:
@@ -308,6 +298,10 @@ class FuncState:
 
 
 	def finalise(self) -> List[str]:
+		if not cgannotate.annotating():
+			for i in self.instructions:
+				i.clear_annotations()
+
 		final_insts = [
 			*self.get_prologue(),
 			*self.instructions,
@@ -321,7 +315,7 @@ class FuncState:
 		]
 
 		annots = []
-		if cgopt.annotating():
+		if cgannotate.annotating():
 			assign_names = { k: v.name for k, v in self.assigns.items() }
 
 			annot_assigns, annot_spills = cgannotate.annotate_reg_allocs(assign_names, self.spilled)

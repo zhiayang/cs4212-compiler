@@ -12,9 +12,6 @@ from . import cgannotate
 from .util import Location, TCException, CGException, StringView, print_warning, escape_string
 from .cgstate import *
 
-import math
-
-
 
 # returns (string, is_constant, type)
 def codegen_value(cs: CodegenState, fs: FuncState, val: ir3.Value) -> cgarm.Operand:
@@ -306,8 +303,6 @@ def codegen_call(cs: CodegenState, fs: FuncState, call: ir3.FnCall, dest_reg: cg
 
 
 
-	# fs.emit(cgarm.add(dest_reg, ptr, cgarm.Constant(offset)))
-
 def codegen_storefield(cs: CodegenState, fs: FuncState, store: cgpseudo.StoreField):
 	ptr = fs.get_location(store.ptr).register()
 	layout = cs.get_class_layout(fs.get_type(store.ptr))
@@ -319,7 +314,6 @@ def codegen_storefield(cs: CodegenState, fs: FuncState, store: cgpseudo.StoreFie
 		fs.emit(cgarm.store_byte(value, cgarm.Memory(ptr, offset)))
 	else:
 		fs.emit(cgarm.store(value, cgarm.Memory(ptr, offset)))
-
 
 
 
@@ -407,10 +401,11 @@ def codegen_method(cs: CodegenState, method: ir3.FuncDefn):
 
 
 
-def codegen(prog: ir3.Program, opt: bool) -> List[str]:
+def codegen(prog: ir3.Program, flags: str) -> List[str]:
 	cs = CodegenState(prog.classes)
 
-	cs.emit_raw(".text", indent = 0)
+	cs.emit_raw(f"@ jlite compiler: {flags}")
+	cs.emit_raw(".text")
 	for method in prog.funcs:
 		if method.name == "main":
 			method.name = "main_dummy"
@@ -438,12 +433,12 @@ main:
 """)
 
 
-	cs.emit_raw(".data", indent = 0)
+	cs.emit_raw(".data")
 	for string, id in cs.strings.items():
-		cs.emit_raw(f".string{id}:", indent = 0)
-		cs.emit_raw(f".word {len(string)}")
-		cs.emit_raw(f".string{id}_raw:", indent = 0)
-		cs.emit_raw(f'.asciz "{escape_string(string)}"')
+		cs.emit_raw(f".string{id}:")
+		cs.emit_raw(f"    .word {len(string)}")
+		cs.emit_raw(f".string{id}_raw:")
+		cs.emit_raw(f'    .asciz "{escape_string(string)}"')
 		cs.comment()
 
 
