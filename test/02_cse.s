@@ -1,117 +1,89 @@
-@ jlite compiler: ./compile.py --dump-ir3 -O -v test/02_cse.j
+@ jlite compiler: compile.py -v -O test/02_cse.j
 .text
 	@ constant branch eliminated; fallthrough
 .global main_dummy
 .type main_dummy, %function
 main_dummy:
-	@ spills:  'aaa', 'bar', 'bbb', 'ccc', 'ddd', 'eee', 'fff', 'foooo', 'ggg'
-	@          'hhh', 'iii', 'x'
-	@ assigns:  '_c11' = v1;   '_c13' = v1;   '_c15' = v1;   '_c17' = v1;   '_c19' = v1
-	@           '_c21' = v1;   '_c23' = v1;    '_c3' = v1;   '_c33' = v1;   '_c36' = v1
-	@           '_c41' = v1;   '_c44' = v1;   '_c46' = v1;    '_c5' = v1;   '_c54' = v1
-	@           '_c57' = v1;    '_t6' = v1;    '_t9' = v1;    'bar' = v1;    'bbb' = v1
-	@              'c' = v1;    'ddd' = v1;      'e' = v1;    'eee' = v1;      'f' = v1
-	@            'fff' = v1;  'foooo' = v1;      'g' = v1;    'ggg' = v1;      'h' = v1
-	@            'hhh' = v1;    'iii' = v1;      'x' = v1;   '_t11' = v2;   '_t12' = v2
-	@           '_t13' = v2;   '_t14' = v2;   '_t15' = v2;   '_t23' = v2;   '_t24' = v2
-	@           '_t25' = v2;   '_t26' = v2;   '_t27' = v2;      'd' = v2;    'foo' = v2
-	@            '_t5' = v3;      'b' = v3;    'baz' = v3;    '_t0' = v4;    'aaa' = v4
-	@            'ccc' = v4
+	@ spills:  'foooo', 'x'
+	@ assigns:  '_c13' = v1;   '_c16' = v1;   '_c21' = v1;   '_c24' = v1;   '_c26' = v1
+	@            '_c3' = v1;   '_c30' = v1;   '_c34' = v1;   '_c37' = v1;   '_c43' = v1
+	@            '_c6' = v1;   '_c71' = v1;   '_c86' = v1;    '_c9' = v1;   '_c91' = v1
+	@           '_t11' = v1;   '_t12' = v1;   '_t13' = v1;   '_t14' = v1;   '_t23' = v1
+	@           '_t24' = v1;   '_t25' = v1;   '_t26' = v1;   '_t27' = v1;    '_t6' = v1
+	@            '_t9' = v1;      'c' = v1;    'ccc' = v1;      'e' = v1;      'f' = v1
+	@          'foooo' = v1;      'g' = v1;      'h' = v1;      'x' = v1;  '_c101' = v2
+	@          '_c104' = v2;  '_c107' = v2;  '_c110' = v2;  '_c113' = v2;   '_c70' = v2
+	@           '_c74' = v2;   '_c77' = v2;   '_c80' = v2;   '_c83' = v2;   '_c98' = v2
+	@           '_t15' = v2;      'd' = v2;    'foo' = v2;    '_t0' = v3;    '_t5' = v3
+	@              'b' = v4
 	stmfd sp!, {lr}
-	sub sp, sp, #48
+	sub sp, sp, #8
 	stmfd sp!, {v1, v2, v3, v4}
 .main_dummy_entry:
 	mov v2, #69                             @ foo = 69;
-	ldr v1, =#420                           @ _c3 = 420;
-	mov v1, v1                              @ bar = _c3;
-	str v1, [sp, #44]                       @ spill bar;
-	ldr v1, =#1234                          @ _c5 = 1234;
-	mov v3, v1                              @ baz = _c5;
-	mov v4, #100                            @ aaa = 100;
-	str v4, [sp, #40]                       @ spill aaa;
-	mov v1, #200                            @ bbb = 200;
-	str v1, [sp, #36]                       @ spill bbb;
-	ldr v1, =#300                           @ _c11 = 300;
-	mov v4, v1                              @ ccc = _c11;
-	str v4, [sp, #32]                       @ spill ccc;
-	ldr v1, =#400                           @ _c13 = 400;
-	mov v1, v1                              @ ddd = _c13;
-	str v1, [sp, #28]                       @ spill ddd;
-	ldr v1, =#500                           @ _c15 = 500;
-	mov v1, v1                              @ eee = _c15;
-	str v1, [sp, #24]                       @ spill eee;
-	ldr v1, =#600                           @ _c17 = 600;
-	mov v1, v1                              @ fff = _c17;
-	str v1, [sp, #20]                       @ spill fff;
-	ldr v1, =#700                           @ _c19 = 700;
-	mov v1, v1                              @ ggg = _c19;
-	str v1, [sp, #16]                       @ spill ggg;
-	ldr v1, =#800                           @ _c21 = 800;
-	mov v1, v1                              @ hhh = _c21;
-	str v1, [sp, #12]                       @ spill hhh;
-	ldr v1, =#900                           @ _c23 = 900;
-	mov v1, v1                              @ iii = _c23;
-	str v1, [sp, #8]                        @ spill iii;
-	ldr v1, [sp, #44]                       @ restore bar;
-	add v4, v2, v1                          @ _t0 = foo + bar;
-	add v1, v4, v3                          @ x = _t0 + baz;
+	ldr v1, =#300                           @ _c3 = 300;
+	mov v1, v1                              @ ccc = _c3;
+	ldr v1, =#420                           @ _c6 = 420;
+	add v3, v1, #69                         @ _t0 = 69 + _c6;
+	ldr v1, =#1234                          @ _c9 = 1234;
+	add v1, v3, v1                          @ x = _t0 + _c9;
 	str v1, [sp, #4]                        @ spill x;
 	b .main_dummy_L1                        @ if (true) goto .L1;
 	b .main_dummy_L2                        @ goto .L2;
 .main_dummy_L2:
-	ldr v1, =.string0                       @ _c33 = "sadge";
-	mov a1, v1                              @ println(_c33);
+	ldr v1, =.string0                       @ _c13 = "sadge";
+	mov a1, v1                              @ println(_c13);
 	add a1, a1, #4
 	bl puts(PLT)
 	b .main_dummy_L3                        @ goto .L3;
 .main_dummy_L1:
-	ldr v1, =.string1                       @ _c36 = "kekw";
-	mov a1, v1                              @ println(_c36);
+	ldr v1, =.string1                       @ _c16 = "kekw";
+	mov a1, v1                              @ println(_c16);
 	add a1, a1, #4
 	bl puts(PLT)
 	b .main_dummy_L3                        @ goto .L3;
 .main_dummy_L3:
 	b .main_dummy_L5                        @ goto .L5;
 .main_dummy_L5:
-	ldr v1, =.string2                       @ _c41 = "phew";
-	mov a1, v1                              @ println(_c41);
+	ldr v1, =.string2                       @ _c21 = "phew";
+	mov a1, v1                              @ println(_c21);
 	add a1, a1, #4
 	bl puts(PLT)
 	b .main_dummy_L6                        @ goto .L6;
 .main_dummy_L4:
-	ldr v1, =.string3                       @ _c44 = "what";
-	mov a1, v1                              @ println(_c44);
+	ldr v1, =.string3                       @ _c24 = "what";
+	mov a1, v1                              @ println(_c24);
 	add a1, a1, #4
 	bl puts(PLT)
-	ldr v1, =#420                           @ _c46 = 420;
-	mov v2, v1                              @ foo = _c46;
+	ldr v1, =#420                           @ _c26 = 420;
+	mov v2, v1                              @ foo = _c26;
 	b .main_dummy_L6                        @ goto .L6;
 .main_dummy_L6:
-	ldr v1, [sp, #44]                       @ restore bar;
-	add v3, v2, v1                          @ b = foo + bar;
+	ldr v1, =#420                           @ _c30 = 420;
+	add v4, v2, v1                          @ b = foo + _c30;
 	b .main_dummy_L7                        @ if (true) goto .L7;
 	b .main_dummy_L8                        @ goto .L8;
 .main_dummy_L8:
-	ldr v1, =.string4                       @ _c54 = "asdf";
-	mov a1, v1                              @ println(_c54);
+	ldr v1, =.string4                       @ _c34 = "asdf";
+	mov a1, v1                              @ println(_c34);
 	add a1, a1, #4
 	bl puts(PLT)
 	b .main_dummy_L9                        @ goto .L9;
 .main_dummy_L7:
-	ldr v1, =.string5                       @ _c57 = "cool";
-	mov a1, v1                              @ println(_c57);
+	ldr v1, =.string5                       @ _c37 = "cool";
+	mov a1, v1                              @ println(_c37);
 	add a1, a1, #4
 	bl puts(PLT)
 	mov v2, #100                            @ foo = 100;
 	b .main_dummy_L9                        @ goto .L9;
 .main_dummy_L9:
-	ldr v1, [sp, #44]                       @ restore bar;
-	add v1, v2, v1                          @ c = foo + bar;
+	ldr v1, =#420                           @ _c43 = 420;
+	add v1, v2, v1                          @ c = foo + _c43;
 	ldr a1, =.string6_raw                   @ println(_t0);
-	mov a2, v4
+	mov a2, v3
 	bl printf(PLT)
 	ldr a1, =.string6_raw                   @ println(b);
-	mov a2, v3
+	mov a2, v4
 	bl printf(PLT)
 	ldr a1, =.string6_raw                   @ println(c);
 	mov a2, v1
@@ -120,9 +92,7 @@ main_dummy:
 	ldr a1, =.string6_raw                   @ println(x);
 	mov a2, v1
 	bl printf(PLT)
-	ldr v1, [sp, #36]                       @ restore bbb;
-	ldr v4, [sp, #40]                       @ restore aaa;
-	add v3, v4, v1                          @ _t5 = aaa + bbb;
+	ldr v3, =#300                           @ _t5 = 100 + 200;
 	ldr v1, [sp, #0]                        @ restore foooo;
 	mov a1, v1                              @ _t6 = _J3Foo_11side_effectE(foooo);
 	bl _J3Foo_11side_effectE
@@ -139,49 +109,47 @@ main_dummy:
 	ldr a1, =.string6_raw                   @ println(e);
 	mov a2, v1
 	bl printf(PLT)
-	ldr v4, [sp, #32]                       @ restore ccc;
-	ldr v1, [sp, #28]                       @ restore ddd;
-	add v2, v4, v1                          @ _t11 = ccc + ddd;
-	ldr v1, [sp, #24]                       @ restore eee;
-	add v2, v2, v1                          @ _t12 = _t11 + eee;
-	ldr v1, [sp, #20]                       @ restore fff;
-	add v2, v2, v1                          @ _t13 = _t12 + fff;
-	ldr v1, [sp, #16]                       @ restore ggg;
-	add v2, v2, v1                          @ _t14 = _t13 + ggg;
-	ldr v1, [sp, #12]                       @ restore hhh;
-	add v2, v2, v1                          @ _t15 = _t14 + hhh;
-	ldr v1, [sp, #8]                        @ restore iii;
-	add v1, v2, v1                          @ f = _t15 + iii;
+	ldr v2, =#300                           @ _c70 = 300;
+	ldr v1, =#400                           @ _c71 = 400;
+	add v1, v2, v1                          @ _t11 = _c70 + _c71;
+	ldr v2, =#500                           @ _c74 = 500;
+	add v1, v1, v2                          @ _t12 = _t11 + _c74;
+	ldr v2, =#600                           @ _c77 = 600;
+	add v1, v1, v2                          @ _t13 = _t12 + _c77;
+	ldr v2, =#700                           @ _c80 = 700;
+	add v1, v1, v2                          @ _t14 = _t13 + _c80;
+	ldr v2, =#800                           @ _c83 = 800;
+	add v2, v1, v2                          @ _t15 = _t14 + _c83;
+	ldr v1, =#900                           @ _c86 = 900;
+	add v1, v2, v1                          @ f = _t15 + _c86;
 	ldr a1, =.string6_raw                   @ println(f);
 	mov a2, v1
 	bl printf(PLT)
-	ldr v1, [sp, #8]                        @ restore iii;
-	add v1, v2, v1                          @ g = _t15 + iii;
+	ldr v1, =#900                           @ _c91 = 900;
+	add v1, v2, v1                          @ g = _t15 + _c91;
 	ldr a1, =.string6_raw                   @ println(g);
 	mov a2, v1
 	bl printf(PLT)
-	mov v4, #1                              @ ccc = 1;
-	str v4, [sp, #32]                       @ spill ccc;
-	ldr v4, [sp, #32]                       @ restore ccc;
-	ldr v1, [sp, #28]                       @ restore ddd;
-	add v2, v4, v1                          @ _t23 = ccc + ddd;
-	ldr v1, [sp, #24]                       @ restore eee;
-	add v2, v2, v1                          @ _t24 = _t23 + eee;
-	ldr v1, [sp, #20]                       @ restore fff;
-	add v2, v2, v1                          @ _t25 = _t24 + fff;
-	ldr v1, [sp, #16]                       @ restore ggg;
-	add v2, v2, v1                          @ _t26 = _t25 + ggg;
-	ldr v1, [sp, #12]                       @ restore hhh;
-	add v2, v2, v1                          @ _t27 = _t26 + hhh;
-	ldr v1, [sp, #8]                        @ restore iii;
-	add v1, v2, v1                          @ h = _t27 + iii;
+	mov v1, #1                              @ ccc = 1;
+	ldr v2, =#400                           @ _c98 = 400;
+	add v1, v1, v2                          @ _t23 = ccc + _c98;
+	ldr v2, =#500                           @ _c101 = 500;
+	add v1, v1, v2                          @ _t24 = _t23 + _c101;
+	ldr v2, =#600                           @ _c104 = 600;
+	add v1, v1, v2                          @ _t25 = _t24 + _c104;
+	ldr v2, =#700                           @ _c107 = 700;
+	add v1, v1, v2                          @ _t26 = _t25 + _c107;
+	ldr v2, =#800                           @ _c110 = 800;
+	add v1, v1, v2                          @ _t27 = _t26 + _c110;
+	ldr v2, =#900                           @ _c113 = 900;
+	add v1, v1, v2                          @ h = _t27 + _c113;
 	ldr a1, =.string6_raw                   @ println(h);
 	mov a2, v1
 	bl printf(PLT)
 	b .main_dummy_exit                      @ return;
 .main_dummy_exit:
 	ldmfd sp!, {v1, v2, v3, v4}
-	add sp, sp, #48
+	add sp, sp, #8
 	ldmfd sp!, {pc}
 
 

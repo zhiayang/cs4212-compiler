@@ -271,10 +271,7 @@ def propagate_copies(func: ir3.FuncDefn, all_stmts: List[ir3.Stmt]):
 	# 3. for `_t1 = _t0`, the definition of _t0 must be visible at this point.
 
 	def gen_func(stmt: ir3.Stmt, _: List[Any]) -> Set[str]:
-		if isinstance(stmt, ir3.AssignOp) or isinstance(stmt, cgpseudo.PhiNode):
-			if not is_temporary(stmt.lhs):
-				return set()
-
+		if isinstance(stmt, ir3.AssignOp) or isinstance(stmt, cgpseudo.PhiNode) and is_temporary(stmt.lhs):
 			return set([ stmt.lhs ])
 
 		return set()
@@ -303,7 +300,6 @@ def propagate_copies(func: ir3.FuncDefn, all_stmts: List[ir3.Stmt]):
 			if isinstance(stmt, ir3.AssignOp) and isinstance(stmt.rhs, ir3.ValueExpr):
 				if isinstance(stmt.rhs.value, ir3.VarRef) and stmt.rhs.value.name == var:
 					copiers[var] = stmt.lhs
-					print(f"{var} is copied by {stmt.lhs}")
 
 	visit_stmts(visit, func)
 
@@ -315,8 +311,7 @@ def propagate_copies(func: ir3.FuncDefn, all_stmts: List[ir3.Stmt]):
 
 		copier = copiers[var]
 		for sid in stmts:
-			replace_variables_in_stmt(all_stmts[sid], copier, ir3.VarRef(all_stmts[sid].loc, var))
-			num_removed += 1
+			num_removed += replace_variables_in_stmt(all_stmts[sid], copier, ir3.VarRef(all_stmts[sid].loc, var))
 
 	log_opt(func, "copies", "propagated", num_removed, singular = "copy")
 	return num_removed > 0
@@ -325,13 +320,23 @@ def propagate_copies(func: ir3.FuncDefn, all_stmts: List[ir3.Stmt]):
 def propagate_constants(func: ir3.FuncDefn, all_stmts: List[ir3.Stmt]):
 	# similar in theory to propagating copies.
 
-	# a constant is generated when you assign a constant to a variable
+	# a constant is generated when you assign a constant to a variable.
+	# pregenerate this (since we'll need it later anyway_
+	constants: Dict[str, Dict[int, ir3.Value]] = dict()
+
+
+	def visit1(stmt: ir3.Stmt):
+		nonlocal constants
+
+		if isinstance(stmt, ir3.AssignOp) and isinstance(stmt.rhs, ir3.ValueExpr):
+			if is_constant_value(stmt.rhs.value):
+				constants.setdefault(stmt.lhs, dict())[stmt.id] = stmt.rhs.value
+
+	visit_stmts(visit1, func)
+
 	def gen_func(stmt: ir3.Stmt, _: List[Any]) -> Set[str]:
 		if isinstance(stmt, ir3.AssignOp) and isinstance(stmt.rhs, ir3.ValueExpr):
-			# no difference, just want them to fit on one line.
-			if isinstance(stmt.rhs.value, ir3.ConstantInt) or isinstance(stmt.rhs.value, ir3.ConstantBool):
-				return set([ stmt.lhs ])
-			elif isinstance(stmt.rhs.value, ir3.ConstantString) or isinstance(stmt.rhs.value, ir3.ConstantNull):
+			if is_constant_value(stmt.rhs.value):
 				return set([ stmt.lhs ])
 
 		return set()
@@ -345,21 +350,42 @@ def propagate_constants(func: ir3.FuncDefn, all_stmts: List[ir3.Stmt]):
 
 	ins, outs, gens, kills = forward_dataflow(func, all_stmts, str, [], gen_func, kill_func)
 
-	num_removed = 0
-	for stmt in all_stmts:
-		if isinstance(stmt, ir3.AssignOp) and is_temporary(stmt.lhs):
-			# check that the right hand is also a temporary
-			if isinstance(stmt.rhs, ir3.ValueExpr) and isinstance(stmt.rhs.value, ir3.VarRef):
-				old_name = stmt.lhs
-				new_name = stmt.rhs.value.name
-				if not is_temporary(new_name):
-					continue
+	# which statements does a particular value reach
+	reaching_stmts: Dict[str, Set[int]] = dict()
+	for n, vars in enumerate(ins):
+		for v in vars:
+			reaching_stmts.setdefault(v, set()).add(n)
 
-				# ok, now we can replace all uses of `old_name` with `new_name`
-				for other_stmt in all_stmts:
-					if (other_stmt.id != stmt.id) and (new_name in ins[other_stmt.id]):
-						replace_variables_in_stmt(other_stmt, old_name, ir3.VarRef(stmt.loc, new_name))
-						num_removed += 1
+	predecessors = compute_predecessors(func)
+
+	num_removed = 0
+	for var, stmts in reaching_stmts.items():
+		if var not in constants:
+			continue
+
+		consts = constants[var]
+		for sid in stmts:
+			# if, at this statement, we can 'see' more than one value of the constant, abort.
+			all_preds = get_transitive_predecessors(sid, predecessors)
+
+			visible_consts = all_preds.intersection(set(consts.keys()))
+
+			# print(f"'{var}' reaches {sid} -- {all_preds}, {list(consts.keys())}")
+
+			if len(visible_consts) != 1:
+				continue
+
+			replacement = consts[visible_consts.pop()]
+			# print(f"one value of '{var}' visible at {sid}, replacing with '{replacement}'")
+			# print(f"  {all_stmts[sid]}")
+
+			tmp = replace_variables_in_stmt(all_stmts[sid], var, deepcopy(replacement))
+			if tmp > 0:
+				num_removed += tmp
+
+
+	log_opt(func, "constant", "propagated", num_removed)
+	return num_removed > 0
 
 
 
@@ -396,6 +422,9 @@ def optimise(func: ir3.FuncDefn):
 			continue
 
 		if propagate_copies(func, all_stmts):
+			continue
+
+		if propagate_constants(func, all_stmts):
 			continue
 
 		# finished
@@ -450,9 +479,12 @@ def forward_dataflow(func: ir3.FuncDefn, all_stmts: List[ir3.Stmt], set_types: T
 
 
 
-def replace_variables_in_stmt(stmt: ir3.Stmt, old_name: str, new_value: ir3.Value) -> None:
+def replace_variables_in_stmt(stmt: ir3.Stmt, old_name: str, new_value: ir3.Value) -> int:
+	total = 0
 	def visit(value: ir3.Value) -> ir3.Value:
+		nonlocal total
 		if isinstance(value, ir3.VarRef) and value.name == old_name:
+			total += 1
 			return new_value
 		else:
 			return value
@@ -460,9 +492,10 @@ def replace_variables_in_stmt(stmt: ir3.Stmt, old_name: str, new_value: ir3.Valu
 	if isinstance(stmt, ir3.AssignDotOp) and isinstance(new_value, ir3.VarRef):
 		if stmt.lhs1 == old_name:
 			stmt.lhs1 = new_value.name
+			total += 1
 
 	visit_values_in_stmt(visit, stmt)
-
+	return total
 
 
 def visit_stmts(visitor: Callable[[ir3.Stmt], Any], func: ir3.FuncDefn) -> None:
@@ -524,7 +557,26 @@ def visit_values_in_stmt(visitor_: Callable[[ir3.Value], Optional[ir3.Value]], s
 			stmt.cond = visitor(stmt.cond)
 
 
+def get_transitive_predecessors(sid: int, predecessors: Dict[int, Set[int]]) -> Set[int]:
+	final: Set[int] = set()
+	queue: List[int] = [ sid ]
 
+	while len(queue) > 0:
+		s = queue.pop(0)
+		if s in final:
+			continue
+
+		final.add(s)
+		if s in predecessors:
+			queue.extend(predecessors[s])
+
+	return final
+
+
+
+def is_constant_value(value: ir3.Value) -> bool:
+	return isinstance(value, ir3.ConstantInt) or isinstance(value, ir3.ConstantBool)  \
+		or isinstance(value, ir3.ConstantString) or isinstance(value, ir3.ConstantNull)
 
 
 def compute_predecessors(func: ir3.FuncDefn) -> Dict[int, Set[int]]:

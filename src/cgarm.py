@@ -241,6 +241,9 @@ def add(dest: Operand, op1: Operand, op2: Operand) -> Instruction:
 	if isinstance(op1, Constant) and isinstance(op2, Constant):
 		return mov(dest, Constant(op1.value + op2.value))
 
+	elif isinstance(op1, Constant):
+		op1, op2 = op2, op1
+
 	return Instruction("add", [ dest, op1, op2 ])
 
 
