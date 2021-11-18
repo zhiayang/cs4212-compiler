@@ -32,12 +32,12 @@ typecheck:
 
 compile:
 	@mypy compile.py
-	@python compile.py -v -O test/01_simple.j
-	@$(ARM_CC) -o test/01_simple.out -static test/01_simple.s
+	@python compile.py -v -O test/02_cse.j
+	@$(ARM_CC) -o test/02_cse.out -static test/02_cse.s
 
 
 gem5: compile
-	@$(GEM5_CMD) test/01_simple.out
+	@$(GEM5_CMD) test/02_cse.out
 
 qemu: compile
-	@$(QEMU) test/01_simple.out
+	@$(QEMU) test/02_cse.out

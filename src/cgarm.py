@@ -177,7 +177,7 @@ class Cond:
 
 def ensure_operand_kind(instr: str, op: Operand, nth: str, kind: Type[Operand]):
 	if not isinstance(op, kind):
-		raise CGException(f"{nth} operand for '{instr}' must be {kind.kind_str()}")
+		raise CGException(f"{nth} operand for '{instr}' must be {kind.kind_str()} (got {op})")
 
 
 

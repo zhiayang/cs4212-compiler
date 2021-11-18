@@ -9,6 +9,7 @@ from . import ast
 from . import ir3
 from . import simp
 from . import iropt
+from . import cgpseudo
 
 from .util import options, Location, TCException, StringView, print_warning
 
@@ -21,6 +22,11 @@ class ConstantVoid(ir3.Value):
 	def __str__(self) -> str:
 		return "void"
 
+	def __eq__(self, other: object) -> bool:
+		return isinstance(other, ConstantVoid)
+
+	def __hash__(self) -> int:
+		return hash("ConstantVoid")
 
 
 class FuncType:
@@ -443,6 +449,8 @@ def typecheck_println(ts: TypecheckState, stmt: ast.PrintLnCall) -> List[ir3.Stm
 
 
 def has_side_effects(expr: ast.Expr) -> bool:
+	# note that we don't consider 'new' to have side effects, for the purposes of checking
+	# whether we should short-circuit or not.
 	if isinstance(expr, ast.FuncCall):
 		return True
 
@@ -475,6 +483,8 @@ def typecheck_cond(ts: TypecheckState, expr: ast.Expr) -> Tuple[List[ir3.Stmt], 
 			if (t2 := ts.get_value_type(v2)) != "Bool":
 				raise TCException(v2.loc, f"expected boolean value on rhs of '&&', got '{t2}' instead")
 
+			tmp1 = ts.make_temp(expr.loc, "Bool")
+			tmp2 = ts.make_temp(expr.loc, "Bool")
 			result = ts.make_temp(expr.loc, "Bool")
 
 			# if the right-side has no side effects, we can just elide the entire
@@ -483,6 +493,9 @@ def typecheck_cond(ts: TypecheckState, expr: ast.Expr) -> Tuple[List[ir3.Stmt], 
 				binop = ir3.BinaryOp(expr.loc, v1, expr.op, v2)
 				return [ *s1, *s2, ir3.AssignOp(expr.loc, result.name, binop) ], ir3.VarRef(expr.loc, result.name)
 
+
+			# note for these: we must ensure that the temporaries are in SSA form, so we actually
+			# generate 3 temporaries here (can't assign true/false directly)
 
 			elif expr.op == "&&":
 				ltrue_block = ir3.Label(expr.lhs.loc, ts.get_new_label())
@@ -493,6 +506,8 @@ def typecheck_cond(ts: TypecheckState, expr: ast.Expr) -> Tuple[List[ir3.Stmt], 
 
 				merge_block = ir3.Label(expr.lhs.loc, ts.get_new_label())
 
+				tmp3 = ts.make_temp(expr.loc, "Bool")
+
 				stmts = [
 					# generate the code for the lhs
 					*s1,
@@ -502,7 +517,7 @@ def typecheck_cond(ts: TypecheckState, expr: ast.Expr) -> Tuple[List[ir3.Stmt], 
 
 					# now in the left-false case
 					lfalse_block,
-					ir3.AssignOp(expr.loc, result.name, ir3.ValueExpr(expr.loc, ir3.ConstantBool(expr.loc, False))),
+					assign1 := ir3.AssignOp(expr.loc, tmp1.name, ir3.ValueExpr(expr.loc, ir3.ConstantBool(expr.loc, False))),
 					ir3.Branch(expr.loc, merge_block.name),
 
 					# now in the lhs-true case
@@ -515,15 +530,17 @@ def typecheck_cond(ts: TypecheckState, expr: ast.Expr) -> Tuple[List[ir3.Stmt], 
 
 					# rhs-false case
 					rfalse_block,
-					ir3.AssignOp(expr.loc, result.name, ir3.ValueExpr(expr.loc, ir3.ConstantBool(expr.loc, False))),
+					assign2 := ir3.AssignOp(expr.loc, tmp2.name, ir3.ValueExpr(expr.loc, ir3.ConstantBool(expr.loc, False))),
 					ir3.Branch(expr.loc, merge_block.name),
 
 					# true case
 					rtrue_block,
-					ir3.AssignOp(expr.loc, result.name, ir3.ValueExpr(expr.loc, ir3.ConstantBool(expr.loc, True))),
+					assign3 := ir3.AssignOp(expr.loc, tmp3.name, ir3.ValueExpr(expr.loc, ir3.ConstantBool(expr.loc, True))),
 					ir3.Branch(expr.loc, merge_block.name),
 
-					merge_block
+					merge_block,
+					cgpseudo.PhiNode(expr.loc, result.name,
+						[(tmp1.name, assign1), (tmp2.name, assign2), (tmp3.name, assign3)])
 				]
 
 				return (stmts, ir3.VarRef(expr.loc, result.name))
@@ -550,16 +567,17 @@ def typecheck_cond(ts: TypecheckState, expr: ast.Expr) -> Tuple[List[ir3.Stmt], 
 
 					# false-false case:
 					false_false_block,
-					ir3.AssignOp(expr.loc, result.name, ir3.ValueExpr(expr.loc, ir3.ConstantBool(expr.loc, False))),
+					assign1 := ir3.AssignOp(expr.loc, tmp1.name, ir3.ValueExpr(expr.loc, ir3.ConstantBool(expr.loc, False))),
 					ir3.Branch(expr.loc, merge_block.name),
 
 					# true case:
 					true_block,
-					ir3.AssignOp(expr.loc, result.name, ir3.ValueExpr(expr.loc, ir3.ConstantBool(expr.loc, True))),
+					assign2 := ir3.AssignOp(expr.loc, tmp2.name, ir3.ValueExpr(expr.loc, ir3.ConstantBool(expr.loc, True))),
 					ir3.Branch(expr.loc, merge_block.name),
 
 					# merge:
-					merge_block
+					merge_block,
+					cgpseudo.PhiNode(expr.loc, result.name, [(tmp1.name, assign1), (tmp2.name, assign2)])
 				]
 				return (stmts, ir3.VarRef(expr.loc, result.name))
 
@@ -876,9 +894,15 @@ def ensure_correct_basic_blocks(func: ir3.FuncDefn):
 	for block in func.blocks:
 		last = block.stmts[-1]
 		if not (isinstance(last, ir3.ReturnStmt) or isinstance(last, ir3.Branch)):
-			raise TCException(block.loc, f"invalid IR generation: malformed basic block (fallthrough)")
+			raise TCException(block.loc, f"malformed IR: fallthrough in basic block")
 
 
+def ensure_temporaries_are_ssa(func: ir3.FuncDefn):
+	for temp in filter(lambda x: x.name.startswith("_"), func.vars):
+		assigns = iropt.get_var_assigns(func, temp.name)
+		if len(assigns) > 1:
+			raise TCException(assigns[-1].loc,
+				f"malformed IR: temporary '{temp.name}' was assigned {len(assigns)} times")
 
 
 
@@ -956,6 +980,7 @@ def typecheck_method(ts: TypecheckState, meth: ast.MethodDefn) -> ir3.FuncDefn:
 
 
 	ensure_correct_basic_blocks(func)
+	ensure_temporaries_are_ssa(func)
 
 	if options.optimisations_enabled():
 		iropt.optimise(func)

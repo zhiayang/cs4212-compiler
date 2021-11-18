@@ -157,8 +157,14 @@ def codegen_expr(cs: CodegenState, fs: FuncState, expr: ir3.Expr, dest_reg: cgar
 
 
 def codegen_assign(cs: CodegenState, fs: FuncState, assign: ir3.AssignOp):
-	dest_reg = fs.get_location(assign.lhs).register()
-	codegen_expr(cs, fs, assign.rhs, dest_reg, assign.id)
+	# if this had no location, then it must be an unused variable, which is fine.
+	# this is only valid in assignments, since any use of it elsewhere would
+	# obviously necessitate that it is used.
+
+	if not (loc := fs.get_location(assign.lhs)).have_register():
+		return
+
+	codegen_expr(cs, fs, assign.rhs, loc.register(), assign.id)
 
 
 

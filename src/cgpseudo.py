@@ -63,3 +63,13 @@ class StoreField(ir3.Stmt):
 	def __str__(self) -> str:
 		return f"storefield: {self.type}, *{self.ptr}.{self.field} = {self.rhs};"
 
+# yes, i'm turning ir3 into SSA.
+class PhiNode(ir3.Stmt):
+	# values is a list of (var_name, assign_stmt)
+	def __init__(self, loc: Location, var: str, values: List[Tuple[str, ir3.AssignOp]]) -> None:
+		super().__init__(loc)
+		self.lhs = var
+		self.values = values
+
+	def __str__(self) -> str:
+		return f"{self.lhs} = phi {list(map(lambda x: x[0], self.values))};"

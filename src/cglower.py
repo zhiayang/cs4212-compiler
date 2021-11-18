@@ -166,10 +166,25 @@ def lower_stmt(stmt: ir3.Stmt, ctr: List[int]) -> Tuple[List[ir3.Stmt], List[ir3
 		return [ stmt ], []
 
 
+def lower_phi_nodes(func: ir3.FuncDefn) -> None:
+	for b in func.blocks:
+		for i, stmt in enumerate(b.stmts):
+			if isinstance(stmt, cgpseudo.PhiNode):
+				# redirect the sub-assignments to instead set the main variable.
+				for _, assign in stmt.values:
+					assign.lhs = stmt.lhs
+
+				# and then replace the node itself with a dummy.
+				b.stmts[i] = cgpseudo.DummyStmt(stmt.loc)
+
+
 def lower_function(func: ir3.FuncDefn) -> None:
 
 	const_nums = [0]
 	func.blocks[0].stmts.insert(0, cgpseudo.DummyStmt(func.loc))
+
+	# first, get rid of phi nodes.
+	lower_phi_nodes(func)
 
 	for b in func.blocks:
 		backup = copy(b.stmts)

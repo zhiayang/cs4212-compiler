@@ -57,9 +57,10 @@ class CodegenState:
 
 
 class VarLoc:
-	def __init__(self, ty: str) -> None:
+	def __init__(self, name: str, ty: str) -> None:
 		self.reg: Optional[cgarm.Register] = None
 		self.ofs: Optional[int] = None
+		self.name: str = name
 		self.type: str = ty
 
 	def set_stack(self, ofs: int) -> VarLoc:
@@ -79,9 +80,15 @@ class VarLoc:
 		return self
 
 	def register(self) -> cgarm.Register:
+		if self.reg is None:
+			raise CGException(f"variable '{self.name}' has no register")
+
 		return cast(cgarm.Register, self.reg)
 
 	def stack_ofs(self) -> int:
+		if self.ofs is None:
+			raise CGException(f"variable '{self.name}' has no spill location")
+
 		return cast(int, self.ofs)
 
 	def have_register(self) -> bool:
@@ -130,7 +137,7 @@ class FuncState:
 			if param.name in set(map(lambda x: x.name, method.vars)):
 				continue
 
-			ploc = VarLoc(param.type)
+			ploc = VarLoc(param.name, param.type)
 			if i < 4:
 				arg_reg = cgarm.Register(f"a{i + 1}")
 				if param.name in spills:
@@ -164,7 +171,7 @@ class FuncState:
 		# note the negative frame_size here (since the stack grows down, and bp is nearer the top of the stack).
 		# TODO: this makes bools 4 bytes
 		for var in method.vars:
-			ploc = VarLoc(var.type)
+			ploc = VarLoc(var.name, var.type)
 
 			# note that spilling and being assigned something are not mutually exclusive. now that we
 			# have spill/restore pseudo-ops, scratch registers are no longer necessary, which means that

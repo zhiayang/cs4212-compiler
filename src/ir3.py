@@ -18,6 +18,12 @@ class Value(ABC):
 	@abstractmethod
 	def __str__(self) -> str: ...
 
+	@abstractmethod
+	def __eq__(self, other: object) -> bool: ...
+
+	@abstractmethod
+	def __hash__(self) -> int: ...
+
 class ConstantInt(Value):
 	def __init__(self, loc: Location, value: int) -> None:
 		super().__init__(loc)
@@ -25,6 +31,12 @@ class ConstantInt(Value):
 
 	def __str__(self) -> str:
 		return str(self.value)
+
+	def __eq__(self, other: object) -> bool:
+		return isinstance(other, ConstantInt) and other.value == self.value
+
+	def __hash__(self) -> int:
+		return hash(self.value)
 
 class ConstantString(Value):
 	def __init__(self, loc: Location, value: str) -> None:
@@ -34,6 +46,12 @@ class ConstantString(Value):
 	def __str__(self) -> str:
 		return f"\"{self.value}\""
 
+	def __eq__(self, other: object) -> bool:
+		return isinstance(other, ConstantString) and other.value == self.value
+
+	def __hash__(self) -> int:
+		return hash(self.value)
+
 class ConstantBool(Value):
 	def __init__(self, loc: Location, value: bool) -> None:
 		super().__init__(loc)
@@ -42,12 +60,24 @@ class ConstantBool(Value):
 	def __str__(self) -> str:
 		return f"{'true' if self.value else 'false'}"
 
+	def __eq__(self, other: object) -> bool:
+		return isinstance(other, ConstantBool) and other.value == self.value
+
+	def __hash__(self) -> int:
+		return hash(self.value)
+
 class ConstantNull(Value):
 	def __init__(self, loc: Location) -> None:
 		super().__init__(loc)
 
 	def __str__(self) -> str:
 		return "null"
+
+	def __eq__(self, other: object) -> bool:
+		return isinstance(other, ConstantNull)
+
+	def __hash__(self) -> int:
+		return hash("ConstantNull")
 
 class VarRef(Value):
 	def __init__(self, loc: Location, name: str) -> None:
@@ -56,6 +86,15 @@ class VarRef(Value):
 
 	def __str__(self) -> str:
 		return self.name
+
+	def __eq__(self, other: object) -> bool:
+		return isinstance(other, VarRef) and other.name == self.name
+
+	def __hash__(self) -> int:
+		return hash(self.name)
+
+
+
 
 class VarDecl:
 	def __init__(self, loc: Location, name: str, type: str) -> None:
@@ -70,11 +109,9 @@ class VarDecl:
 
 
 class Stmt(ABC):
-	counter = itertools.count()
-
 	def __init__(self, loc: Location) -> None:
 		self.loc: Location = loc
-		self.id = next(Stmt.counter)
+		self.id: int = 0
 
 	@abstractmethod
 	def __str__(self) -> str: ...
@@ -82,9 +119,15 @@ class Stmt(ABC):
 class Expr(ABC):
 	def __init__(self, loc: Location) -> None:
 		self.loc: Location = loc
+		self.id: int = 0
 
 	@abstractmethod
 	def __str__(self) -> str: ...
+
+	# for the purposes of subexpression elimination, we need to be able
+	# to determine if expressions are equivalent.
+	@abstractmethod
+	def __eq__(self, other: object) -> bool: ...
 
 
 class BinaryOp(Expr):
@@ -97,6 +140,10 @@ class BinaryOp(Expr):
 	def __str__(self) -> str:
 		return f"{self.lhs} {self.op} {self.rhs}"
 
+	def __eq__(self, other: object) -> bool:
+		return isinstance(other, BinaryOp) and (self.lhs == other.lhs) \
+			and (self.op == other.op) and (self.rhs == other.rhs)
+
 class UnaryOp(Expr):
 	def __init__(self, loc: Location, op: str, expr: Value) -> None:
 		super().__init__(loc)
@@ -105,6 +152,9 @@ class UnaryOp(Expr):
 
 	def __str__(self) -> str:
 		return f"{self.op}{self.expr}"
+
+	def __eq__(self, other: object) -> bool:
+		return isinstance(other, UnaryOp) and (self.expr == other.expr) and (self.op == other.op)
 
 class DotOp(Expr):
 	def __init__(self, loc: Location, lhs: str, rhs: str) -> None:
@@ -115,6 +165,9 @@ class DotOp(Expr):
 	def __str__(self) -> str:
 		return f"{self.lhs}.{self.rhs}"
 
+	def __eq__(self, other: object) -> bool:
+		return isinstance(other, DotOp) and (self.lhs == other.lhs) and (self.rhs == other.rhs)
+
 class ValueExpr(Expr):
 	def __init__(self, loc: Location, value: Value) -> None:
 		super().__init__(loc)
@@ -123,6 +176,9 @@ class ValueExpr(Expr):
 	def __str__(self) -> str:
 		return f"{self.value}"
 
+	def __eq__(self, other: object) -> bool:
+		return isinstance(other, ValueExpr) and (self.value == other.value)
+
 class NewOp(Expr):
 	def __init__(self, loc: Location, cls: str) -> None:
 		super().__init__(loc)
@@ -130,6 +186,10 @@ class NewOp(Expr):
 
 	def __str__(self) -> str:
 		return f"new {self.cls}()"
+
+	def __eq__(self, other: object) -> bool:
+		return isinstance(other, NewOp) and (self.cls == other.cls)
+
 
 class FnCall:
 	def __init__(self, loc: Location, name: str, args: List[Value]) -> None:
@@ -140,6 +200,10 @@ class FnCall:
 	def __str__(self) -> str:
 		return f"{self.name}({', '.join(map(str, self.args))})"
 
+	def __eq__(self, other: object) -> bool:
+		return isinstance(other, FnCall) and (self.name == other.name) and (self.args == other.args)
+
+
 class FnCallExpr(Expr):
 	def __init__(self, loc: Location, call: FnCall) -> None:
 		super().__init__(loc)
@@ -147,6 +211,9 @@ class FnCallExpr(Expr):
 
 	def __str__(self) -> str:
 		return str(self.call)
+
+	def __eq__(self, other: object) -> bool:
+		return isinstance(other, FnCallExpr) and (self.call == other.call)
 
 
 

@@ -1,4 +1,4 @@
-@ jlite compiler: compile.py -v -O test/01_simple.j
+@ jlite compiler: ./compile.py --dump-ir3-lowered -O test/01_simple.j
 .text
 .global main_dummy
 .type main_dummy, %function

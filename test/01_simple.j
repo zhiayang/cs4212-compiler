@@ -1,3 +1,5 @@
+// 01_simple.j
+
 class Main
 {
 	Void main()
