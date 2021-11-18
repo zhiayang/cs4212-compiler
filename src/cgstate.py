@@ -344,13 +344,18 @@ class FuncState:
 		restore = self.used_regs.intersection(callee_saved)
 
 		instrs = []
-		instrs.append(cgarm.store_multiple(cgarm.SP, [ cgarm.LR ]))
 
+		# if the frame size is 0, combine the two pushes into one
 		if self.frame_size > 0:
+			instrs.append(cgarm.store_multiple(cgarm.SP, [ cgarm.LR ]))
 			instrs.append(cgarm.sub(cgarm.SP, cgarm.SP, cgarm.Constant(self.frame_size)))
 
-		if len(restore) > 0:
-			instrs.append(cgarm.store_multiple(cgarm.SP, map(cgarm.Register, restore)))
+			if len(restore) > 0:
+				instrs.append(cgarm.store_multiple(cgarm.SP, map(cgarm.Register, restore)))
+
+		else:
+			instrs.append(cgarm.store_multiple(cgarm.SP, [ cgarm.LR, *map(cgarm.Register, restore) ]))
+
 
 		return instrs
 
@@ -362,13 +367,16 @@ class FuncState:
 		instrs = []
 		instrs.append(cgarm.label(self.exit_label))
 
-		if len(restore) > 0:
-			instrs.append(cgarm.load_multiple(cgarm.SP, map(cgarm.Register, restore)))
-
 		if self.frame_size > 0:
-			instrs.append(cgarm.add(cgarm.SP, cgarm.SP, cgarm.Constant(self.frame_size)))
+			if len(restore) > 0:
+				instrs.append(cgarm.load_multiple(cgarm.SP, map(cgarm.Register, restore)))
 
-		instrs.append(cgarm.load_multiple(cgarm.SP, [ cgarm.PC ]))
+			instrs.append(cgarm.add(cgarm.SP, cgarm.SP, cgarm.Constant(self.frame_size)))
+			instrs.append(cgarm.load_multiple(cgarm.SP, [ cgarm.PC ]))
+
+		else:
+			instrs.append(cgarm.load_multiple(cgarm.SP, [ cgarm.PC, *map(cgarm.Register, restore) ]))
+
 
 		return instrs
 
