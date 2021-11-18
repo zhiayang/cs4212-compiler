@@ -12,6 +12,9 @@ class Operand(ABC):
 	@abstractmethod
 	def __str__(self) -> str: ...
 
+	@abstractmethod
+	def __eq__(self, other: object) -> bool: ...
+
 	def is_constant(self) -> bool:
 		return isinstance(self, Constant)
 
@@ -74,6 +77,10 @@ class Memory(Operand):
 	def __str__(self) -> str:
 		return f"[{self.base}, #{self.offset}]{'!' if self.post_incr else ''}"
 
+	def __eq__(self, other: object) -> bool:
+		return isinstance(other, Memory) and (self.base == other.base) \
+			and (self.offset == other.offset) and (self.post_incr == other.post_incr)
+
 
 
 class Constant(Operand):
@@ -93,6 +100,8 @@ class Constant(Operand):
 		else:
 			return f"#{self.value}"
 
+	def __eq__(self, other: object) -> bool:
+		return isinstance(other, Constant) and (self.value == other.value) and (self.is_mem == other.is_mem)
 
 
 
@@ -133,6 +142,13 @@ class Instruction():
 			annots = ""
 
 		return f"{foo}{annots}"
+
+	def __eq__(self, other: object) -> bool:
+		if not isinstance(other, Instruction):
+			return False
+
+		return (self.instr == other.instr) and (self.operands == other.operands) \
+			and (self.raw_operand == other.raw_operand) and (self.is_label == other.is_label)
 
 
 	@staticmethod

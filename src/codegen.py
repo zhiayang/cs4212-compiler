@@ -387,6 +387,9 @@ def codegen_method(cs: CodegenState, method: ir3.FuncDefn):
 		for stmt in block.stmts:
 			codegen_stmt(cs, fs, stmt)
 
+	if options.optimisations_enabled():
+		cgopt.optimise(fs)
+
 	cs.emit_lines(fs.finalise())
 	cs.emit_raw(f"\n")
 

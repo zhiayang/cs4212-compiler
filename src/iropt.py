@@ -13,6 +13,50 @@ from . import cgpseudo
 from . import util
 
 
+
+def optimise(func: ir3.FuncDefn):
+	passes = 0
+
+	return
+
+	# just in case we don't terminate...
+	while passes < 500:
+		passes += 1
+		all_stmts = renumber_statements(func)
+		all_exprs = renumber_expressions(all_stmts)
+
+		# these things might remove statements, which screws up the numbering.
+		# it's safer to just restart it (and renumber the statements) when any
+		# of the optimisations makes a change.
+
+		if remove_unreachable_blocks(func):     continue
+		if remove_double_jumps(func):           continue
+		if remove_redundant_temporaries(func):  continue
+		if remove_unused_variables(func):       continue
+
+		if eliminate_common_subexpressions(func, all_stmts, all_exprs):
+			continue
+
+		if propagate_copies(func, all_stmts):
+			continue
+
+		if propagate_constants(func, all_stmts):
+			continue
+
+		if evaluate_constants(func):
+			continue
+
+		if remove_unreachable_stmts(func):
+			continue
+
+		break
+
+	util.log(f"opt({func.name}): completed in {passes} pass{'' if passes == 1 else 'es'}")
+
+
+
+
+
 def remove_unreachable_blocks(func: ir3.FuncDefn) -> bool:
 	block_names: Dict[str, ir3.BasicBlock] = {}
 	for block in func.blocks:
@@ -510,52 +554,6 @@ def remove_unreachable_stmts(func: ir3.FuncDefn) -> bool:
 	return num_removed > 0
 
 
-
-
-
-def optimise(func: ir3.FuncDefn):
-	passes = 0
-
-	# just in case we don't terminate...
-	while passes < 500:
-		passes += 1
-
-		# print(func)
-
-
-		all_stmts = renumber_statements(func)
-		all_exprs = renumber_expressions(all_stmts)
-
-		# compute_available_expressions(func, all_stmts)
-
-		# these things might remove statements, which screws up the numbering.
-		# it's safer to just restart it (and renumber the statements) when any
-		# of the optimisations makes a change.
-
-		if remove_unreachable_blocks(func):     continue
-		if remove_double_jumps(func):           continue
-		if remove_redundant_temporaries(func):  continue
-		if remove_unused_variables(func):       continue
-
-		if eliminate_common_subexpressions(func, all_stmts, all_exprs):
-			continue
-
-		if propagate_copies(func, all_stmts):
-			continue
-
-		if propagate_constants(func, all_stmts):
-			continue
-
-		if evaluate_constants(func):
-			continue
-
-		if remove_unreachable_stmts(func):
-			continue
-
-		# finished
-		break
-
-	util.log(f"opt({func.name}): completed in {passes} pass{'' if passes == 1 else 'es'}")
 
 
 
