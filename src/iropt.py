@@ -330,7 +330,7 @@ def propagate_copies(func: ir3.FuncDefn, all_stmts: List[ir3.Stmt]) -> bool:
 	def kill_func(stmt: ir3.Stmt, _: List[Any]) -> Set[str]:
 		return set()
 
-	ins, outs, gens, kills = forward_dataflow(func, all_stmts, str, [], gen_func, kill_func, union = True)
+	ins, outs, gens, kills = forward_dataflow(func, all_stmts, str, [], gen_func, kill_func, union = False)
 
 	# which statements does a particular value reach
 	reaching_stmts: Dict[str, Set[int]] = dict()
@@ -375,7 +375,7 @@ def propagate_constants(func: ir3.FuncDefn, all_stmts: List[ir3.Stmt]) -> bool:
 
 	# a constant is generated when you assign a constant to a variable.
 	# pregenerate this (since we'll need it later anyway_
-	constants: Dict[str, Dict[int, ir3.Value]] = dict()
+	constants: Dict[str, Set[ir3.Value]] = dict()
 
 	# which statement uses which variables
 	used_variables: Dict[int, Set[str]] = dict()
@@ -385,7 +385,7 @@ def propagate_constants(func: ir3.FuncDefn, all_stmts: List[ir3.Stmt]) -> bool:
 
 		if isinstance(stmt, ir3.AssignOp) and isinstance(stmt.rhs, ir3.ValueExpr):
 			if is_constant_value(stmt.rhs.value):
-				constants.setdefault(stmt.lhs, dict())[stmt.id] = stmt.rhs.value
+				constants.setdefault(stmt.lhs, set()).add(stmt.rhs.value)
 
 		used_variables[stmt.id] = get_statement_uses(stmt)
 
@@ -404,16 +404,17 @@ def propagate_constants(func: ir3.FuncDefn, all_stmts: List[ir3.Stmt]) -> bool:
 			# this kills all.
 			killed: Set[tuple] = set()
 			if stmt.lhs in constants:
-				for vals in constants[stmt.lhs].values():
+				for vals in constants[stmt.lhs]:
 					killed.add((stmt.lhs, vals))
 
 			return killed
 		else:
 			return set()
 
-	ins, outs, _, _ = forward_dataflow(func, all_stmts, tuple, [], gen_func, kill_func, union = True)
+	ins, outs, _, _ = forward_dataflow(func, all_stmts, tuple, [], gen_func, kill_func, union = False)
 
 	preds = compute_predecessors(func)
+	succs = compute_successors(func)
 
 	num_removed = 0
 	for stmt in all_stmts:

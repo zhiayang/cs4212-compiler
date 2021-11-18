@@ -40,15 +40,19 @@ class Foo
 	{
 		Int k;
 		Int c;
+		String str;
 		k = 2 * m;
 		c = 500;
 
+		str = "should have 14 chars: '";
 		while(k > 0)
 		{
 			if(k < 8) { println("you should see this 7 times"); }
 			else      { println("you should also see this 7 times"); }
 			println(k);
 			k = k - 1;
+
+			str = str + "x";
 
 			if(k == 0)
 			{
@@ -60,6 +64,8 @@ class Foo
 			}
 		}
 
+		println(str + "'");
+		println("                      -123456789abcde-");
 		return k;
 	}
 

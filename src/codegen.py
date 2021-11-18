@@ -48,24 +48,28 @@ def get_value_type(cs: CodegenState, fs: FuncState, val: ir3.Value) -> str:
 
 
 
-def codegen_binop(cs: CodegenState, fs: FuncState, expr: ir3.BinaryOp, dest_reg: cgarm.Register):
-
-	if expr.op == "s+":
-		# TODO: string concatenation
-		cs.comment("NOT IMPLEMENTED (string concat)")
-		return
-
-	elif expr.op == "/":
-		# TODO: long division routine
-		cs.comment("NOT IMPLEMENTED (division)")
-		return
-
+def codegen_binop(cs: CodegenState, fs: FuncState, expr: ir3.BinaryOp, dest_reg: cgarm.Register, stmt_id: int):
 
 	lhs = codegen_value(cs, fs, expr.lhs)
 	rhs = codegen_value(cs, fs, expr.rhs)
 
+	if expr.op == "s+":
+		spills, stack_adjust = pre_function_call(cs, fs, stmt_id, dest_reg)
+
+		fs.emit(cgarm.mov(cgarm.A1, lhs))
+		fs.emit(cgarm.mov(cgarm.A2, rhs))
+		fs.emit(cgarm.call("__string_concat"))
+
+		# move the return value from A1 to the correct destination
+		fs.emit(cgarm.mov(dest_reg, cgarm.A1))
+		post_function_call(cs, fs, spills, stack_adjust)
+
+	elif expr.op == "/":
+		# TODO: long division routine
+		cs.comment("NOT IMPLEMENTED (division)")
+
 	# turns out all of these need unique paths ><
-	if expr.op == "+":
+	elif expr.op == "+":
 		fs.emit(cgarm.add(dest_reg, lhs, rhs))
 
 	elif expr.op == "-":
@@ -119,7 +123,7 @@ def codegen_dotop(cs: CodegenState, fs: FuncState, dot: ir3.DotOp, dest_reg: cga
 
 def codegen_expr(cs: CodegenState, fs: FuncState, expr: ir3.Expr, dest_reg: cgarm.Register, stmt_id: int):
 	if isinstance(expr, ir3.BinaryOp):
-		codegen_binop(cs, fs, expr, dest_reg)
+		codegen_binop(cs, fs, expr, dest_reg, stmt_id)
 
 	elif isinstance(expr, ir3.UnaryOp):
 		codegen_unaryop(cs, fs, expr, dest_reg)
@@ -461,29 +465,29 @@ main:
 .global __string_concat
 .type __string_concat, %function
 __string_concat:
-	stmfd sp!, {v1, v2, v3, v4, v5, lr}
-
 	@ takes two args: (the strings, duh) and returns 1 (the result, duh)
-
-	@ 0. save the string pointers into not-a1 and not-a2
-	mov v1, a1
+	stmfd sp!, {v1, v2, v3, v4, v5, fp, lr}
+	mov v1, a1          @ save the string pointers into not-a1 and not-a2
 	mov v2, a2
-
-	@ 1. load the lengths of the two strings (they are pascal-style but 4 bytes)
-	ldr a1, [v1, #0]
-	ldr a2, [v2, #0]
-
-	@ 2. get the new length; a1 contains the +5 (for length + null term), v3 the real length
-	add v3, a1, a2
-	add a1, v3, #5
-
-	@ 3. malloc some memory (memory in a1)
-	bl malloc(PLT)
-
-
-
-
-	ldmfd sp!, {v1, v2, v3, v4, v5, pc}
+	ldr v4, [v1, #0]    @ load the lengths of the two strings
+	ldr v5, [v2, #0]
+	add v3, v4, v5      @ get the new length; a1 contains the +5 (for length + null term)
+	add a2, v3, #5      @ v3 = the real length
+	mov a1, #1
+	bl calloc(PLT)      @ malloc some memory (memory in a1)
+	mov fp, a1          @ save the return pointer
+	str v3, [a1, #0]    @ store the length (v3)
+	add a1, a1, #4      @ dst
+	add a2, v1, #4      @ src - string 1
+	mov a3, v4          @ len - string 1
+	bl memcpy(PLT)      @ memcpy returns dst.
+	add a1, fp, v4
+	add a1, a1, #4
+	add a2, v2, #4      @ src - string 2
+	mov a3, v5          @ len - string 2
+	bl memcpy(PLT)      @ copy the second string
+	mov a1, fp          @ return value
+	ldmfd sp!, {v1, v2, v3, v4, v5, fp, pc}
 """)
 
 

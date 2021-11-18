@@ -69,49 +69,71 @@ _J3Foo_4asdfE:
 .type _J3Foo_4bsdfiE, %function
 _J3Foo_4bsdfiE:
 	@ spills:  <none>
-	@ assigns:    'm' = a2;   '_c1' = v1;     'k' = v1;  '_c14' = v2;  '_c17' = v2
-	@          '_c30' = v2;   '_t1' = v2;   '_t2' = v2;   '_t4' = v2
-	stmfd sp!, {v1, v2, lr}
+	@ assigns:    'm' = a2;   '_c1' = v1;   '_c3' = v1;  '_c48' = v1;   '_c5' = v1
+	@           '_t7' = v1;   'str' = v1;     'k' = v2;  '_c44' = v3;     'c' = v3
+	@          '_c18' = v4;  '_c21' = v4;  '_c30' = v4;   '_t1' = v4;   '_t2' = v4
+	@           '_t5' = v4;   '_t6' = v4
+	stmfd sp!, {v1, v2, v3, v4, lr}
 ._J3Foo_4bsdfiE_entry:
 	mov v1, #2                              @ _c1 = 2;
-	mul v1, a2, v1                          @ k = m * _c1;
+	mul v2, a2, v1                          @ k = m * _c1;
+	ldr v1, =#500                           @ _c3 = 500;
+	mov v3, v1                              @ c = _c3;
+	ldr v1, =.string4                       @ _c5 = "should have 14 chars: '";
 ._J3Foo_4bsdfiE_L1:
-	cmp v1, #0                              @ _t1 = k > 0;
+	cmp v2, #0                              @ _t1 = k > 0;
 	bgt ._J3Foo_4bsdfiE_L8
 	b ._J3Foo_4bsdfiE_L9                    @ goto .L9;
 ._J3Foo_4bsdfiE_L8:
-	cmp v1, #8                              @ _t2 = k < 8;
+	cmp v2, #8                              @ _t2 = k < 8;
 	blt ._J3Foo_4bsdfiE_L2
 ._J3Foo_4bsdfiE_L3:
-	ldr v2, =.string4                       @ _c14 = "you should also see this 7 times";
-	mov a1, v2                              @ println(_c14);
+	ldr v4, =.string5                       @ _c18 = "you should also see this 7 times";
+	mov a1, v4                              @ println(_c18);
 	add a1, a1, #4
 	bl puts(PLT)
 	b ._J3Foo_4bsdfiE_L4                    @ goto .L4;
 ._J3Foo_4bsdfiE_L2:
-	ldr v2, =.string5                       @ _c17 = "you should see this 7 times";
-	mov a1, v2                              @ println(_c17);
+	ldr v4, =.string6                       @ _c21 = "you should see this 7 times";
+	mov a1, v4                              @ println(_c21);
 	add a1, a1, #4
 	bl puts(PLT)
 ._J3Foo_4bsdfiE_L4:
 	ldr a1, =.string1_raw                   @ println(k);
-	mov a2, v1
+	mov a2, v2
 	bl printf(PLT)
-	sub v1, v1, #1                          @ k = k - 1;
-	cmp v1, #0                              @ _t4 = k == 0;
+	sub v2, v2, #1                          @ k = k - 1;
+	ldr v4, =.string7                       @ _c30 = "x";
+	mov a1, v1                              @ str = str s+ _c30;
+	mov a2, v4
+	bl __string_concat
+	mov v1, a1
+	cmp v2, #0                              @ _t5 = k == 0;
 	beq ._J3Foo_4bsdfiE_L5
 	b ._J3Foo_4bsdfiE_L1                    @ goto .L1;
 ._J3Foo_4bsdfiE_L5:
-	ldr v2, =#569                           @ _c30 = 569;
-	ldr a1, =.string1_raw                   @ println(_c30);
-	mov a2, v2
+	add v4, v3, #69                         @ _t6 = c + 69;
+	ldr a1, =.string1_raw                   @ println(_t6);
+	mov a2, v4
 	bl printf(PLT)
 	b ._J3Foo_4bsdfiE_L1                    @ goto .L1;
 ._J3Foo_4bsdfiE_L9:
-	mov a1, v1                              @ return k;
+	ldr v3, =.string8                       @ _c44 = "'";
+	mov a1, v1                              @ _t7 = str s+ _c44;
+	mov a2, v3
+	bl __string_concat
+	mov v1, a1
+	mov a1, v1                              @ println(_t7);
+	add a1, a1, #4
+	bl puts(PLT)
+	ldr v1, =.string9                       @ _c48 = "                      -123456789abcde-";
+	mov a1, v1                              @ println(_c48);
+	add a1, a1, #4
+	bl puts(PLT)
+	mov a1, v2                              @ return k;
 	b ._J3Foo_4bsdfiE_exit
 ._J3Foo_4bsdfiE_exit:
-	ldmfd sp!, {v1, v2, pc}
+	ldmfd sp!, {v1, v2, v3, v4, pc}
 
 
 .global _J3Foo_3fooiiiiiE
@@ -142,7 +164,7 @@ _J3Foo_3fooiiiiiE:
 	cmp v2, v3                              @ _t3 = k == _c14;
 	beq ._J3Foo_3fooiiiiiE_L10
 ._J3Foo_3fooiiiiiE_L11:
-	ldr v3, =.string6                       @ _c18 = "omegalul";
+	ldr v3, =.string10                      @ _c18 = "omegalul";
 	sub sp, sp, #4                          @ println(_c18);; align adjustment
 	stmfd sp!, {a1}                         @ caller-save
 	mov a1, v3
@@ -156,7 +178,7 @@ _J3Foo_3fooiiiiiE:
 	str v3, [a1, #4]                        @ storefield: Int, *this.f2 = _g23;
 	b ._J3Foo_3fooiiiiiE_L12                @ goto .L12;
 ._J3Foo_3fooiiiiiE_L10:
-	ldr v3, =.string7                       @ _c26 = "kekw";
+	ldr v3, =.string11                      @ _c26 = "kekw";
 	sub sp, sp, #4                          @ println(_c26);; align adjustment
 	stmfd sp!, {a1}                         @ caller-save
 	mov a1, v3
@@ -176,7 +198,7 @@ _J3Foo_3fooiiiiiE:
 	cmp v1, v3                              @ _t7 = _t6 != _c41;
 	bne ._J3Foo_3fooiiiiiE_L13
 ._J3Foo_3fooiiiiiE_L14:
-	ldr v1, =.string8                       @ _c45 = "sadge";
+	ldr v1, =.string12                      @ _c45 = "sadge";
 	sub sp, sp, #4                          @ println(_c45);; align adjustment
 	stmfd sp!, {a1}                         @ caller-save
 	mov a1, v1
@@ -186,7 +208,7 @@ _J3Foo_3fooiiiiiE:
 	add sp, sp, #4                          @ align adjustment
 	b ._J3Foo_3fooiiiiiE_L16                @ goto .L16;
 ._J3Foo_3fooiiiiiE_L13:
-	ldr v1, =.string9                       @ _c48 = "poggers";
+	ldr v1, =.string13                      @ _c48 = "poggers";
 	sub sp, sp, #4                          @ println(_c48);; align adjustment
 	stmfd sp!, {a1}                         @ caller-save
 	mov a1, v1
@@ -195,7 +217,7 @@ _J3Foo_3fooiiiiiE:
 	ldmfd sp!, {a1}                         @ caller-restore
 	add sp, sp, #4                          @ align adjustment
 ._J3Foo_3fooiiiiiE_L16:
-	ldr v1, =.string10                      @ _c51 = "poggerino";
+	ldr v1, =.string14                      @ _c51 = "poggerino";
 	sub sp, sp, #4                          @ println(_c51);; align adjustment
 	stmfd sp!, {a1}                         @ caller-save
 	mov a1, v1
@@ -260,29 +282,29 @@ main:
 .global __string_concat
 .type __string_concat, %function
 __string_concat:
-	stmfd sp!, {v1, v2, v3, v4, v5, lr}
-
 	@ takes two args: (the strings, duh) and returns 1 (the result, duh)
-
-	@ 0. save the string pointers into not-a1 and not-a2
-	mov v1, a1
+	stmfd sp!, {v1, v2, v3, v4, v5, fp, lr}
+	mov v1, a1          @ save the string pointers into not-a1 and not-a2
 	mov v2, a2
-
-	@ 1. load the lengths of the two strings (they are pascal-style but 4 bytes)
-	ldr a1, [v1, #0]
-	ldr a2, [v2, #0]
-
-	@ 2. get the new length; a1 contains the +5 (for length + null term), v3 the real length
-	add v3, a1, a2
-	add a1, v3, #5
-
-	@ 3. malloc some memory (memory in a1)
-	bl malloc(PLT)
-
-
-
-
-	ldmfd sp!, {v1, v2, v3, v4, v5, pc}
+	ldr v4, [v1, #0]    @ load the lengths of the two strings
+	ldr v5, [v2, #0]
+	add v3, v4, v5      @ get the new length; a1 contains the +5 (for length + null term)
+	add a2, v3, #5      @ v3 = the real length
+	mov a1, #1
+	bl calloc(PLT)      @ malloc some memory (memory in a1)
+	mov fp, a1          @ save the return pointer
+	str v3, [a1, #0]    @ store the length (v3)
+	add a1, a1, #4      @ dst
+	add a2, v1, #4      @ src - string 1
+	mov a3, v4          @ len - string 1
+	bl memcpy(PLT)      @ memcpy returns dst.
+	add a1, fp, v4
+	add a1, a1, #4
+	add a2, v2, #4      @ src - string 2
+	mov a3, v5          @ len - string 2
+	bl memcpy(PLT)      @ copy the second string
+	mov a1, fp          @ return value
+	ldmfd sp!, {v1, v2, v3, v4, v5, fp, pc}
 
 .data
 .string0:
@@ -306,37 +328,57 @@ __string_concat:
     .asciz "true"
 
 .string4:
-    .word 32
+    .word 23
 .string4_raw:
-    .asciz "you should also see this 7 times"
+    .asciz "should have 14 chars: '"
 
 .string5:
-    .word 27
+    .word 32
 .string5_raw:
-    .asciz "you should see this 7 times"
+    .asciz "you should also see this 7 times"
 
 .string6:
-    .word 8
+    .word 27
 .string6_raw:
-    .asciz "omegalul"
+    .asciz "you should see this 7 times"
 
 .string7:
-    .word 4
+    .word 1
 .string7_raw:
-    .asciz "kekw"
+    .asciz "x"
 
 .string8:
-    .word 5
+    .word 1
 .string8_raw:
-    .asciz "sadge"
+    .asciz "'"
 
 .string9:
-    .word 7
+    .word 38
 .string9_raw:
-    .asciz "poggers"
+    .asciz "                      -123456789abcde-"
 
 .string10:
-    .word 9
+    .word 8
 .string10_raw:
+    .asciz "omegalul"
+
+.string11:
+    .word 4
+.string11_raw:
+    .asciz "kekw"
+
+.string12:
+    .word 5
+.string12_raw:
+    .asciz "sadge"
+
+.string13:
+    .word 7
+.string13_raw:
+    .asciz "poggers"
+
+.string14:
+    .word 9
+.string14_raw:
     .asciz "poggerino"
 
