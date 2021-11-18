@@ -36,6 +36,12 @@ class Register(Operand):
 	def __init__(self, name: str) -> None:
 		self.name = name
 		self.number = Register.reg_numbers[name]
+		self.exclaim = False
+
+	def post_incr(self) -> Register:
+		ret = Register(self.name)
+		ret.exclaim = True
+		return ret
 
 	def __eq__(self, other: object) -> bool:
 		if not isinstance(other, Register):
@@ -44,72 +50,10 @@ class Register(Operand):
 		return (self.name == other.name) and (self.number == other.number)
 
 	def __str__(self) -> str:
-		return self.name
-
-	@staticmethod
-	def A1() -> Register:
-		return Register("a1")
-
-	@staticmethod
-	def A2() -> Register:
-		return Register("a2")
-
-	@staticmethod
-	def A3() -> Register:
-		return Register("a3")
-
-	@staticmethod
-	def A4() -> Register:
-		return Register("a4")
-
-	@staticmethod
-	def V1() -> Register:
-		return Register("v1")
-
-	@staticmethod
-	def V2() -> Register:
-		return Register("v2")
-
-	@staticmethod
-	def V3() -> Register:
-		return Register("v3")
-
-	@staticmethod
-	def V4() -> Register:
-		return Register("v4")
-
-	@staticmethod
-	def V5() -> Register:
-		return Register("v5")
-
-	@staticmethod
-	def V6() -> Register:
-		return Register("v6")
-
-	@staticmethod
-	def V7() -> Register:
-		return Register("v7")
-
-	@staticmethod
-	def FP() -> Register:
-		return Register("fp")
-
-	@staticmethod
-	def IP() -> Register:
-		return Register("ip")
-
-	@staticmethod
-	def SP() -> Register:
-		return Register("sp")
-
-	@staticmethod
-	def LR() -> Register:
-		return Register("lr")
-
-	@staticmethod
-	def PC() -> Register:
-		return Register("pc")
-
+		if self.exclaim:
+			return f"{self.name}!"
+		else:
+			return self.name
 
 
 class Memory(Operand):
@@ -139,17 +83,21 @@ class Constant(Operand):
 
 
 class Instruction():
-	def __init__(self, mnemonic: str, operands: List[Operand], raw_ops: str = ""):
+	def __init__(self, mnemonic: str, operands: List[Operand], raw_ops: str = "", is_label: bool = False):
 		self.instr = mnemonic
 		self.operands = operands
 		self.raw_operand = raw_ops
 		self.annotations: List[str] = []
+		self.is_label = is_label
 
 	def annotate(self, msg: str) -> Instruction:
 		self.annotations.append(msg)
 		return self
 
 	def __str__(self) -> str:
+		if self.is_label:
+			return f"{self.instr}:"
+
 		foo = f"{self.instr} {', '.join(map(str, self.operands))}"
 		if self.raw_operand != "":
 			if len(self.operands) > 0:
@@ -157,8 +105,13 @@ class Instruction():
 			else:
 				foo += self.raw_operand
 
-		a_spaces = ' ' * max(0, 40 - len(foo))
-		return f"{foo}{a_spaces}@ {'; '.join(self.annotations)}"
+		if len(self.annotations) > 0:
+			a_spaces = ' ' * max(0, 40 - len(foo))
+			annots = f"{a_spaces}@ {'; '.join(self.annotations)}"
+		else:
+			annots = ""
+
+		return f"{foo}{annots}"
 
 
 	@staticmethod
@@ -223,7 +176,12 @@ def mul(dest: Operand, op1: Operand, op2: Operand):
 
 
 
+def branch(label: str) -> Instruction:
+	return Instruction("b", [], label)
 
+
+def label(label: str) -> Instruction:
+	return Instruction(label, [], is_label = True)
 
 
 def mov(dest: Operand, src: Operand) -> Instruction:
@@ -253,3 +211,33 @@ def store(src: Operand, dest: Operand) -> Instruction:
 	ensure_operand_kind("str", src, "source", Register)
 	ensure_operand_kind("str", dest, "destination", Memory)
 	return Instruction("str", [ src, dest ])
+
+
+def store_multiple(ptr: Register, regs: Iterable[Register]) -> Instruction:
+	sorted_regs = sorted(regs, key = lambda r: Register.reg_numbers[r.name])
+	return Instruction("stmfd", [ ptr.post_incr() ], f"{{{', '.join(map(str, sorted_regs))}}}")
+
+def load_multiple(ptr: Register, regs: Iterable[Register]) -> Instruction:
+	sorted_regs = sorted(regs, key = lambda r: Register.reg_numbers[r.name])
+	return Instruction("ldmfd", [ ptr.post_incr() ], f"{{{', '.join(map(str, sorted_regs))}}}")
+
+
+
+# globals... kekw
+A1 = Register("a1")
+A2 = Register("a2")
+A3 = Register("a3")
+A4 = Register("a4")
+V1 = Register("v1")
+V2 = Register("v2")
+V3 = Register("v3")
+V4 = Register("v4")
+V5 = Register("v5")
+V6 = Register("v6")
+V7 = Register("v7")
+FP = Register("fp")
+IP = Register("ip")
+SP = Register("sp")
+LR = Register("lr")
+PC = Register("pc")
+

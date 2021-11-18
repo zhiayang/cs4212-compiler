@@ -13,6 +13,10 @@ TODO
 
 11. see if we need (want) to toposort the basic blocks before renumbering/allocating
 
+12. combine push/pop pc with save/restore callee-regs if the stack frame is empty
+	(right now we emit 2 consecutive stmfd/ldmfd instructions)
+	(we might do this as an optimisation pass)
+
 17. register allocation coalescing
 
 19. see if it's possible to "properly split" the live ranges. right now, even though there might be disjoint parts in a var's

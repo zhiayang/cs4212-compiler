@@ -201,12 +201,11 @@ def codegen_return(cs: CodegenState, fs: FuncState, stmt: ir3.ReturnStmt):
 		if value != "a1":
 			cs.emit_raw(f"mov a1, {value}")
 
-	cs.emit_raw(f"b {cs.epilogue_label}")
-
+	fs.branch_to_exit()
 
 
 def codegen_uncond_branch(cs: CodegenState, fs: FuncState, ubr: ir3.Branch):
-	cs.emit_raw(f"b {cs.mangle_label(ubr.label)}")
+	cs.emit_raw(f"b {fs.mangle_label(ubr.label)}")
 
 
 def codegen_cond_branch(cs: CodegenState, fs: FuncState, cbr: ir3.CondBranch):
@@ -214,7 +213,7 @@ def codegen_cond_branch(cs: CodegenState, fs: FuncState, cbr: ir3.CondBranch):
 	assert isinstance(cbr.cond, ir3.Value)
 	assert get_value_type(cs, fs, cbr.cond) == "Bool"
 
-	target = cs.mangle_label(cbr.label)
+	target = fs.mangle_label(cbr.label)
 
 	if isinstance(cbr.cond, ir3.ConstantBool):
 		if cbr.cond.value:
@@ -409,39 +408,16 @@ def codegen_method(cs: CodegenState, method: ir3.FuncDefn):
 
 	assigns, spills, reg_live_ranges = cgreg.allocate_registers(method)
 
-	annot_assigns, annot_spills = cgannotate.annotate_reg_allocs(assigns, spills)
+	# setup the function state
+	fs = FuncState(cs, method, assigns, spills, reg_live_ranges)
 
-	for s in annot_spills:
-		cs.comment(s)
-
-	for a in annot_assigns:
-		cs.comment(a)
-
-
-	# start sending stuff to the gulag, from which we will later rescue them
-	cs.begin_scope()
-	fs = FuncState(cs, method.vars, method.params, assigns, spills, reg_live_ranges)
-
-	# the way we handle returns (which isn't a good way i admit) is to just set the return
-	# value in a1 (if any), then branch to the epilogue. so, emit a label here:
-	cs.set_epilogue(f".{method.name}_epilogue")
-
+	# and codegen all the blocks.
 	for block in method.blocks:
-		cs.emit_raw(f"{cs.mangle_label(block.name)}:", indent = 0)
+		fs.emit_label(block.name)
 		for stmt in block.stmts:
 			codegen_stmt(cs, fs, stmt)
 
-	# rescue the stmts we put in the gulag
-	fn_stmts = cs.get_scoped()
-	cs.end_scope()
-
-	# now that we know which registers were used, we can do the appropriate save/restore.
-	# at this point the actual body has not been emitted (it's in `fn_stmts`).
-	fs.emit_prologue(cs)
-
-	cs.emit_lines(fn_stmts)
-
-	fs.emit_epilogue(cs)
+	cs.emit_lines(fs.finalise())
 	cs.emit_raw(f"\n")
 
 
@@ -463,7 +439,7 @@ def codegen_method(cs: CodegenState, method: ir3.FuncDefn):
 
 
 def codegen(prog: ir3.Program, opt: bool) -> List[str]:
-	cs = CodegenState(opt, prog.classes)
+	cs = CodegenState(prog.classes)
 
 	cs.emit_raw(".text", indent = 0)
 	for method in prog.funcs:

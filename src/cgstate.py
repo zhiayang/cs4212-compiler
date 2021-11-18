@@ -7,6 +7,7 @@ from copy import *
 from . import ir3
 from . import cgopt
 from . import cgarm
+from . import cgannotate
 
 from .util import Location, TCException, CGException, StringView, print_warning, escape_string
 
@@ -17,23 +18,13 @@ STACK_ALIGNMENT = 8
 
 
 class CodegenState:
-	def __init__(self, opt: bool, classes: List[ir3.ClassDefn]) -> None:
-		self.opt = opt
+	def __init__(self, classes: List[ir3.ClassDefn]) -> None:
 		self.lines: List[str] = []
-		self.instructions: List[cgarm.Instruction] = []
 
-		self.epilogue_label = ""
 		self.current_method: ir3.FuncDefn
 		self.strings: Dict[str, int] = dict()
 
 		self.class_layouts: Dict[str, CGClass] = { cls.name: CGClass(self, cls) for cls in classes }
-
-
-	def emit(self, instr: cgarm.Instruction) -> None:
-		self.instructions.append(instr)
-
-	def get_lines(self) -> List[str]:
-		pass
 
 
 
@@ -57,34 +48,8 @@ class CodegenState:
 
 		self.lines[-1] += msg
 
-	def set_epilogue(self, label: str) -> None:
-		self.epilogue_label = label
-
 	def set_current_method(self, method: ir3.FuncDefn) -> None:
 		self.current_method = method
-
-	def mangle_label(self, label: str) -> str:
-		if label[0] == '.':
-			label = label[1:]
-		return f".{self.current_method.name}_{label}"
-
-	# not re-entrant, but then again nothing in this compiler is reentrant
-	# basically this makes all emit calls not add to the big list of instructions
-	# immediately; this is so we have a chance to insert the prologue/epilogue.
-	def begin_scope(self) -> None:
-		self.old_lines = self.lines
-		self.lines = []
-
-	# this gets the lines that were sent to the gulag
-	def get_scoped(self) -> List[str]:
-		return self.lines
-
-	# this ends the scope, *discarding* any lines that were in the gulag
-	def end_scope(self) -> None:
-		self.lines = self.old_lines
-
-	def emit_lines(self, lines: List[str]) -> None:
-		self.lines += lines
 
 	# returns the label of the thing
 	def add_string(self, s: str) -> str:
@@ -99,6 +64,12 @@ class CodegenState:
 	def get_class_layout(self, name: str) -> CGClass:
 		return self.class_layouts[name]
 
+
+	def emit_lines(self, lines: List[str]) -> None:
+		self.lines += lines
+
+	def get_lines(self) -> List[str]:
+		return self.lines
 
 
 
@@ -146,11 +117,15 @@ class VarLoc:
 
 
 class FuncState:
-	def __init__(self, cs: CodegenState, vars: List[ir3.VarDecl], params: List[ir3.VarDecl],
-		assignments: Dict[str, str], spills: Set[str], reg_ranges: Dict[str, Set[int]]) -> None:
+	def __init__(self, cs: CodegenState, method: ir3.FuncDefn, assignments: Dict[str, str],
+		spills: Set[str], reg_ranges: Dict[str, Set[int]]) -> None:
 
 		self.cs = cs
 		self.locations: Dict[str, VarLoc] = dict()
+		self.instructions: List[cgarm.Instruction] = []
+
+		self.method = method
+		self.exit_label = f".{method.name}_exit"
 
 		frame_size: int = 0
 
@@ -167,8 +142,8 @@ class FuncState:
 		# and the local spill area has a negative offset. bools take up 4 bytes on the stack, because there's
 		# not much benefit to optimising that part, and it takes a lot of effort.
 
-		for i, param in enumerate(params):
-			if param.name in set(map(lambda x: x.name, vars)):
+		for i, param in enumerate(method.params):
+			if param.name in set(map(lambda x: x.name, method.vars)):
 				continue
 
 			ploc = VarLoc(param.type)
@@ -204,7 +179,7 @@ class FuncState:
 
 		# note the negative frame_size here (since the stack grows down, and bp is nearer the top of the stack).
 		# TODO: this makes bools 4 bytes
-		for var in vars:
+		for var in method.vars:
 			ploc = VarLoc(var.type)
 
 			# note that spilling and being assigned something are not mutually exclusive. now that we
@@ -230,9 +205,14 @@ class FuncState:
 		self.touched: Set[str] = set(assignments.values())
 
 		self.reg_live_ranges = reg_ranges
+
+		self.assigns: Dict[str, str] = assignments
 		self.spilled: Set[str] = spills
 
 		self.stack_extra_offset = 0
+
+
+
 
 
 	def is_var_used(self, var: str) -> bool:
@@ -304,61 +284,84 @@ class FuncState:
 	def current_stack_offset(self) -> int:
 		return self.frame_size + self.stack_extra_offset
 
+	def mangle_label(self, label: str) -> str:
+		if label[0] == '.':
+			label = label[1:]
 
-	def sort_registers(self, regs: Iterable[str]) -> List[str]:
-		numbers = {
-			"a1":  0, "a2":  1, "a3":  2, "a4":  3,
-			"v1":  4, "v2":  5, "v3":  6, "v4":  7,
-			"v5":  8, "v6":  9, "v7": 10, "fp": 11,
-			"ip": 12, "sp": 13, "lr": 14, "pc": 15
-		}
-
-		return list(sorted(regs, key = lambda x: numbers[x]))
+		return f".{self.method.name}_{label}"
 
 
-	def emit_prologue(self, cs: CodegenState) -> None:
-		callee_saved = set(["v1", "v2", "v3", "v4", "v5", "v6", "v7"])
-		restore = self.sort_registers(callee_saved.intersection(self.touched))
-		if len(restore) == 0:
-			restore_str = ""
-		else:
-			restore_str = (", ".join(restore))
+	def emit_label(self, name: str) -> None:
+		self.emit(cgarm.label(self.mangle_label(name)))
 
-		cs.emit_raw(f"stmfd sp!, {{lr}}")
+
+	def emit(self, instr: cgarm.Instruction) -> None:
+		self.instructions.append(instr)
+
+
+	def branch_to_exit(self) -> None:
+		self.emit(cgarm.branch(self.exit_label))
+
+
+	def finalise(self) -> List[str]:
+		final_insts = [
+			*self.get_prologue(),
+			*self.instructions,
+			*self.get_epilogue()
+		]
+
+		header = [
+			f".global {self.method.name}",
+			f".type {self.method.name}, %function",
+			f"{self.method.name}:"
+		]
+
+		annots = []
+		if cgopt.annotating():
+			annot_assigns, annot_spills = cgannotate.annotate_reg_allocs(self.assigns, self.spilled)
+			for s in annot_spills:
+				annots.append(f"\t@ {s}")
+			for a in annot_assigns:
+				annots.append(f"\t@ {a}")
+
+		return [
+			*header,
+			*annots,
+			*map(lambda x: str(x) if x.is_label else f"\t{x}", final_insts)
+		]
+
+
+
+	def get_prologue(self) -> List[cgarm.Instruction]:
+		callee_saved = ["v1", "v2", "v3", "v4", "v5", "v6", "v7", "fp"]
+		restore = self.touched.intersection(callee_saved)
+
+		instrs = []
+		instrs.append(cgarm.store_multiple(cgarm.SP, [ cgarm.LR ]))
 
 		if self.frame_size > 0:
-			cs.emit_raw(f"sub sp, sp, #{self.frame_size}")
+			instrs.append(cgarm.sub(cgarm.SP, cgarm.SP, cgarm.Constant(self.frame_size)))
 
-		if restore_str != "":
-			cs.emit_raw(f"stmfd sp!, {{{restore_str}}}")
+		if len(restore) > 0:
+			instrs.append(cgarm.store_multiple(cgarm.SP, map(cgarm.Register, restore)))
 
-		cs.comment("prologue")
-		cs.comment()
+		return instrs
 
 
-	def emit_epilogue(self, cs: CodegenState) -> None:
-		callee_saved = set(["v1", "v2", "v3", "v4", "v5", "v6", "v7"])
-		restore = self.sort_registers(callee_saved.intersection(self.touched))
+	def get_epilogue(self) -> List[cgarm.Instruction]:
+		callee_saved = ["v1", "v2", "v3", "v4", "v5", "v6", "v7", "fp"]
+		restore = self.touched.intersection(callee_saved)
 
-		if len(restore) == 0:
-			restore_str = ""
-		else:
-			restore_str = (", ".join(restore))
-
-		cs.comment()
-		cs.comment("epilogue")
-		cs.emit_raw(f"{cs.epilogue_label}:", indent = 0)
-
-		if restore_str != "":
-			cs.emit_raw(f"ldmfd sp!, {{{restore_str}}}")
+		instrs = []
+		if len(restore) > 0:
+			instrs.append(cgarm.load_multiple(cgarm.SP, map(cgarm.Register, restore)))
 
 		if self.frame_size > 0:
-			cs.emit_raw(f"add sp, sp, #{self.frame_size}")
+			instrs.append(cgarm.add(cgarm.SP, cgarm.SP, cgarm.Constant(self.frame_size)))
 
-		cs.emit_raw(f"ldmfd sp!, {{pc}}")
+		instrs.append(cgarm.load_multiple(cgarm.SP, [ cgarm.LR ]))
 
-
-
+		return instrs
 
 
 

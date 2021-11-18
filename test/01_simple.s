@@ -2,15 +2,6 @@
 .global main_dummy
 .type main_dummy, %function
 main_dummy:
-	@ spills:  <none>
-	@ assigns:  '_c1' = v1;   '_t0' = v1;   '_t1' = v1;     'z' = v1;  '_c21' = v2
-	@           '_c9' = v2;   '_t2' = v2;   '_t3' = v2;   '_t4' = v2;     'k' = v2
-	@             'r' = v2;   '_c8' = v3;     'j' = v3;   '_c6' = v4
-	stmfd sp!, {lr}
-	stmfd sp!, {v1, v2, v3, v4}
-	@ prologue
-
-.main_dummy_entry:
 	@ dummy;
 	@ _c1 = "asdf";
 	ldr v1, =.string0
@@ -80,34 +71,27 @@ main_dummy:
 	mov a2, v1
 	bl printf(PLT)
 	@ return;
-	b .main_dummy_epilogue
-
-	@ epilogue
-.main_dummy_epilogue:
+.global main_dummy
+.type main_dummy, %function
+main_dummy:
+	@ spills:  <none>
+	@ assigns:  '_c1' = v1;   '_t0' = v1;   '_t1' = v1;     'z' = v1;  '_c21' = v2
+	@           '_c9' = v2;   '_t2' = v2;   '_t3' = v2;   '_t4' = v2;     'k' = v2
+	@             'r' = v2;   '_c8' = v3;     'j' = v3;   '_c6' = v4
+	stmfd sp!, {lr}
+	stmfd sp!, {v1, v2, v3, v4}
+.main_dummy_entry:
+	b .main_dummy_exit
 	ldmfd sp!, {v1, v2, v3, v4}
-	ldmfd sp!, {pc}
+	ldmfd sp!, {lr}
 	
 
 .global _J3Foo_3fooiiiiiE
 .type _J3Foo_3fooiiiiiE, %function
 _J3Foo_3fooiiiiiE:
-	@ spills:  'm', 'w'
-	@ assigns: '_c17' = v1;  '_c20' = v1;  '_c22' = v1;  '_c31' = v1;  '_c33' = v1
-	@          '_c41' = v1;  '_c52' = v1;  '_c55' = v1;  '_c61' = v1;  '_c64' = v1
-	@          '_g27' = v1;  '_g38' = v1;  '_g42' = v1;   '_g9' = v1;   '_t1' = v1
-	@          '_t10' = v1;   '_t2' = v1;   '_t3' = v1;   '_t4' = v1;   '_t5' = v1
-	@           '_t6' = v1;   '_t7' = v1;   '_t8' = v1;   '_t9' = v1;     'm' = v1
-	@             'w' = v1;     'y' = v1;   '_t0' = v2;     'k' = v2;     'x' = v2
-	@          'this' = v3;   '_c1' = v4;  '_c49' = v4;  '_c58' = v4;  '_g26' = v4
-	@          '_g37' = v4;  '_g41' = v4;   '_g8' = v4
-	stmfd sp!, {lr}
-	stmfd sp!, {v1, v2, v3, v4}
-	@ prologue
-
 	mov v3, a1
 	mov v2, a2
 	mov v1, a3
-._J3Foo_3fooiiiiiE_entry:
 	@ dummy;
 	@ _c1 = 3;
 	ldr v4, =#3
@@ -140,7 +124,6 @@ _J3Foo_3fooiiiiiE:
 	@ if (_t2) goto .L1;
 	cmp v1, #0
 	bne ._J3Foo_3fooiiiiiE_L1
-._J3Foo_3fooiiiiiE_L2:
 	@ _c20 = "omegalul";
 	ldr v1, =.string4
 	@ println(_c20);
@@ -161,7 +144,6 @@ _J3Foo_3fooiiiiiE:
 	str v1, [v4]
 	@ goto .L3;
 	b ._J3Foo_3fooiiiiiE_L3
-._J3Foo_3fooiiiiiE_L1:
 	@ _c31 = "kekw";
 	ldr v1, =.string5
 	@ println(_c31);
@@ -180,7 +162,6 @@ _J3Foo_3fooiiiiiE:
 	mov v1, #69
 	@ storefield: Int, *_g37 = _g38;
 	str v1, [v4]
-._J3Foo_3fooiiiiiE_L3:
 	@ _c41 = 420;
 	ldr v1, =#420
 	@ _g41 = getelementptr this, f1;
@@ -202,7 +183,6 @@ _J3Foo_3fooiiiiiE:
 	@ if (_t6) goto .L4;
 	cmp v1, #0
 	bne ._J3Foo_3fooiiiiiE_L4
-._J3Foo_3fooiiiiiE_L5:
 	@ _c52 = "sadge";
 	ldr v1, =.string6
 	@ println(_c52);
@@ -211,14 +191,12 @@ _J3Foo_3fooiiiiiE:
 	bl puts(PLT)
 	@ goto .L6;
 	b ._J3Foo_3fooiiiiiE_L6
-._J3Foo_3fooiiiiiE_L4:
 	@ _c55 = "poggers";
 	ldr v1, =.string7
 	@ println(_c55);
 	mov a1, v1
 	add a1, a1, #4
 	bl puts(PLT)
-._J3Foo_3fooiiiiiE_L6:
 	@ _c58 = 12345;
 	ldr v4, =#12345
 	@ restore m;
@@ -230,7 +208,6 @@ _J3Foo_3fooiiiiiE:
 	@ if (_t7) goto .L7;
 	cmp v1, #0
 	bne ._J3Foo_3fooiiiiiE_L7
-._J3Foo_3fooiiiiiE_L8:
 	@ _c61 = "riperino";
 	ldr v1, =.string8
 	@ println(_c61);
@@ -239,14 +216,12 @@ _J3Foo_3fooiiiiiE:
 	bl puts(PLT)
 	@ goto .L9;
 	b ._J3Foo_3fooiiiiiE_L9
-._J3Foo_3fooiiiiiE_L7:
 	@ _c64 = "poggerino";
 	ldr v1, =.string9
 	@ println(_c64);
 	mov a1, v1
 	add a1, a1, #4
 	bl puts(PLT)
-._J3Foo_3fooiiiiiE_L9:
 	@ _t8 = this.f1;
 	ldr v1, [v3, #0]
 	@ println(_t8);
@@ -267,12 +242,33 @@ _J3Foo_3fooiiiiiE:
 	bl printf(PLT)
 	@ return k;
 	mov a1, v2
-	b ._J3Foo_3fooiiiiiE_epilogue
-
-	@ epilogue
-._J3Foo_3fooiiiiiE_epilogue:
+.global _J3Foo_3fooiiiiiE
+.type _J3Foo_3fooiiiiiE, %function
+_J3Foo_3fooiiiiiE:
+	@ spills:  'm', 'w'
+	@ assigns: '_c17' = v1;  '_c20' = v1;  '_c22' = v1;  '_c31' = v1;  '_c33' = v1
+	@          '_c41' = v1;  '_c52' = v1;  '_c55' = v1;  '_c61' = v1;  '_c64' = v1
+	@          '_g27' = v1;  '_g38' = v1;  '_g42' = v1;   '_g9' = v1;   '_t1' = v1
+	@          '_t10' = v1;   '_t2' = v1;   '_t3' = v1;   '_t4' = v1;   '_t5' = v1
+	@           '_t6' = v1;   '_t7' = v1;   '_t8' = v1;   '_t9' = v1;     'm' = v1
+	@             'w' = v1;     'y' = v1;   '_t0' = v2;     'k' = v2;     'x' = v2
+	@          'this' = v3;   '_c1' = v4;  '_c49' = v4;  '_c58' = v4;  '_g26' = v4
+	@          '_g37' = v4;  '_g41' = v4;   '_g8' = v4
+	stmfd sp!, {lr}
+	stmfd sp!, {v1, v2, v3, v4}
+._J3Foo_3fooiiiiiE_entry:
+._J3Foo_3fooiiiiiE_L2:
+._J3Foo_3fooiiiiiE_L1:
+._J3Foo_3fooiiiiiE_L3:
+._J3Foo_3fooiiiiiE_L5:
+._J3Foo_3fooiiiiiE_L4:
+._J3Foo_3fooiiiiiE_L6:
+._J3Foo_3fooiiiiiE_L8:
+._J3Foo_3fooiiiiiE_L7:
+._J3Foo_3fooiiiiiE_L9:
+	b ._J3Foo_3fooiiiiiE_exit
 	ldmfd sp!, {v1, v2, v3, v4}
-	ldmfd sp!, {pc}
+	ldmfd sp!, {lr}
 	
 
 	
