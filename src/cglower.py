@@ -5,6 +5,7 @@ from typing import *
 from copy import *
 
 from . import ir3
+from . import iropt
 from . import cgpseudo
 from .util import Location, TCException, CGException, StringView, print_warning, escape_string
 
@@ -180,17 +181,3 @@ def lower_function(func: ir3.FuncDefn) -> None:
 
 			b.stmts.extend(ss)
 			const_nums[0] += 1
-
-
-def renumber_stmts(func: ir3.FuncDefn) -> List[ir3.Stmt]:
-
-	counter = 0
-	all_stmts: List[ir3.Stmt] = []
-
-	for b in func.blocks:
-		for s in b.stmts:
-			s.id = counter
-			counter += 1
-			all_stmts.append(s)
-
-	return all_stmts

@@ -192,7 +192,10 @@ def optimise(func: ir3.FuncDefn):
 	changed = True
 	while changed:
 		changed = False
-		renumber_statements(func)
+		all_stmts = renumber_statements(func)
+
+		compute_available_expressions(func, all_stmts)
+
 
 		changed |= remove_unreachable_blocks(func)
 		changed |= remove_double_jumps(func)
@@ -207,8 +210,85 @@ def optimise(func: ir3.FuncDefn):
 
 # helpers
 
-def renumber_statements(func: ir3.FuncDefn):
-	cglower.renumber_stmts(func)
+def renumber_statements(func: ir3.FuncDefn) -> List[ir3.Stmt]:
+	counter = 0
+	all_stmts: List[ir3.Stmt] = []
+
+	for b in func.blocks:
+		for s in b.stmts:
+			s.id = counter
+			counter += 1
+			all_stmts.append(s)
+
+	return all_stmts
+
+
+def compute_available_expressions(func: ir3.FuncDefn, all_stmts: List[ir3.Stmt]):
+	# forward dataflow analysis. determines the in/out for expressions.
+	# we do this on a statement basis. similar algorithm to liveness in cgliveness.py.
+
+
+
+
+
+
+	pass
+
+
+
+
+
+
+
+def compute_predecessors(func: ir3.FuncDefn) -> Dict[int, Set[int]]:
+	predecessors: Dict[int, Set[int]] = dict()
+	for b in func.blocks:
+		first_id = b.stmts[0].id
+
+		# for the first stmt in the block, its preds are the set of all branches to it.
+		# for subsequent stmts, its pred is just the previous statement.
+		predecessors[first_id] = set()
+		for pred in b.predecessors:
+			for j in pred.stmts[-2:]:
+				if isinstance(j, ir3.Branch) and j.label == b.name:
+					predecessors[first_id].add(j.id)
+				elif isinstance(j, ir3.CondBranch) and j.label == b.name:
+					predecessors[first_id].add(j.id)
+
+		for k in range(1, len(b.stmts)):
+			x = b.stmts[k].id
+			predecessors[x] = set([x - 1])
+
+	return predecessors
+
+
+def compute_successors(func: ir3.FuncDefn) -> Dict[int, Set[int]]:
+	labels: Dict[str, int] = { b.name: b.stmts[0].id for b in func.blocks }
+	successors: Dict[int, Set[int]] = dict()
+
+	for b in func.blocks:
+		for i, stmt in enumerate(b.stmts):
+			if isinstance(stmt, ir3.Branch):
+				successors[stmt.id] = set([ labels[stmt.label] ])
+
+			elif isinstance(stmt, ir3.CondBranch):
+				successors[stmt.id] = set([ labels[stmt.label] ])
+				if i + 1 < len(b.stmts):
+					successors[stmt.id].add(i + 1)
+
+			elif i + 1 < len(b.stmts):
+				successors[stmt.id] = set([i + 1])
+
+			else:
+				assert isinstance(stmt, ir3.Branch) or isinstance(stmt, ir3.ReturnStmt)
+
+	return successors
+
+
+
+
+
+
 
 def log_opt(func: ir3.FuncDefn, kind: str, num: int):
 	if num > 0:

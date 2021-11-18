@@ -5,6 +5,7 @@ from typing import *
 from copy import *
 
 from . import ir3
+from . import iropt
 from . import cglower
 from . import cgpseudo
 from .util import Location, TCException, CGException, StringView, print_warning, escape_string
@@ -83,38 +84,8 @@ def get_defs_and_uses(stmt: ir3.Stmt) -> Tuple[Set[str], Set[str]]:
 def analyse(func: ir3.FuncDefn, all_stmts: List[ir3.Stmt]) -> Tuple[List[Set[str]], List[Set[str]], \
 	List[Set[str]], List[Set[str]]]:
 
-	labels: Dict[str, int] = dict()
-	predecessors: Dict[int, Set[int]] = dict()
-
-	for b in func.blocks:
-		labels[b.name] = b.stmts[0].id
-
-		# for the first stmt in the block, its preds are the set of all branches to it.
-		# for subsequent stmts, its pred is just the previous statement.
-		predecessors[labels[b.name]] = set()
-		for pred in b.predecessors:
-			for j in pred.stmts[-2:]:
-				if isinstance(j, ir3.Branch) and j.label == b.name:
-					predecessors[labels[b.name]].add(j.id)
-				elif isinstance(j, ir3.CondBranch) and j.label == b.name:
-					predecessors[labels[b.name]].add(j.id)
-
-		for k in range(1, len(b.stmts)):
-			x = b.stmts[k].id
-			predecessors[x] = set([x - 1])
-
-	def get_successors(i: int) -> Set[int]:
-		stmt = all_stmts[i]
-		if isinstance(stmt, ir3.Branch):
-			return set([ labels[stmt.label] ])
-
-		elif isinstance(stmt, ir3.CondBranch):
-			return set([ labels[stmt.label], i + 1 ])
-
-		elif i + 1 < len(all_stmts):
-			return set([i + 1])
-		else:
-			return set()
+	predecessors = iropt.compute_predecessors(func)
+	successors = iropt.compute_successors(func)
 
 	ins: List[Set[str]]  = list(map(lambda _: set(), range(0, len(all_stmts))))
 	outs: List[Set[str]] = list(map(lambda _: set(), range(0, len(all_stmts))))
@@ -134,32 +105,10 @@ def analyse(func: ir3.FuncDefn, all_stmts: List[ir3.Stmt]) -> Tuple[List[Set[str
 		old_in = copy(ins[n])
 
 		tmp: Set[str] = set()       # stupidest language ever designed
-		outs[n] = tmp.union(*map(lambda succ: ins[succ], get_successors(n)))
-
+		outs[n] = tmp.union(*map(lambda succ: ins[succ], successors[n]))
 		ins[n]  = uses[n].union(outs[n] - defs[n])
 
-		# TODO: is this correct?
 		if old_in != ins[n] and n in predecessors:
 			queue.extend(predecessors[n])
-
-
-	# 	print(f"-- {n} -- {stmt}")
-	# 	print(f"  ins  = {ins[n]}")
-	# 	print(f"  outs = {outs[n]}")
-	# 	print(f"  preds = {predecessors[n]}")
-	# 	print(f"  succs = {get_successors(n)}")
-	# 	print(f"  queue = {queue}\n")
-
-
-	# for s in all_stmts:
-	# 	print("{:02}:  {}".format(s.id, s))
-	# 	print(f"  ins = {ins[s.id]}")
-	# 	print(f"  out = {outs[s.id]}")
-	# 	print(f"  uses = {uses[s.id]}")
-	# 	print(f"  preds = {predecessors[s.id]}")
-	# 	print(f"  succs = {get_successors(s.id)}")
-	# 	print("")
-
-
 
 	return (ins, outs, defs, uses)

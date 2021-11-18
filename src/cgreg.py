@@ -5,6 +5,7 @@ from typing import *
 from copy import *
 
 from . import ir3
+from . import iropt
 from . import cglower
 from . import cgpseudo
 from . import cgliveness
@@ -20,7 +21,7 @@ def allocate_registers(func: ir3.FuncDefn) -> Tuple[Dict[str, str], Set[str], Di
 
 
 def alloc_function(func: ir3.FuncDefn, prespilled: Set[str] = set()) -> Tuple[Dict[str, str], Set[str], Dict[str, Set[int]]]:
-	stmts = cglower.renumber_stmts(func)
+	stmts = iropt.renumber_statements(func)
 	ins, outs, defs, uses = cgliveness.analyse(func, stmts)
 
 	# for s in stmts:

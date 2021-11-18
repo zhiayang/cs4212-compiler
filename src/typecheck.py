@@ -871,7 +871,12 @@ def check_all_paths_return(ts: TypecheckState, block: ast.Block) -> Tuple[bool, 
 
 
 
-
+# all basic blocks must end in either a return or a branch -- NO FALLTHROUGHS.
+def ensure_correct_basic_blocks(func: ir3.FuncDefn):
+	for block in func.blocks:
+		last = block.stmts[-1]
+		if not (isinstance(last, ir3.ReturnStmt) or isinstance(last, ir3.Branch)):
+			raise TCException(block.loc, f"invalid IR generation: malformed basic block (fallthrough)")
 
 
 
@@ -949,6 +954,8 @@ def typecheck_method(ts: TypecheckState, meth: ast.MethodDefn) -> ir3.FuncDefn:
 			assert loc is not None
 			raise TCException(loc, f"non-void function does not return a value in all control paths")
 
+
+	ensure_correct_basic_blocks(func)
 
 	if options.optimisations_enabled():
 		iropt.optimise(func)
@@ -1030,5 +1037,8 @@ def typecheck_program(program: ast.Program) -> ir3.Program:
 
 	except TCException as e:
 		e.throw()
+
+
+
 
 
