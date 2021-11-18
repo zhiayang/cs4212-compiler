@@ -2,8 +2,6 @@ TODO
 
 1. support functions:
 	- readln
-	- string concat
-	- long division
 
 11. see if we need (want) to toposort the basic blocks before renumbering/allocating
 

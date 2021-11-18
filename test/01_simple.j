@@ -113,8 +113,33 @@ class Foo
 		new Foo().asdf();
 		new Foo().bsdf(7);
 
+		println("420 / 69 is:");
+		println(do_divide(420, 69));
+		println("69 / 420 is:");
+		println(do_divide(-420, 69));
+		println("420 / -69 is:");
+		println(do_divide(420, -69));
+		println("-420 / -69 is:");
+		println(do_divide(-420, -69));
+
+		println(do_divide(69, 420));
+		println("-69 / 420 is:");
+		println(do_divide(-69, 420));
+		println("-420 / 69 is:");
+
+		println("0 / 69 is:");
+		println(do_divide(0, 69));
+
+		println("69 / -69 is:");
+		println(do_divide(69, -69));
+
 		// k = 69;
 		return k;
+	}
+
+	Int do_divide(Int a, Int b)
+	{
+		return a / b;
 	}
 }
 

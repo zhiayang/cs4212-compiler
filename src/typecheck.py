@@ -731,7 +731,7 @@ def typecheck_return(ts: TypecheckState, stmt: ast.ReturnStmt) -> List[ir3.Stmt]
 		if not ts.is_compatible_assignment(retty, (vt := ts.get_value_type(v))):
 			raise TCException(v.loc, f"incompatible value in return; function returns '{retty}', value has type '{vt}'")
 
-		return [ ir3.ReturnStmt(stmt.loc, v) ]
+		return [ *s, ir3.ReturnStmt(stmt.loc, v) ]
 	else:
 		if retty != "Void":
 			raise TCException(stmt.loc, f"invalid void return in function returning '{retty}'")

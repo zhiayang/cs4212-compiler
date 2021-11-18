@@ -450,7 +450,7 @@ def evaluate_constants(func: ir3.FuncDefn) -> bool:
 		"+":  lambda a, b: a + b,
 		"-":  lambda a, b: a - b,
 		"*":  lambda a, b: a * b,
-		"/":  lambda a, b: a / b,
+		"/":  lambda a, b: a // b,
 		"s+":  lambda a, b: a + b,
 	}
 

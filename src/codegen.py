@@ -53,20 +53,21 @@ def codegen_binop(cs: CodegenState, fs: FuncState, expr: ir3.BinaryOp, dest_reg:
 	lhs = codegen_value(cs, fs, expr.lhs)
 	rhs = codegen_value(cs, fs, expr.rhs)
 
-	if expr.op == "s+":
+	if expr.op == "s+" or expr.op == "/":
 		spills, stack_adjust = pre_function_call(cs, fs, stmt_id, dest_reg)
 
 		fs.emit(cgarm.mov(cgarm.A1, lhs))
 		fs.emit(cgarm.mov(cgarm.A2, rhs))
-		fs.emit(cgarm.call("__string_concat"))
+		if expr.op == "s+":
+			fs.emit(cgarm.call("__string_concat"))
+		elif expr.op == "/":
+			fs.emit(cgarm.call("__divide_int"))
+		else:
+			assert False and "unreachable"
 
 		# move the return value from A1 to the correct destination
 		fs.emit(cgarm.mov(dest_reg, cgarm.A1))
 		post_function_call(cs, fs, spills, stack_adjust)
-
-	elif expr.op == "/":
-		# TODO: long division routine
-		cs.comment("NOT IMPLEMENTED (division)")
 
 	# turns out all of these need unique paths ><
 	elif expr.op == "+":
@@ -467,26 +468,49 @@ main:
 __string_concat:
 	@ takes two args: (the strings, duh) and returns 1 (the result, duh)
 	stmfd sp!, {v1, v2, v3, v4, v5, fp, lr}
-	mov v1, a1          @ save the string pointers into not-a1 and not-a2
+	mov v1, a1              @ save the string pointers into not-a1 and not-a2
 	mov v2, a2
-	ldr v4, [v1, #0]    @ load the lengths of the two strings
+	ldr v4, [v1, #0]        @ load the lengths of the two strings
 	ldr v5, [v2, #0]
-	add v3, v4, v5      @ get the new length; a1 contains the +5 (for length + null term)
-	add a2, v3, #5      @ v3 = the real length
+	add v3, v4, v5          @ get the new length; a1 contains the +5 (for length + null term)
+	add a2, v3, #5          @ v3 = the real length
 	mov a1, #1
-	bl calloc(PLT)      @ malloc some memory (memory in a1)
-	mov fp, a1          @ save the return pointer
-	str v3, [a1, #0]    @ store the length (v3)
-	add a1, a1, #4      @ dst
-	add a2, v1, #4      @ src - string 1
-	mov a3, v4          @ len - string 1
-	bl memcpy(PLT)      @ memcpy returns dst.
+	bl calloc(PLT)          @ malloc some memory (memory in a1)
+	mov fp, a1              @ save the return pointer
+	str v3, [a1, #0]        @ store the length (v3)
+	add a1, a1, #4          @ dst
+	add a2, v1, #4          @ src - string 1
+	mov a3, v4              @ len - string 1
+	bl memcpy(PLT)          @ memcpy returns dst.
 	add a1, fp, v4
 	add a1, a1, #4
-	add a2, v2, #4      @ src - string 2
-	mov a3, v5          @ len - string 2
-	bl memcpy(PLT)      @ copy the second string
-	mov a1, fp          @ return value
+	add a2, v2, #4          @ src - string 2
+	mov a3, v5              @ len - string 2
+	bl memcpy(PLT)          @ copy the second string
+	mov a1, fp              @ return value
+	ldmfd sp!, {v1, v2, v3, v4, v5, fp, pc}
+""")
+
+	cs.emit_raw("""
+.global __divide_int
+.type __divide_int, %function
+__divide_int:
+	@ takes two args: (dividend, divisor) and returns the quotient.
+	stmfd sp!, {v1, v2, v3, v4, v5, fp, lr}
+	movs v4, a1, asr #31    @ sign bit (1 if negative)
+	rsbne a1, a1, #0        @ negate if the sign bit was set (ie. abs)
+	movs v5, a2, asr #31    @ also sign bit
+	rsbne a2, a2, #0        @ negate if the sign bit was set (ie. abs)
+	mov v3, #0              @ store the quotient
+.__divide_int_L1:
+	subs a1, a1, a2         @ check if we're done
+	blt .__divide_int_done
+	add v3, v3, #1
+	b .__divide_int_L1
+.__divide_int_done:
+	mov a1, v3
+	eors v1, v4, v5         @ check if the sign bits are different
+	rsbne a1, a1, #0        @ negate if so
 	ldmfd sp!, {v1, v2, v3, v4, v5, fp, pc}
 """)
 

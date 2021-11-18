@@ -140,12 +140,17 @@ _J3Foo_4bsdfiE:
 .type _J3Foo_3fooiiiiiE, %function
 _J3Foo_3fooiiiiiE:
 	@ spills:  <none>
-	@ assigns: '_t12' = a1;  '_t14' = a1;  'this' = a1;     'x' = a2;     'y' = a3
-	@          '_c45' = v1;  '_c48' = v1;  '_c51' = v1;  '_t10' = v1;  '_t11' = v1
-	@           '_t6' = v1;   '_t7' = v1;   '_t9' = v1;     'w' = v1;   '_c1' = v2
-	@           '_t0' = v2;     'k' = v2;  '_c14' = v3;  '_c18' = v3;  '_c20' = v3
-	@          '_c26' = v3;  '_c28' = v3;  '_c34' = v3;  '_c41' = v3;  '_g23' = v3
-	@          '_g31' = v3;  '_g35' = v3;   '_g7' = v3;   '_t3' = v3
+	@ assigns:  'this' = a1;   '_c73' = a2;   '_c81' = a2;   '_c89' = a2;   '_c97' = a2
+	@              'x' = a2;  '_c104' = a3;  '_c112' = a3;      'y' = a3;  '_c108' = v1
+	@          '_c116' = v1;  '_c118' = v1;  '_c126' = v1;   '_c45' = v1;   '_c48' = v1
+	@           '_c51' = v1;   '_c70' = v1;   '_c78' = v1;   '_c86' = v1;   '_c94' = v1
+	@           '_t10' = v1;   '_t11' = v1;   '_t12' = v1;   '_t14' = v1;   '_t16' = v1
+	@           '_t17' = v1;   '_t18' = v1;   '_t19' = v1;   '_t20' = v1;   '_t21' = v1
+	@           '_t22' = v1;   '_t23' = v1;    '_t6' = v1;    '_t7' = v1;    '_t9' = v1
+	@              'w' = v1;    '_c1' = v2;    '_t0' = v2;      'k' = v2;   '_c14' = v3
+	@           '_c18' = v3;   '_c20' = v3;   '_c26' = v3;   '_c28' = v3;   '_c34' = v3
+	@           '_c41' = v3;   '_g23' = v3;   '_g31' = v3;   '_g35' = v3;    '_g7' = v3
+	@            '_t3' = v3
 	stmfd sp!, {v1, v2, v3, lr}
 ._J3Foo_3fooiiiiiE_entry:
 	mov v2, #3                              @ _c1 = 3;
@@ -243,22 +248,225 @@ _J3Foo_3fooiiiiiE:
 	ldmfd sp!, {a1}                         @ caller-restore
 	add sp, sp, #4                          @ align adjustment
 	ldr v1, [a1, #8]                        @ _t11 = this.f3;
-	ldr a1, =.string1_raw                   @ println(_t11);
+	sub sp, sp, #4                          @ println(_t11);; align adjustment
+	stmfd sp!, {a1}                         @ caller-save
+	ldr a1, =.string1_raw
 	mov a2, v1
 	bl printf(PLT)
-	mov a1, #1                              @ _t12 = new Foo();
+	ldmfd sp!, {a1}                         @ caller-restore
+	add sp, sp, #4                          @ align adjustment
+	sub sp, sp, #4                          @ _t12 = new Foo();; align adjustment
+	stmfd sp!, {a1}                         @ caller-save
+	mov a1, #1
 	mov a2, #12
 	bl calloc(PLT)
+	mov v1, a1
+	ldmfd sp!, {a1}                         @ caller-restore
+	add sp, sp, #4                          @ align adjustment
+	mov a1, v1                              @ _J3Foo_4asdfE(_t12);
 	bl _J3Foo_4asdfE
-	mov a1, #1                              @ _t14 = new Foo();
+	sub sp, sp, #4                          @ _t14 = new Foo();; align adjustment
+	stmfd sp!, {a1}                         @ caller-save
+	mov a1, #1
 	mov a2, #12
 	bl calloc(PLT)
+	mov v1, a1
+	ldmfd sp!, {a1}                         @ caller-restore
+	add sp, sp, #4                          @ align adjustment
+	mov a1, v1                              @ _J3Foo_4bsdfiE(_t14, 7);
 	mov a2, #7
 	bl _J3Foo_4bsdfiE
+	ldr v1, =.string15                      @ _c70 = "420 / 69 is:";
+	sub sp, sp, #4                          @ println(_c70);; align adjustment
+	stmfd sp!, {a1}                         @ caller-save
+	mov a1, v1
+	add a1, a1, #4
+	bl puts(PLT)
+	ldmfd sp!, {a1}                         @ caller-restore
+	add sp, sp, #4                          @ align adjustment
+	ldr a2, =#420                           @ _c73 = 420;
+	stmfd sp!, {a1, a2}                     @ _t16 = _J3Foo_9do_divideiiE(this, _c73, 69);; caller-save
+	mov a3, #69
+	bl _J3Foo_9do_divideiiE
+	mov v1, a1
+	ldmfd sp!, {a1, a2}                     @ caller-restore
+	sub sp, sp, #4                          @ println(_t16);; align adjustment
+	stmfd sp!, {a1}                         @ caller-save
+	ldr a1, =.string1_raw
+	mov a2, v1
+	bl printf(PLT)
+	ldmfd sp!, {a1}                         @ caller-restore
+	add sp, sp, #4                          @ align adjustment
+	ldr v1, =.string16                      @ _c78 = "69 / 420 is:";
+	sub sp, sp, #4                          @ println(_c78);; align adjustment
+	stmfd sp!, {a1}                         @ caller-save
+	mov a1, v1
+	add a1, a1, #4
+	bl puts(PLT)
+	ldmfd sp!, {a1}                         @ caller-restore
+	add sp, sp, #4                          @ align adjustment
+	ldr a2, =#-420                          @ _c81 = -420;
+	stmfd sp!, {a1, a2}                     @ _t17 = _J3Foo_9do_divideiiE(this, _c81, 69);; caller-save
+	mov a3, #69
+	bl _J3Foo_9do_divideiiE
+	mov v1, a1
+	ldmfd sp!, {a1, a2}                     @ caller-restore
+	sub sp, sp, #4                          @ println(_t17);; align adjustment
+	stmfd sp!, {a1}                         @ caller-save
+	ldr a1, =.string1_raw
+	mov a2, v1
+	bl printf(PLT)
+	ldmfd sp!, {a1}                         @ caller-restore
+	add sp, sp, #4                          @ align adjustment
+	ldr v1, =.string17                      @ _c86 = "420 / -69 is:";
+	sub sp, sp, #4                          @ println(_c86);; align adjustment
+	stmfd sp!, {a1}                         @ caller-save
+	mov a1, v1
+	add a1, a1, #4
+	bl puts(PLT)
+	ldmfd sp!, {a1}                         @ caller-restore
+	add sp, sp, #4                          @ align adjustment
+	ldr a2, =#420                           @ _c89 = 420;
+	stmfd sp!, {a1, a2}                     @ _t18 = _J3Foo_9do_divideiiE(this, _c89, -69);; caller-save
+	mov a3, #-69
+	bl _J3Foo_9do_divideiiE
+	mov v1, a1
+	ldmfd sp!, {a1, a2}                     @ caller-restore
+	sub sp, sp, #4                          @ println(_t18);; align adjustment
+	stmfd sp!, {a1}                         @ caller-save
+	ldr a1, =.string1_raw
+	mov a2, v1
+	bl printf(PLT)
+	ldmfd sp!, {a1}                         @ caller-restore
+	add sp, sp, #4                          @ align adjustment
+	ldr v1, =.string18                      @ _c94 = "-420 / -69 is:";
+	sub sp, sp, #4                          @ println(_c94);; align adjustment
+	stmfd sp!, {a1}                         @ caller-save
+	mov a1, v1
+	add a1, a1, #4
+	bl puts(PLT)
+	ldmfd sp!, {a1}                         @ caller-restore
+	add sp, sp, #4                          @ align adjustment
+	ldr a2, =#-420                          @ _c97 = -420;
+	stmfd sp!, {a1, a2}                     @ _t19 = _J3Foo_9do_divideiiE(this, _c97, -69);; caller-save
+	mov a3, #-69
+	bl _J3Foo_9do_divideiiE
+	mov v1, a1
+	ldmfd sp!, {a1, a2}                     @ caller-restore
+	sub sp, sp, #4                          @ println(_t19);; align adjustment
+	stmfd sp!, {a1}                         @ caller-save
+	ldr a1, =.string1_raw
+	mov a2, v1
+	bl printf(PLT)
+	ldmfd sp!, {a1}                         @ caller-restore
+	add sp, sp, #4                          @ align adjustment
+	ldr a3, =#420                           @ _c104 = 420;
+	stmfd sp!, {a1, a3}                     @ _t20 = _J3Foo_9do_divideiiE(this, 69, _c104);; caller-save
+	mov a2, #69
+	bl _J3Foo_9do_divideiiE
+	mov v1, a1
+	ldmfd sp!, {a1, a3}                     @ caller-restore
+	sub sp, sp, #4                          @ println(_t20);; align adjustment
+	stmfd sp!, {a1}                         @ caller-save
+	ldr a1, =.string1_raw
+	mov a2, v1
+	bl printf(PLT)
+	ldmfd sp!, {a1}                         @ caller-restore
+	add sp, sp, #4                          @ align adjustment
+	ldr v1, =.string19                      @ _c108 = "-69 / 420 is:";
+	sub sp, sp, #4                          @ println(_c108);; align adjustment
+	stmfd sp!, {a1}                         @ caller-save
+	mov a1, v1
+	add a1, a1, #4
+	bl puts(PLT)
+	ldmfd sp!, {a1}                         @ caller-restore
+	add sp, sp, #4                          @ align adjustment
+	ldr a3, =#420                           @ _c112 = 420;
+	stmfd sp!, {a1, a3}                     @ _t21 = _J3Foo_9do_divideiiE(this, -69, _c112);; caller-save
+	mov a2, #-69
+	bl _J3Foo_9do_divideiiE
+	mov v1, a1
+	ldmfd sp!, {a1, a3}                     @ caller-restore
+	sub sp, sp, #4                          @ println(_t21);; align adjustment
+	stmfd sp!, {a1}                         @ caller-save
+	ldr a1, =.string1_raw
+	mov a2, v1
+	bl printf(PLT)
+	ldmfd sp!, {a1}                         @ caller-restore
+	add sp, sp, #4                          @ align adjustment
+	ldr v1, =.string20                      @ _c116 = "-420 / 69 is:";
+	sub sp, sp, #4                          @ println(_c116);; align adjustment
+	stmfd sp!, {a1}                         @ caller-save
+	mov a1, v1
+	add a1, a1, #4
+	bl puts(PLT)
+	ldmfd sp!, {a1}                         @ caller-restore
+	add sp, sp, #4                          @ align adjustment
+	ldr v1, =.string21                      @ _c118 = "0 / 69 is:";
+	sub sp, sp, #4                          @ println(_c118);; align adjustment
+	stmfd sp!, {a1}                         @ caller-save
+	mov a1, v1
+	add a1, a1, #4
+	bl puts(PLT)
+	ldmfd sp!, {a1}                         @ caller-restore
+	add sp, sp, #4                          @ align adjustment
+	sub sp, sp, #4                          @ _t22 = _J3Foo_9do_divideiiE(this, 0, 69);; align adjustment
+	stmfd sp!, {a1}                         @ caller-save
+	mov a2, #0
+	mov a3, #69
+	bl _J3Foo_9do_divideiiE
+	mov v1, a1
+	ldmfd sp!, {a1}                         @ caller-restore
+	add sp, sp, #4                          @ align adjustment
+	sub sp, sp, #4                          @ println(_t22);; align adjustment
+	stmfd sp!, {a1}                         @ caller-save
+	ldr a1, =.string1_raw
+	mov a2, v1
+	bl printf(PLT)
+	ldmfd sp!, {a1}                         @ caller-restore
+	add sp, sp, #4                          @ align adjustment
+	ldr v1, =.string22                      @ _c126 = "69 / -69 is:";
+	sub sp, sp, #4                          @ println(_c126);; align adjustment
+	stmfd sp!, {a1}                         @ caller-save
+	mov a1, v1
+	add a1, a1, #4
+	bl puts(PLT)
+	ldmfd sp!, {a1}                         @ caller-restore
+	add sp, sp, #4                          @ align adjustment
+	sub sp, sp, #4                          @ _t23 = _J3Foo_9do_divideiiE(this, 69, -69);; align adjustment
+	stmfd sp!, {a1}                         @ caller-save
+	mov a2, #69
+	mov a3, #-69
+	bl _J3Foo_9do_divideiiE
+	mov v1, a1
+	ldmfd sp!, {a1}                         @ caller-restore
+	add sp, sp, #4                          @ align adjustment
+	ldr a1, =.string1_raw                   @ println(_t23);
+	mov a2, v1
+	bl printf(PLT)
 	mov a1, v2                              @ return k;
 	b ._J3Foo_3fooiiiiiE_exit
 ._J3Foo_3fooiiiiiE_exit:
 	ldmfd sp!, {v1, v2, v3, pc}
+
+
+.global _J3Foo_9do_divideiiE
+.type _J3Foo_9do_divideiiE, %function
+_J3Foo_9do_divideiiE:
+	@ spills:  <none>
+	@ assigns:   'a' = a2;    'b' = a3;  '_t0' = v1
+	stmfd sp!, {v1, lr}
+._J3Foo_9do_divideiiE_entry:
+	stmfd sp!, {a2, a3}                     @ _t0 = a / b;; caller-save
+	mov a1, a2
+	mov a2, a3
+	bl __divide_int
+	mov v1, a1
+	ldmfd sp!, {a2, a3}                     @ caller-restore
+	mov a1, v1                              @ return _t0;
+	b ._J3Foo_9do_divideiiE_exit
+._J3Foo_9do_divideiiE_exit:
+	ldmfd sp!, {v1, pc}
 
 
 
@@ -284,26 +492,48 @@ main:
 __string_concat:
 	@ takes two args: (the strings, duh) and returns 1 (the result, duh)
 	stmfd sp!, {v1, v2, v3, v4, v5, fp, lr}
-	mov v1, a1          @ save the string pointers into not-a1 and not-a2
+	mov v1, a1              @ save the string pointers into not-a1 and not-a2
 	mov v2, a2
-	ldr v4, [v1, #0]    @ load the lengths of the two strings
+	ldr v4, [v1, #0]        @ load the lengths of the two strings
 	ldr v5, [v2, #0]
-	add v3, v4, v5      @ get the new length; a1 contains the +5 (for length + null term)
-	add a2, v3, #5      @ v3 = the real length
+	add v3, v4, v5          @ get the new length; a1 contains the +5 (for length + null term)
+	add a2, v3, #5          @ v3 = the real length
 	mov a1, #1
-	bl calloc(PLT)      @ malloc some memory (memory in a1)
-	mov fp, a1          @ save the return pointer
-	str v3, [a1, #0]    @ store the length (v3)
-	add a1, a1, #4      @ dst
-	add a2, v1, #4      @ src - string 1
-	mov a3, v4          @ len - string 1
-	bl memcpy(PLT)      @ memcpy returns dst.
+	bl calloc(PLT)          @ malloc some memory (memory in a1)
+	mov fp, a1              @ save the return pointer
+	str v3, [a1, #0]        @ store the length (v3)
+	add a1, a1, #4          @ dst
+	add a2, v1, #4          @ src - string 1
+	mov a3, v4              @ len - string 1
+	bl memcpy(PLT)          @ memcpy returns dst.
 	add a1, fp, v4
 	add a1, a1, #4
-	add a2, v2, #4      @ src - string 2
-	mov a3, v5          @ len - string 2
-	bl memcpy(PLT)      @ copy the second string
-	mov a1, fp          @ return value
+	add a2, v2, #4          @ src - string 2
+	mov a3, v5              @ len - string 2
+	bl memcpy(PLT)          @ copy the second string
+	mov a1, fp              @ return value
+	ldmfd sp!, {v1, v2, v3, v4, v5, fp, pc}
+
+
+.global __divide_int
+.type __divide_int, %function
+__divide_int:
+	@ takes two args: (dividend, divisor) and returns the quotient.
+	stmfd sp!, {v1, v2, v3, v4, v5, fp, lr}
+	movs v4, a1, asr #31    @ sign bit (1 if negative)
+	rsbne a1, a1, #0        @ negate if the sign bit was set (ie. abs)
+	movs v5, a2, asr #31    @ also sign bit
+	rsbne a2, a2, #0        @ negate if the sign bit was set (ie. abs)
+	mov v3, #0              @ store the quotient
+.__divide_int_L1:
+	subs a1, a1, a2         @ check if we're done
+	blt .__divide_int_done
+	add v3, v3, #1
+	b .__divide_int_L1
+.__divide_int_done:
+	mov a1, v3
+	eors v1, v4, v5         @ check if the sign bits are different
+	rsbne a1, a1, #0        @ negate if so
 	ldmfd sp!, {v1, v2, v3, v4, v5, fp, pc}
 
 .data
@@ -381,4 +611,44 @@ __string_concat:
     .word 9
 .string14_raw:
     .asciz "poggerino"
+
+.string15:
+    .word 12
+.string15_raw:
+    .asciz "420 / 69 is:"
+
+.string16:
+    .word 12
+.string16_raw:
+    .asciz "69 / 420 is:"
+
+.string17:
+    .word 13
+.string17_raw:
+    .asciz "420 / -69 is:"
+
+.string18:
+    .word 14
+.string18_raw:
+    .asciz "-420 / -69 is:"
+
+.string19:
+    .word 13
+.string19_raw:
+    .asciz "-69 / 420 is:"
+
+.string20:
+    .word 13
+.string20_raw:
+    .asciz "-420 / 69 is:"
+
+.string21:
+    .word 10
+.string21_raw:
+    .asciz "0 / 69 is:"
+
+.string22:
+    .word 12
+.string22_raw:
+    .asciz "69 / -69 is:"
 
