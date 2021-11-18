@@ -5,6 +5,8 @@ from typing import *
 from copy import *
 
 from . import ir3
+from . import iropt
+
 from . import cgreg
 from . import cgpseudo
 from . import cgannotate
@@ -369,6 +371,9 @@ def codegen_stmt(cs: CodegenState, fs: FuncState, stmt: ir3.Stmt):
 
 
 def codegen_method(cs: CodegenState, method: ir3.FuncDefn):
+	if options.optimisations_enabled():
+		iropt.optimise(method)
+
 	assigns, spills, reg_live_ranges = cgreg.allocate_registers(method)
 
 	# setup the function state

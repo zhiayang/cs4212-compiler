@@ -9,7 +9,7 @@ from . import cgopt
 from . import cgarm
 from . import cgannotate
 
-from .util import Location, TCException, CGException, StringView, print_warning, escape_string
+from .util import options, Location, TCException, CGException, StringView, print_warning, escape_string
 
 import math
 
@@ -298,7 +298,7 @@ class FuncState:
 
 
 	def finalise(self) -> List[str]:
-		if not cgannotate.annotating():
+		if not options.annotations_enabled():
 			for i in self.instructions:
 				i.clear_annotations()
 
@@ -315,7 +315,7 @@ class FuncState:
 		]
 
 		annots = []
-		if cgannotate.annotating():
+		if options.annotations_enabled():
 			assign_names = { k: v.name for k, v in self.assigns.items() }
 
 			annot_assigns, annot_spills = cgannotate.annotate_reg_allocs(assign_names, self.spilled)

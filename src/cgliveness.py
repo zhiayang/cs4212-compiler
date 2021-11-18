@@ -91,7 +91,13 @@ def analyse(func: ir3.FuncDefn, all_stmts: List[ir3.Stmt]) -> Tuple[List[Set[str
 
 		# for the first stmt in the block, its preds are the set of all branches to it.
 		# for subsequent stmts, its pred is just the previous statement.
-		predecessors[labels[b.name]] = set(map(lambda b: b.stmts[-1].id, b.predecessors))
+		predecessors[labels[b.name]] = set()
+		for pred in b.predecessors:
+			for j in pred.stmts[-2:]:
+				if isinstance(j, ir3.Branch) and j.label == b.name:
+					predecessors[labels[b.name]].add(j.id)
+				elif isinstance(j, ir3.CondBranch) and j.label == b.name:
+					predecessors[labels[b.name]].add(j.id)
 
 		for k in range(1, len(b.stmts)):
 			x = b.stmts[k].id
@@ -122,9 +128,8 @@ def analyse(func: ir3.FuncDefn, all_stmts: List[ir3.Stmt]) -> Tuple[List[Set[str
 	defs[0].update(map(lambda v: v.name, func.params))
 
 	while len(queue) > 0:
-		n = queue[0]
+		n = queue.pop(0)
 		stmt = all_stmts[n]
-		queue = queue[1:]
 
 		old_in = copy(ins[n])
 

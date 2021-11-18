@@ -4,20 +4,13 @@ import sys
 import os
 
 from src.util import *
+from src.util import options
 
 from src import typecheck
 from src import codegen
 from src import parser
 from src import lexer
 from src import ast
-
-from src import cgopt
-from src import cgannotate
-
-def parse_file(filename) -> ast.Program:
-	with open(sys.argv[1], "rb") as file:
-		stream: StringView = StringView(file.read())
-		return parser.parse_program(parser.ParserState(sys.argv[1], stream))
 
 
 def parse_args(args: List[str]) -> Tuple[str, str]:
@@ -30,13 +23,16 @@ def parse_args(args: List[str]) -> Tuple[str, str]:
 
 	while len(args) > 0:
 		if (args[0] == "--opt") or (args[0] == "-O"):
-			cgopt.enable_optimisations()
+			options.enable_optimisations()
 
 		elif (args[0] == "-a") or (args[0] == "--annotate"):
-			cgannotate.enable_annotations()
+			options.enable_annotations()
 
 		elif (args[0] == "-na") or (args[0] == "--no-annotate"):
-			cgannotate.disable_annotations()
+			options.disable_annotations()
+
+		elif (args[0] == "-v") or (args[0] == "--verbose"):
+			options.enable_verbose()
 
 		elif args[0] == "-o":
 			if output_file is not None:
@@ -78,6 +74,12 @@ options:
     --no-annotate, -na      disable annotations
     -o <filename>           set the output filename
 """)
+
+
+def parse_file(filename: str) -> ast.Program:
+	with open(filename, "rb") as file:
+		stream: StringView = StringView(file.read())
+		return parser.parse_program(parser.ParserState(filename, stream))
 
 
 if __name__ == "__main__":

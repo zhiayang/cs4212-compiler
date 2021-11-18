@@ -6,6 +6,8 @@ from typing import *
 import sys
 import os
 
+from . import options
+
 def read_entire_file(filename: str) -> str:
 	with open(filename, "rb") as f:
 		return f.read().decode("utf-8")
@@ -81,6 +83,11 @@ def print_note(loc: Location, msg: str) -> None:
 	print(f"{loc}: {colourise('note:', '1;94m')} {colourise(msg, '1m')}")
 	print_context(loc, "1;94m")
 
+
+
+def log(msg: str) -> None:
+	if options.is_verbose():
+		print(msg)
 
 
 

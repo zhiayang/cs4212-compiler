@@ -32,7 +32,7 @@ typecheck:
 
 compile:
 	@mypy compile.py
-	@python compile.py test/01_simple.j
+	@python compile.py -v -O test/01_simple.j
 	@$(ARM_CC) -o test/01_simple.out -static test/01_simple.s
 
 

@@ -1,4 +1,4 @@
-@ jlite compiler: compile.py test/01_simple.j
+@ jlite compiler: compile.py -v -O test/01_simple.j
 .text
 .global main_dummy
 .type main_dummy, %function
@@ -64,7 +64,7 @@ main_dummy:
 .global _J3Foo_3fooiiiiiE
 .type _J3Foo_3fooiiiiiE, %function
 _J3Foo_3fooiiiiiE:
-	@ spills:  '_c47', 'm', 'w'
+	@ spills:  '_c1', '_c47', '_t5', 'm', 'w'
 	@ assigns: '_c16' = v1;  '_c20' = v1;  '_c22' = v1;  '_c30' = v1;  '_c32' = v1
 	@          '_c40' = v1;  '_c51' = v1;  '_c54' = v1;  '_c62' = v1;  '_c65' = v1
 	@          '_g27' = v1;  '_g37' = v1;  '_g41' = v1;   '_g9' = v1;   '_t1' = v1
@@ -73,13 +73,15 @@ _J3Foo_3fooiiiiiE:
 	@             'w' = v1;     'y' = v1;   '_t0' = v2;     'k' = v2;     'x' = v2
 	@          'this' = v3;   '_c1' = v4;  '_c47' = v4
 	stmfd sp!, {lr}
-	sub sp, sp, #8
+	sub sp, sp, #16
 	stmfd sp!, {v1, v2, v3, v4}
 	mov v3, a1
 	mov v2, a2
 	mov v1, a3
 ._J3Foo_3fooiiiiiE_entry:
 	mov v4, #3                              @ _c1 = 3;
+	str v4, [sp, #8]                        @ spill _c1;
+	ldr v4, [sp, #8]                        @ restore _c1;
 	mul v2, v2, v4                          @ _t0 = x * _c1;
 	add v1, v2, v1                          @ _t1 = _t0 + y;
 	mov v2, v1                              @ k = _t1;
@@ -89,7 +91,7 @@ _J3Foo_3fooiiiiiE:
 	mov a2, v2
 	bl printf(PLT)
 	mov v1, #50                             @ m = 50;
-	str v1, [sp, #20]                       @ spill m;
+	str v1, [sp, #28]                       @ spill m;
 	ldr v1, =#627                           @ _c16 = 627;
 	cmp v2, v1                              @ _t2 = k == _c16;
 	moveq v1, #1
@@ -123,10 +125,12 @@ _J3Foo_3fooiiiiiE:
 	ldr v1, =#420                           @ _c40 = 420;
 	mov v1, v1                              @ _g41 = _c40;
 	str v1, [v3, #0]                        @ storefield: Int, *this.f1 = _g41;
-	ldr v1, [sp, #16]                       @ restore w;
+	ldr v1, [sp, #24]                       @ restore w;
 	add v1, v1, #1                          @ _t5 = w + 1;
+	str v1, [sp, #12]                       @ spill _t5;
 	ldr v4, =#69420                         @ _c47 = 69420;
 	str v4, [sp, #4]                        @ spill _c47;
+	ldr v1, [sp, #12]                       @ restore _t5;
 	ldr v4, [sp, #4]                        @ restore _c47;
 	cmp v1, v4                              @ _t6 = _t5 != _c47;
 	movne v1, #1
@@ -147,7 +151,7 @@ _J3Foo_3fooiiiiiE:
 	bl puts(PLT)
 	b ._J3Foo_3fooiiiiiE_L6                 @ goto .L6;
 ._J3Foo_3fooiiiiiE_L6:
-	ldr v1, [sp, #20]                       @ restore m;
+	ldr v1, [sp, #28]                       @ restore m;
 	cmp v1, #50                             @ _t7 = m == 50;
 	moveq v1, #1
 	movne v1, #0
@@ -183,7 +187,7 @@ _J3Foo_3fooiiiiiE:
 	b ._J3Foo_3fooiiiiiE_exit
 ._J3Foo_3fooiiiiiE_exit:
 	ldmfd sp!, {v1, v2, v3, v4}
-	add sp, sp, #8
+	add sp, sp, #16
 	ldmfd sp!, {pc}
 
 

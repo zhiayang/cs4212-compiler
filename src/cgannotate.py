@@ -5,23 +5,6 @@ from typing import *
 from copy import *
 
 
-__annotations_enabled = True
-
-def annotating() -> bool:
-	global __annotations_enabled
-	return __annotations_enabled
-
-def enable_annotations(en: bool = True):
-	global __annotations_enabled
-	__annotations_enabled = en
-
-def disable_annotations():
-	global __annotations_enabled
-	__annotations_enabled = False
-
-
-
-
 
 def annotate_reg_allocs(assigns: Dict[str, str], spills: Set[str]) -> Tuple[List[str], List[str]]:
 	assign_lines: List[str] = ["assigns: "]

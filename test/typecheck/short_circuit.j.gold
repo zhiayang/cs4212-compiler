@@ -106,9 +106,11 @@ Void main(Uwu this)
     goto .L14;
   Label .L14:
     println("dsdf");
-    goto .L16;
+    goto .L15;
   Label .L13:
     println("csdf");
+    goto .L15;
+  Label .L15:
     goto .L16;
   Label .L16:
     _t11 = _J1A_3uwuE(a);
@@ -145,10 +147,12 @@ Void main(Uwu this)
     goto .L25;
   Label .L25:
     if (_t18) goto .L26;
-    goto .L28;
+    goto .L27;
   Label .L26:
     println("esdf");
     goto .L16;
+  Label .L27:
+    goto .L28;
   Label .L28:
     _t19 = _J1A_3uwuE(a);
     _t20 = _t19 == "omegalul";
@@ -184,10 +188,12 @@ Void main(Uwu this)
     goto .L37;
   Label .L37:
     if (_t26) goto .L38;
-    goto .L40;
+    goto .L39;
   Label .L38:
     println("fsdf");
     goto .L28;
+  Label .L39:
+    goto .L40;
   Label .L40:
     _t27 = _J1A_3uwuE(a);
     _t28 = _t27 == "omegalul";
@@ -223,10 +229,12 @@ Void main(Uwu this)
     goto .L49;
   Label .L49:
     if (_t34) goto .L50;
-    goto .L52;
+    goto .L51;
   Label .L50:
     println("gsdf");
     goto .L40;
+  Label .L51:
+    goto .L52;
   Label .L52:
     _t35 = _J1A_3uwuE(a);
     _t36 = _t35 == "omegalul";
