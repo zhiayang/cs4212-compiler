@@ -61,8 +61,8 @@ class Foo
 			println("sadge");
 		}
 
-		if(m == 12345)  { println("poggerino"); }
-		else            { println("riperino"); }
+		if(m == 50) { println("poggerino"); }
+		else        { println("riperino"); }
 
 		println(f1);
 		println(f2);

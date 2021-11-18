@@ -20,13 +20,9 @@ STACK_ALIGNMENT = 8
 class CodegenState:
 	def __init__(self, classes: List[ir3.ClassDefn]) -> None:
 		self.lines: List[str] = []
-
-		self.current_method: ir3.FuncDefn
 		self.strings: Dict[str, int] = dict()
 
 		self.class_layouts: Dict[str, CGClass] = { cls.name: CGClass(self, cls) for cls in classes }
-
-
 
 
 	def emit_raw(self, line: str, indent: int = 1) -> None:
@@ -48,9 +44,6 @@ class CodegenState:
 
 		self.lines[-1] += msg
 
-	def set_current_method(self, method: ir3.FuncDefn) -> None:
-		self.current_method = method
-
 	# returns the label of the thing
 	def add_string(self, s: str) -> str:
 		if s in self.strings:
@@ -64,7 +57,6 @@ class CodegenState:
 	def get_class_layout(self, name: str) -> CGClass:
 		return self.class_layouts[name]
 
-
 	def emit_lines(self, lines: List[str]) -> None:
 		self.lines += lines
 
@@ -74,10 +66,9 @@ class CodegenState:
 
 
 
-
 class VarLoc:
 	def __init__(self, ty: str) -> None:
-		self.reg: Optional[str] = None
+		self.reg: Optional[cgarm.Register] = None
 		self.ofs: Optional[int] = None
 		self.type: str = ty
 
@@ -85,8 +76,8 @@ class VarLoc:
 		self.ofs = ofs
 		return self
 
-	def set_register(self, name: str) -> VarLoc:
-		self.reg = name
+	def set_register(self, register: cgarm.Register) -> VarLoc:
+		self.reg = register
 		return self
 
 	def clear_register(self) -> VarLoc:
@@ -97,8 +88,8 @@ class VarLoc:
 		self.ofs = None
 		return self
 
-	def register(self) -> str:
-		return cast(str, self.reg)
+	def register(self) -> cgarm.Register:
+		return cast(cgarm.Register, self.reg)
 
 	def stack_ofs(self) -> int:
 		return cast(int, self.ofs)
@@ -126,8 +117,11 @@ class FuncState:
 
 		self.method = method
 		self.exit_label = f".{method.name}_exit"
+		self.next_annotation = ""
 
 		frame_size: int = 0
+
+		assigns = { k: cgarm.Register(assignments[k]) for k in assignments }
 
 
 		# locals shadow parameters, which means that we should do the params first.
@@ -148,7 +142,7 @@ class FuncState:
 
 			ploc = VarLoc(param.type)
 			if i < 4:
-				arg_reg = f"a{i + 1}"
+				arg_reg = cgarm.Register(f"a{i + 1}")
 				if param.name in spills:
 					# note that we don't insert code to spill it, because our pseudo-op SpillVariable
 					# should have already been inserted on spills.
@@ -158,9 +152,9 @@ class FuncState:
 
 				if param.name in assignments:
 					if assignments[param.name] != arg_reg:
-						cs.emit_raw(f"mov {assignments[param.name]}, {arg_reg}")
+						self.emit(cgarm.mov(assigns[param.name], arg_reg))
 
-					ploc.set_register(assignments[param.name])
+					ploc.set_register(assigns[param.name])
 
 				# if the reg name is not spilled and not assigned, we can safely
 				# infer that it is not used anywhere, so we can just... ignore it.
@@ -171,8 +165,8 @@ class FuncState:
 				ploc.set_stack(8 + (i - 4) * 4)
 
 				# these still have registers
-				if param.name in assignments:
-					ploc.set_register(assignments[param.name])
+				if param.name in assigns:
+					ploc.set_register(assigns[param.name])
 
 			self.locations[param.name] = ploc
 
@@ -190,8 +184,8 @@ class FuncState:
 				ploc.set_stack(stack_loc)
 				frame_size += POINTER_SIZE
 
-			if var.name in assignments:
-				ploc.set_register(assignments[var.name])
+			if var.name in assigns:
+				ploc.set_register(assigns[var.name])
 
 			# same deal here; if it's not spilled or assigned a reg, then we can
 			# deduce that it is simply not used.
@@ -201,12 +195,12 @@ class FuncState:
 
 		self.frame_size: int = STACK_ALIGNMENT * ((frame_size + STACK_ALIGNMENT - 1) // STACK_ALIGNMENT)
 
-		# we already know which variables are touched.
-		self.touched: Set[str] = set(assignments.values())
+		# we already know which registers are touched.
+		self.used_regs: Set[str] = set(map(lambda r: r.name, assigns.values()))
 
 		self.reg_live_ranges = reg_ranges
 
-		self.assigns: Dict[str, str] = assignments
+		self.assigns: Dict[str, cgarm.Register] = assigns
 		self.spilled: Set[str] = spills
 
 		self.stack_extra_offset = 0
@@ -234,15 +228,14 @@ class FuncState:
 		return ofs + self.frame_size + self.stack_extra_offset
 
 
-	def load_stack_location(self, var: str, reg: str) -> None:
+	def load_stack_location(self, var: str, reg: cgarm.Register) -> None:
 		ofs = self.calculate_stack_offset(self.get_location(var).stack_ofs())
-		self.cs.emit_raw(f"ldr {reg}, [sp, #{ofs}]")
-		self.cs.comment_line(f"restore {var}")
+		self.emit(cgarm.load(reg, cgarm.Memory(cgarm.SP, ofs)).annotate(f"restore {var}"))
 
-	def store_stack_location(self, var: str, reg: str) -> None:
+	def store_stack_location(self, var: str, reg: cgarm.Register) -> None:
 		ofs = self.calculate_stack_offset(self.get_location(var).stack_ofs())
-		self.cs.emit_raw(f"str {reg}, [sp, #{ofs}]")
-		self.cs.comment_line(f"spill/wb {var}")
+		self.emit(cgarm.store(reg, cgarm.Memory(cgarm.SP, ofs)).annotate(f"spill/wb {var}"))
+
 
 
 	# the reason that we have to assert we have a register, even when we're spilling, is because
@@ -265,24 +258,26 @@ class FuncState:
 
 
 
-	def stack_push(self, reg: str) -> None:
-		self.cs.emit_raw(f"str {reg}, [sp, #-4]!")
+	def stack_push(self, reg: cgarm.Register) -> None:
+		self.emit(cgarm.store(reg, cgarm.Memory(cgarm.SP, -4, post_incr = True)))
 		self.stack_extra_offset += 4
 
-	def stack_push_32n(self, num: int) -> None:
-		self.cs.emit_raw(f"sub sp, sp, #{num * 4}")
+	def stack_push_32n(self, num: int) -> cgarm.Instruction:
 		self.stack_extra_offset += (4 * num)
+		return self.emit(cgarm.sub(cgarm.SP, cgarm.SP, cgarm.Constant(num * 4)))
 
-	def stack_pop_32n(self, num: int) -> None:
-		self.cs.emit_raw(f"add sp, sp, #{num * 4}")
+	def stack_pop_32n(self, num: int) -> cgarm.Instruction:
 		self.stack_extra_offset -= (4 * num)
 		assert self.stack_extra_offset >= 0
+
+		return self.emit(cgarm.add(cgarm.SP, cgarm.SP, cgarm.Constant(num * 4)))
 
 	def stack_extra_32n(self, num: int) -> None:
 		self.stack_extra_offset += (4 * num)
 
 	def current_stack_offset(self) -> int:
 		return self.frame_size + self.stack_extra_offset
+
 
 	def mangle_label(self, label: str) -> str:
 		if label[0] == '.':
@@ -295,8 +290,17 @@ class FuncState:
 		self.emit(cgarm.label(self.mangle_label(name)))
 
 
-	def emit(self, instr: cgarm.Instruction) -> None:
+	def emit(self, instr: cgarm.Instruction) -> cgarm.Instruction:
+		if self.next_annotation != "":
+			instr.annotate(self.next_annotation)
+			self.next_annotation = ""
+
 		self.instructions.append(instr)
+		return instr
+
+	# annotate the *NEXT* instruction that gets emitted.
+	def annotate_next(self, msg: str) -> None:
+		self.next_annotation = msg
 
 
 	def branch_to_exit(self) -> None:
@@ -318,7 +322,9 @@ class FuncState:
 
 		annots = []
 		if cgopt.annotating():
-			annot_assigns, annot_spills = cgannotate.annotate_reg_allocs(self.assigns, self.spilled)
+			assign_names = { k: v.name for k, v in self.assigns.items() }
+
+			annot_assigns, annot_spills = cgannotate.annotate_reg_allocs(assign_names, self.spilled)
 			for s in annot_spills:
 				annots.append(f"\t@ {s}")
 			for a in annot_assigns:
@@ -334,7 +340,7 @@ class FuncState:
 
 	def get_prologue(self) -> List[cgarm.Instruction]:
 		callee_saved = ["v1", "v2", "v3", "v4", "v5", "v6", "v7", "fp"]
-		restore = self.touched.intersection(callee_saved)
+		restore = self.used_regs.intersection(callee_saved)
 
 		instrs = []
 		instrs.append(cgarm.store_multiple(cgarm.SP, [ cgarm.LR ]))
@@ -350,16 +356,18 @@ class FuncState:
 
 	def get_epilogue(self) -> List[cgarm.Instruction]:
 		callee_saved = ["v1", "v2", "v3", "v4", "v5", "v6", "v7", "fp"]
-		restore = self.touched.intersection(callee_saved)
+		restore = self.used_regs.intersection(callee_saved)
 
 		instrs = []
+		instrs.append(cgarm.label(self.exit_label))
+
 		if len(restore) > 0:
 			instrs.append(cgarm.load_multiple(cgarm.SP, map(cgarm.Register, restore)))
 
 		if self.frame_size > 0:
 			instrs.append(cgarm.add(cgarm.SP, cgarm.SP, cgarm.Constant(self.frame_size)))
 
-		instrs.append(cgarm.load_multiple(cgarm.SP, [ cgarm.LR ]))
+		instrs.append(cgarm.load_multiple(cgarm.SP, [ cgarm.PC ]))
 
 		return instrs
 

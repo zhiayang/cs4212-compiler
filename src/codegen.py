@@ -17,18 +17,18 @@ import math
 
 
 # returns (string, is_constant, type)
-def codegen_value(cs: CodegenState, fs: FuncState, val: ir3.Value) -> Tuple[str, bool]:
+def codegen_value(cs: CodegenState, fs: FuncState, val: ir3.Value) -> cgarm.Operand:
 	if isinstance(val, ir3.VarRef):
-		return fs.get_location(val.name).register(), False
+		return fs.get_location(val.name).register()
 
 	elif isinstance(val, ir3.ConstantInt):
-		return f"#{val.value}", True
+		return cgarm.Constant(val.value)
 
 	if isinstance(val, ir3.ConstantBool):
-		return f"#{0 if not val.value else 1}", True
+		return cgarm.Constant(0 if not val.value else 1)
 
 	elif isinstance(val, ir3.ConstantNull):
-		return f"#0", True
+		return cgarm.Constant(0)
 
 	assert False and "unreachable"
 
@@ -50,7 +50,7 @@ def get_value_type(cs: CodegenState, fs: FuncState, val: ir3.Value) -> str:
 
 
 
-def codegen_binop(cs: CodegenState, fs: FuncState, expr: ir3.BinaryOp, dest_reg: str):
+def codegen_binop(cs: CodegenState, fs: FuncState, expr: ir3.BinaryOp, dest_reg: cgarm.Register):
 
 	if expr.op == "s+":
 		# TODO: string concatenation
@@ -63,89 +63,72 @@ def codegen_binop(cs: CodegenState, fs: FuncState, expr: ir3.BinaryOp, dest_reg:
 		return
 
 
-	lhs, lc = codegen_value(cs, fs, expr.lhs)
-	rhs, rc = codegen_value(cs, fs, expr.rhs)
-
-	if lc and rc:
-		raise TCException(expr.loc, "somehow, constant folding failed")
+	lhs = codegen_value(cs, fs, expr.lhs)
+	rhs = codegen_value(cs, fs, expr.rhs)
 
 	# turns out all of these need unique paths ><
 	if expr.op == "+":
-		if lc:
-			lhs, rhs = rhs, lhs
-
-		cs.emit_raw(f"add {dest_reg}, {lhs}, {rhs}")
+		fs.emit(cgarm.add(dest_reg, lhs, rhs))
 
 	elif expr.op == "-":
-		flip = False
-		if lc:
-			lhs, rhs = rhs, lhs
-			flip = True
-
-		cs.emit_raw(f"{'rsb' if flip else 'sub'} {dest_reg}, {lhs}, {rhs}")
+		fs.emit(cgarm.sub(dest_reg, lhs, rhs))
 
 	elif expr.op == "*":
-		assert (not lc) and (not rc)
-		cs.emit_raw(f"mul {dest_reg}, {lhs}, {rhs}")
+		fs.emit(cgarm.mul(dest_reg, lhs, rhs))
 
 	elif expr.op in ["==", "!=", "<=", ">=", "<", ">"]:
 		instr_map   = {"==": "eq", "!=": "ne", "<=": "le", ">=": "ge", "<": "lt", ">": "gt"}
 		flipped_map = {"eq": "ne", "ne": "eq", "le": "gt", "ge": "lt", "lt": "ge", "gt": "le"}
 
-		cond = instr_map[expr.op]
-		if lc or rc:
-			# keep the constant on the right i guess
-			if lc:
-				lhs, rhs = rhs, lhs
-				cond = flipped_map[cond]
+		cond = cgarm.Cond.from_operator(expr.op)
+		if lhs.is_constant():
+			cond = cond.invert()
+			lhs, rhs = rhs, lhs
 
-		cs.emit_raw(f"cmp {lhs}, {rhs}")
-		cs.emit_raw(f"mov{cond} {dest_reg}, #1")
-		cs.emit_raw(f"mov{flipped_map[cond]} {dest_reg}, #0")
+		fs.emit(cgarm.cmp(lhs, rhs))
+		fs.emit(cgarm.mov_cond(dest_reg, cgarm.Constant(1), cond))
+		fs.emit(cgarm.mov_cond(dest_reg, cgarm.Constant(0), cond.invert()))
 
 	else:
 		cs.comment(f"NOT IMPLEMENTED (binop '{expr.op}')")
 
 
-def codegen_unaryop(cs: CodegenState, fs: FuncState, expr: ir3.UnaryOp, dest_reg: str):
-	value, const = codegen_value(cs, fs, expr.expr)
-	assert not const
+def codegen_unaryop(cs: CodegenState, fs: FuncState, expr: ir3.UnaryOp, dest_reg: cgarm.Register):
+	oper = codegen_value(cs, fs, expr.expr)
 
 	if expr.op == "-":
-		cs.emit_raw(f"rsb {dest_reg}, {value}, #0")
+		fs.emit(cgarm.rsb(dest_reg, oper, cgarm.Constant(0)))
 
 	elif expr.op == "!":
 		# 1 - x works as long as 0 < x < 1 (which should hold...)
-		cs.emit_raw(f"rsb {dest_reg}, {value}, #1")
+		fs.emit(cgarm.rsb(dest_reg, oper, cgarm.Constant(1)))
 
 	else:
 		raise CGException(f"unsupported unary op '{expr.op}'")
 
 
 
-def codegen_dotop(cs: CodegenState, fs: FuncState, dot: ir3.DotOp, dest_reg: str, stmt_id: int):
+def codegen_dotop(cs: CodegenState, fs: FuncState, dot: ir3.DotOp, dest_reg: cgarm.Register, _: int):
 	ptr = fs.get_location(dot.lhs).register()
 	layout = cs.get_class_layout(fs.get_type(dot.lhs))
 	offset = layout.field_offset(dot.rhs)
 
 	if layout.field_size(dot.rhs) == 1:
-		cs.emit_raw(f"ldrb {dest_reg}, [{ptr}, #{offset}]")
+		fs.emit(cgarm.load_byte(dest_reg, cgarm.Memory(ptr, offset)))
 	else:
-		cs.emit_raw(f"ldr {dest_reg}, [{ptr}, #{offset}]")
+		fs.emit(cgarm.load(dest_reg, cgarm.Memory(ptr, offset)))
 
 
-
-
-def codegen_gep(cs: CodegenState, fs: FuncState, expr: cgpseudo.GetElementPtr, dest_reg: str, stmt_id: int):
+def codegen_gep(cs: CodegenState, fs: FuncState, expr: cgpseudo.GetElementPtr, dest_reg: cgarm.Register, _: int):
 	ptr = fs.get_location(expr.ptr).register()
 	layout = cs.get_class_layout(fs.get_type(expr.ptr))
 
 	offset = layout.field_offset(expr.field)
-	cs.emit_raw(f"add {dest_reg}, {ptr}, #{offset}")
+	fs.emit(cgarm.add(dest_reg, ptr, cgarm.Constant(offset)))
 
 
 
-def codegen_expr(cs: CodegenState, fs: FuncState, expr: ir3.Expr, dest_reg: str, stmt_id: int):
+def codegen_expr(cs: CodegenState, fs: FuncState, expr: ir3.Expr, dest_reg: cgarm.Register, stmt_id: int):
 	if isinstance(expr, ir3.BinaryOp):
 		codegen_binop(cs, fs, expr, dest_reg)
 
@@ -154,8 +137,8 @@ def codegen_expr(cs: CodegenState, fs: FuncState, expr: ir3.Expr, dest_reg: str,
 
 	elif isinstance(expr, ir3.ValueExpr):
 		# we might potentially want to abstract this out, but for now idgaf
-		operand, _ = codegen_value(cs, fs, expr.value)
-		cs.emit_raw(f"mov {dest_reg}, {operand}")
+		operand = codegen_value(cs, fs, expr.value)
+		fs.emit(cgarm.mov(dest_reg, operand))
 
 	elif isinstance(expr, ir3.FnCallExpr):
 		codegen_call(cs, fs, expr.call, dest_reg, stmt_id)
@@ -169,14 +152,15 @@ def codegen_expr(cs: CodegenState, fs: FuncState, expr: ir3.Expr, dest_reg: str,
 
 		spills, stack_adjust = pre_function_call(cs, fs, stmt_id)
 
-		cs.emit_raw(f"mov a1, #1")
-		cs.emit_raw(f"ldr a2, =#{cls_size}")    # note: rely on the assembler to optimise this away
-		cs.emit_raw(f"bl calloc(PLT)")
+		fs.emit(cgarm.mov(cgarm.A1, cgarm.Constant(1)))
+		fs.emit(cgarm.mov(cgarm.A2, cgarm.Constant(cls_size)))
+		fs.emit(cgarm.call("calloc(PLT)"))
 
-		if dest_reg != "a1":
-			cs.emit_raw(f"mov {dest_reg}, a1")
+		# move the return value from A1 to the correct destination
+		fs.emit(cgarm.mov(dest_reg, cgarm.A1))
 
 		post_function_call(cs, fs, spills, stack_adjust)
+
 
 	elif isinstance(expr, cgpseudo.GetElementPtr):
 		codegen_gep(cs, fs, expr, dest_reg, stmt_id)
@@ -196,16 +180,14 @@ def codegen_assign(cs: CodegenState, fs: FuncState, assign: ir3.AssignOp):
 
 def codegen_return(cs: CodegenState, fs: FuncState, stmt: ir3.ReturnStmt):
 	if stmt.value is not None:
-		# it actually doesn't matter what register this even is.
-		value, _ = codegen_value(cs, fs, stmt.value)
-		if value != "a1":
-			cs.emit_raw(f"mov a1, {value}")
+		value = codegen_value(cs, fs, stmt.value)
+		fs.emit(cgarm.mov(cgarm.A1, value))
 
 	fs.branch_to_exit()
 
 
 def codegen_uncond_branch(cs: CodegenState, fs: FuncState, ubr: ir3.Branch):
-	cs.emit_raw(f"b {fs.mangle_label(ubr.label)}")
+	fs.emit(cgarm.branch(fs.mangle_label(ubr.label)))
 
 
 def codegen_cond_branch(cs: CodegenState, fs: FuncState, cbr: ir3.CondBranch):
@@ -217,92 +199,90 @@ def codegen_cond_branch(cs: CodegenState, fs: FuncState, cbr: ir3.CondBranch):
 
 	if isinstance(cbr.cond, ir3.ConstantBool):
 		if cbr.cond.value:
-			cs.emit_raw(f"b {target}")
+			fs.emit(cgarm.branch(target))
 		else:
 			cs.comment("constant branch eliminated; fallthrough")
 			pass
 	else:
-		value, _ = codegen_value(cs, fs, cbr.cond)
-		cs.emit_raw(f"cmp {value}, #0")
-		cs.emit_raw(f"bne {target}")
+		value = codegen_value(cs, fs, cbr.cond)
+		fs.emit(cgarm.cmp(value, cgarm.Constant(0)))
+		fs.emit(cgarm.branch_cond(target, cgarm.Cond.NE))
 
 
-def pre_function_call(cs: CodegenState, fs: FuncState, stmt_id: int) -> Tuple[List[str], int]:
+def pre_function_call(cs: CodegenState, fs: FuncState, stmt_id: int) -> Tuple[List[cgarm.Register], int]:
 	# for each of a1-a4, if there is some value in there, we need to save/restore across
 	# the call boundary. this also acts as a spill for those values, so we don't need to
 	# handle spilling separately.
-	spills: List[str] = []
+	saves: List[cgarm.Register] = []
 	for r in ["a1", "a2", "a3", "a4"]:
 		if fs.is_register_live(r, stmt_id):
-			spills.append(r)
+			saves.append(cgarm.Register(r))
 
-	if len(spills) > 0:
-		cs.emit_raw(f"stmfd sp!, {{{', '.join(spills)}}}")
-		fs.stack_extra_32n(len(spills))
+	if len(saves) > 0:
+		fs.emit(cgarm.store_multiple(cgarm.SP.post_incr(), saves)).annotate("caller-save")
+		fs.stack_extra_32n(len(saves))
 
 	if fs.current_stack_offset() % STACK_ALIGNMENT == 0:
 		stack_adjust = 0
+
 	else:
-		fs.stack_push_32n(1)
-		cs.comment_line("align adjustment")
+		fs.stack_push_32n(1).annotate("align adjustment")
 		stack_adjust = 1
 
-	return spills, stack_adjust
+	return saves, stack_adjust
 
 
-def post_function_call(cs: CodegenState, fs: FuncState, spills: List[str], stack_adjust: int) -> None:
+def post_function_call(cs: CodegenState, fs: FuncState, saves: List[cgarm.Register], stack_adjust: int) -> None:
 	# now, restore a1-a4 (if we spilled them)
-	if len(spills) > 0:
-		cs.emit_raw(f"ldmfd sp!, {{{', '.join(spills)}}}")
-		fs.stack_extra_32n(-1 * len(spills))
+	if len(saves) > 0:
+		fs.emit(cgarm.load_multiple(cgarm.SP.post_incr(), saves)).annotate("caller-restore")
+		fs.stack_extra_32n(-1 * len(saves))
 
 	if stack_adjust > 0:
-		fs.stack_pop_32n(stack_adjust)
-		cs.comment_line("align adjustment")
+		fs.stack_pop_32n(stack_adjust).annotate("align adjustment")
 
 
 def codegen_println(cs: CodegenState, fs: FuncState, stmt: ir3.PrintLnCall):
-	value, _ = codegen_value(cs, fs, stmt.value)
+	value = codegen_value(cs, fs, stmt.value)
 	ty = get_value_type(cs, fs, stmt.value)
 
-	spills, stack_adjust = pre_function_call(cs, fs, stmt.id)
+	saves, stack_adjust = pre_function_call(cs, fs, stmt.id)
 
 	# strings are always in registers
 	if ty == "String":
-		cs.emit_raw(f"mov a1, {value}")
+		fs.emit(cgarm.mov(cgarm.A1, value))
 
 		# for strings specifically, increment by 4 to skip the length. the value is a pointer anyway.
-		cs.emit_raw(f"add a1, a1, #4")
-		cs.emit_raw(f"bl puts(PLT)")
+		fs.emit(cgarm.add(cgarm.A1, cgarm.A1, cgarm.Constant(4)))
+		fs.emit(cgarm.call("puts(PLT)"))
 
 	elif ty == "Int":
-		asdf = cs.add_string("%d\n")
-		cs.emit_raw(f"ldr a1, ={asdf}_raw")
-		cs.emit_raw(f"mov a2, {value}")
-		cs.emit_raw(f"bl printf(PLT)")
+		fs.emit(cgarm.load_label(cgarm.A1, cs.add_string("%d\n") + "_raw"))
+		fs.emit(cgarm.mov(cgarm.A2, value))
+		fs.emit(cgarm.call("printf(PLT)"))
 
 	elif ty == "Bool":
-		cs.emit_raw(f"mov a1, {value}")
-		cs.emit_raw(f"cmp a1, #0")
-		cs.emit_raw(f"ldreq a1, ={cs.add_string('false')}_raw")
-		cs.emit_raw(f"ldrne a1, ={cs.add_string('true')}_raw")
-		cs.emit_raw(f"bl puts(PLT)")
+		# update the condition flags here, so that we can elide an additional 'cmp a1, #0'
+		fs.emit(cgarm.mov_s(cgarm.A1, value))
+		fs.emit(cgarm.load_label(cgarm.A1, cs.add_string("false") + "_raw").conditional(cgarm.Cond.EQ))
+		fs.emit(cgarm.load_label(cgarm.A1, cs.add_string("true") + "_raw").conditional(cgarm.Cond.NE))
+		fs.emit(cgarm.call("puts(PLT)"))
 
 	elif ty == "$NullObject":
-		cs.emit_raw(f"ldr a1, ={cs.add_string('null')}_raw")
-		cs.emit_raw(f"bl puts(PLT)")
+		fs.emit(cgarm.load_label(cgarm.A1, cs.add_string("null") + "_raw"))
+		fs.emit(cgarm.call("puts(PLT)"))
 
 	else:
 		assert False and f"unknown type {ty}"
 
-	post_function_call(cs, fs, spills, stack_adjust)
+	post_function_call(cs, fs, saves, stack_adjust)
 
 
-def codegen_call(cs: CodegenState, fs: FuncState, call: ir3.FnCall, dest_reg: str, stmt_id: int):
+def codegen_call(cs: CodegenState, fs: FuncState, call: ir3.FnCall, dest_reg: cgarm.Register, stmt_id: int):
 	# if the number of arguments is > 4, then we set up the stack first; this
 	# is so we can just use a1 as a scratch register
 
-	spills, stack_adjust = pre_function_call(cs, fs, stmt_id)
+	saves, stack_adjust = pre_function_call(cs, fs, stmt_id)
 
 	if len(call.args) > 4:
 		# to match the C calling convention, stack arguments go right-to-left.
@@ -311,47 +291,50 @@ def codegen_call(cs: CodegenState, fs: FuncState, call: ir3.FnCall, dest_reg: st
 		for i, arg in enumerate(stack_args):
 			# just always use a1 as a hint, since it's bound to get spilled anyway
 			# note the stack offset is always -4, since we do the post increment
-			val, const = codegen_value(cs, fs, arg)
-			if const:
-				cs.emit_raw(f"mov a1, {val}")
+			val = codegen_value(cs, fs, arg)
+			if val.is_constant():
+				fs.emit(cgarm.mov(cgarm.A1, val))
+				fs.stack_push(cgarm.A1)
 
-			fs.stack_push(val)
+			else:
+				assert val.is_register()
+				fs.stack_push(cast(cgarm.Register, val))
 
 	for i, arg in enumerate(call.args[:4]):
-		reg = f"a{i + 1}"
-		val, _ = codegen_value(cs, fs, arg)
+		val = codegen_value(cs, fs, arg)
+		fs.emit(cgarm.mov(cgarm.Register(f"a{i + 1}"), val))
 
-		if val != reg:
-			cs.emit_raw(f"mov {reg}, {val}")
-
-	cs.emit_raw(f"bl {call.name}")
+	fs.emit(cgarm.call(call.name))
 
 	# after the call, we need to increment the stack pointer by however many
 	# extra arguments we passed.
 	if len(call.args) > 4:
 		fs.stack_pop_32n(len(call.args) - 4)
 
-	if dest_reg != "" and dest_reg != "a1":
-		cs.emit_raw(f"mov {dest_reg}, a1")
+	# move the return value into place.
+	fs.emit(cgarm.mov(dest_reg, cgarm.A1))
 
-	post_function_call(cs, fs, spills, stack_adjust)
+	post_function_call(cs, fs, saves, stack_adjust)
 
 
 def codegen_storefield(cs: CodegenState, fs: FuncState, store: cgpseudo.StoreField):
 	ptr = fs.get_location(store.ptr).register()
-	value, _ = codegen_value(cs, fs, store.value)
+	value = codegen_value(cs, fs, store.value)
 
 	if store.type == "Bool":
-		cs.emit_raw(f"strb {value}, [{ptr}]")
+		fs.emit(cgarm.store_byte(value, cgarm.Memory(ptr, 0)))
+
 	else:
-		cs.emit_raw(f"str {value}, [{ptr}]")
+		fs.emit(cgarm.store(value, cgarm.Memory(ptr, 0)))
 
 
 
 
 
 def codegen_stmt(cs: CodegenState, fs: FuncState, stmt: ir3.Stmt):
-	cs.comment(str(stmt))
+	# a little janky, but i think this should work.
+	fs.annotate_next(str(stmt))
+
 	if isinstance(stmt, ir3.AssignOp):
 		codegen_assign(cs, fs, stmt)
 
@@ -368,16 +351,16 @@ def codegen_stmt(cs: CodegenState, fs: FuncState, stmt: ir3.Stmt):
 		codegen_cond_branch(cs, fs, stmt)
 
 	elif isinstance(stmt, ir3.FnCallStmt):
-		codegen_call(cs, fs, stmt.call, "", stmt.id)
+		codegen_call(cs, fs, stmt.call, cgarm.A1, stmt.id)
 
 	elif isinstance(stmt, cgpseudo.AssignConstInt) or isinstance(stmt, cgpseudo.AssignConstString):
 		foo: Union[cgpseudo.AssignConstInt, cgpseudo.AssignConstString] = stmt
 		dest_reg = fs.get_location(foo.lhs).register()
 
 		if isinstance(foo, cgpseudo.AssignConstInt):
-			cs.emit_raw(f"ldr {dest_reg}, =#{foo.rhs}")
+			fs.emit(cgarm.mov(dest_reg, cgarm.Constant(foo.rhs)))
 		else:
-			cs.emit_raw(f"ldr {dest_reg}, ={cs.add_string(foo.rhs)}")
+			fs.emit(cgarm.load_label(dest_reg, cs.add_string(foo.rhs)))
 
 	elif isinstance(stmt, cgpseudo.SpillVariable):
 		fs.spill_variable(stmt.var)
@@ -399,13 +382,6 @@ def codegen_stmt(cs: CodegenState, fs: FuncState, stmt: ir3.Stmt):
 
 
 def codegen_method(cs: CodegenState, method: ir3.FuncDefn):
-	cs.set_current_method(method)
-
-	# time to start emitting code...
-	cs.emit_raw(f".global {method.name}", indent = 0)
-	cs.emit_raw(f".type {method.name}, %function", indent = 0)
-	cs.emit_raw(f"{method.name}:", indent = 0)
-
 	assigns, spills, reg_live_ranges = cgreg.allocate_registers(method)
 
 	# setup the function state

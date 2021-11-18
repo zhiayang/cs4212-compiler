@@ -17,6 +17,9 @@ TODO
 	(right now we emit 2 consecutive stmfd/ldmfd instructions)
 	(we might do this as an optimisation pass)
 
+13. get rid of the gep abstraction; we just need a storefield, and then ensure the
+	rhs is a separate variable.
+
 17. register allocation coalescing
 
 19. see if it's possible to "properly split" the live ranges. right now, even though there might be disjoint parts in a var's

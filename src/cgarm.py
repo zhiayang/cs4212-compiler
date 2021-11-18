@@ -12,6 +12,15 @@ class Operand(ABC):
 	@abstractmethod
 	def __str__(self) -> str: ...
 
+	def is_constant(self) -> bool:
+		return isinstance(self, Constant)
+
+	def is_memory(self) -> bool:
+		return isinstance(self, Memory)
+
+	def is_register(self) -> bool:
+		return isinstance(self, Register)
+
 	@classmethod
 	def kind_str(cls) -> str:
 		if cls == Register:
@@ -57,24 +66,29 @@ class Register(Operand):
 
 
 class Memory(Operand):
+	def __init__(self, base: Register, offset: int, post_incr: bool = False) -> None:
+		self.base = base
+		self.offset = offset
+		self.post_incr = post_incr
+
 	def __str__(self) -> str:
-		return f"uwu"
+		return f"[{self.base}, #{self.offset}]{'!' if self.post_incr else ''}"
 
 
 
 class Constant(Operand):
-	def __init__(self, value: int, is_memory: bool = False) -> None:
+	def __init__(self, value: int, is_mem: bool = False) -> None:
 		self.value = value
-		self.is_memory = is_memory
+		self.is_mem = is_mem
 
 	def is_small(self) -> bool:
 		return (-256 <= self.value <= 256)
 
 	def as_memory(self) -> Constant:
-		return Constant(self.value, is_memory = True)
+		return Constant(self.value, is_mem = True)
 
 	def __str__(self) -> str:
-		if self.is_memory:
+		if self.is_mem:
 			return f"=#{self.value}"
 		else:
 			return f"#{self.value}"
@@ -92,6 +106,10 @@ class Instruction():
 
 	def annotate(self, msg: str) -> Instruction:
 		self.annotations.append(msg)
+		return self
+
+	def conditional(self, cond: Condition) -> Instruction:
+		self.instr += cond.cond
 		return self
 
 	def __str__(self) -> str:
@@ -119,6 +137,35 @@ class Instruction():
 		return Instruction(instr, [])
 
 
+class Condition:
+	inversion_map = {
+		"eq": "ne", "ne": "eq", "le": "gt",
+		"ge": "lt", "lt": "ge", "gt": "le"
+	}
+
+	def __init__(self, cond: str) -> None:
+		assert cond in Condition.inversion_map
+		self.cond = cond
+
+	def invert(self) -> Condition:
+		return Condition(Condition.inversion_map[self.cond])
+
+	def __str__(self) -> str:
+		return self.cond
+
+class Cond:
+	NE = Condition("ne")
+	EQ = Condition("eq")
+	LT = Condition("lt")
+	GT = Condition("gt")
+	LE = Condition("le")
+	GE = Condition("ge")
+
+	@staticmethod
+	def from_operator(op: str) -> Condition:
+		return Condition({"==": "eq", "!=": "ne", "<=": "le", ">=": "ge", "<": "lt", ">": "gt"}[op])
+
+
 
 
 
@@ -128,6 +175,59 @@ class Instruction():
 def ensure_operand_kind(instr: str, op: Operand, nth: str, kind: Type[Operand]):
 	if not isinstance(op, kind):
 		raise CGException(f"{nth} operand for '{instr}' must be {kind.kind_str()}")
+
+
+
+
+
+def cmp(op1: Operand, op2: Operand) -> Instruction:
+	if isinstance(op1, Constant) and isinstance(op2, Constant):
+		res = op1.value - op2.value
+		n: int = 1 if (res < 0) else 0
+		z: int = 1 if (res == 0) else 0
+		c: int = 1 if (op2.value > op1.value) else 0
+		v: int = 1 if (res < -(2**31)) else 0
+
+		bits = (n << 31) | (z << 30) | (c << 29) | (v << 28)
+		return Instruction("msr", [], f"APSR_nzcv, #{hex(bits)}")
+
+
+	elif isinstance(op1, Constant):
+		raise CGException("first operand of 'cmp' cannot be a constant")
+
+	return Instruction("cmp", [ op1, op2 ])
+
+
+
+def __mov(dest: Operand, src: Operand, instr: str) -> Instruction:
+	ensure_operand_kind(instr, dest, "destination", Register)
+
+	if isinstance(src, Register):
+		return Instruction(instr, [ dest, src ])
+
+	elif isinstance(src, Constant):
+		if src.is_small():
+			return Instruction(instr, [ dest, src ])
+		else:
+			# we don't support ldr_s (ie. load and update condition flags)
+			assert instr == "mov"
+			return Instruction("ldr", [ dest, src.as_memory() ])
+
+	else:
+		raise CGException("source operand for 'mov' must be either a register or a constant")
+
+
+def mov(dest: Operand, src: Operand) -> Instruction:
+	return __mov(dest, src, "mov")
+
+# mov and update condition flags
+def mov_s(dest: Operand, src: Operand) -> Instruction:
+	return __mov(dest, src, "movs")
+
+def mov_cond(dest: Operand, src: Operand, cond: Condition) -> Instruction:
+	return __mov(dest, src, f"mov{cond}")
+
+
 
 
 
@@ -172,32 +272,28 @@ def rsb(dest: Operand, op1: Operand, op2: Operand) -> Instruction:
 
 
 def mul(dest: Operand, op1: Operand, op2: Operand):
-	pass
+	ensure_operand_kind("mul", dest, "destination", Register)
+	ensure_operand_kind("mul", op1, "first", Register)
+	ensure_operand_kind("mul", op2, "second", Register)
+
+	return Instruction("mul", [ dest, op1, op2 ])
 
 
 
 def branch(label: str) -> Instruction:
 	return Instruction("b", [], label)
 
+def branch_cond(label: str, cond: Condition) -> Instruction:
+	return Instruction("b", [], label).conditional(cond)
+
+
+def call(fn: str) -> Instruction:
+	return Instruction("bl", [], fn)
 
 def label(label: str) -> Instruction:
 	return Instruction(label, [], is_label = True)
 
 
-def mov(dest: Operand, src: Operand) -> Instruction:
-	ensure_operand_kind("mov", dest, "destination", Register)
-
-	if isinstance(src, Register):
-		return Instruction("mov", [ dest, src ])
-
-	elif isinstance(src, Constant):
-		if src.is_small():
-			return Instruction("mov", [ dest, src ])
-		else:
-			return Instruction("ldr", [ dest, src.as_memory() ])
-
-	else:
-		raise CGException("source operand for 'mov' must be either a register or a constant")
 
 
 
@@ -211,6 +307,23 @@ def store(src: Operand, dest: Operand) -> Instruction:
 	ensure_operand_kind("str", src, "source", Register)
 	ensure_operand_kind("str", dest, "destination", Memory)
 	return Instruction("str", [ src, dest ])
+
+
+def load_byte(dest: Operand, src: Operand) -> Instruction:
+	ensure_operand_kind("ldrb", dest, "destination", Register)
+	ensure_operand_kind("ldrb", src, "source", Memory)
+	return Instruction("ldrb", [ dest, src ])
+
+def store_byte(src: Operand, dest: Operand) -> Instruction:
+	ensure_operand_kind("strb", src, "source", Register)
+	ensure_operand_kind("strb", dest, "destination", Memory)
+	return Instruction("strb", [ src, dest ])
+
+
+def load_label(dest: Operand, label: str) -> Instruction:
+	ensure_operand_kind("ldr", dest, "destination", Register)
+	return Instruction("ldr", [ dest ], f"={label}")
+
 
 
 def store_multiple(ptr: Register, regs: Iterable[Register]) -> Instruction:
