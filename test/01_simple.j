@@ -77,6 +77,8 @@ class Foo
 		println(f2);
 		println(f3);
 
+		new Foo().asdf();
+
 		// k = 69;
 		return k;
 	}

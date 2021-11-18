@@ -17,7 +17,7 @@ from . import util
 def optimise(func: ir3.FuncDefn):
 	passes = 0
 
-	return
+	# print(func)
 
 	# just in case we don't terminate...
 	while passes < 500:
@@ -110,7 +110,12 @@ def remove_double_jumps(func: ir3.FuncDefn) -> bool:
 	# eg. if we have a: { ... jmp b; }, b: { jmp c; }, c: { ... }, then we can replace it
 	# with simply a: { ... jmp c; }, c: { ... } and yeet b from existence.
 
+	block_names: Dict[str, ir3.BasicBlock] = {}
+	for block in func.blocks:
+		block_names[block.name] = block
+
 	num_removed = 0
+
 	# do this weird slice thing to make a copy so we can yeet elements while iterating.
 	for blk in func.blocks[:]:
 		if len(blk.stmts) == 1 and isinstance(blk.stmts[0], ir3.Branch):
@@ -122,11 +127,10 @@ def remove_double_jumps(func: ir3.FuncDefn) -> bool:
 
 			for pred in blk.predecessors:
 				for j in pred.stmts:
-					if isinstance(j, ir3.Branch) and j.label == blk.name:
+					if (isinstance(j, ir3.Branch) or isinstance(j, ir3.CondBranch)) and j.label == blk.name:
 						j.label = target
-						num_removed += 1
-					elif isinstance(j, ir3.CondBranch) and j.label == blk.name:
-						j.label = target
+						block_names[target].predecessors.add(pred)
+						block_names[target].predecessors.discard(blk)
 						num_removed += 1
 
 	# note that we only eliminate the double jump. the unreachable-block pruning actually
@@ -458,10 +462,11 @@ def evaluate_constants(func: ir3.FuncDefn) -> bool:
 		if isinstance(expr, ir3.UnaryOp):
 			if isinstance(expr.expr, ir3.ConstantInt) and expr.op == "-":
 				num_changed += 1
-				expr.expr = ir3.ConstantInt(expr.expr.loc, -expr.expr.value)
+				return ir3.ValueExpr(expr.loc, ir3.ConstantInt(expr.expr.loc, -expr.expr.value))
+
 			elif isinstance(expr.expr, ir3.ConstantBool) and expr.op == "!":
 				num_changed += 1
-				expr.expr = ir3.ConstantBool(expr.expr.loc, not expr.expr.value)
+				return ir3.ValueExpr(expr.loc, ir3.ConstantBool(expr.expr.loc, not expr.expr.value))
 
 		elif isinstance(expr, ir3.BinaryOp):
 			if not is_constant_value(expr.lhs) or not is_constant_value(expr.rhs):
@@ -470,20 +475,24 @@ def evaluate_constants(func: ir3.FuncDefn) -> bool:
 			if type(expr.lhs) != type(expr.rhs):
 				return expr
 
-			if isinstance(expr.lhs, ir3.ConstantInt):
-				const = ir3.ConstantInt(expr.loc, eval_ops[expr.op](expr.lhs.value, expr.rhs.value)) # type: ignore
-				num_changed += 1
-				return ir3.ValueExpr(expr.loc, const)
+			def get_result(value: Any) -> Optional[ir3.Value]:
+				if isinstance(value, bool):
+					return ir3.ConstantBool(expr.loc, value)
+				elif isinstance(value, int):
+					return ir3.ConstantInt(expr.loc, value)
+				elif isinstance(value, str):
+					return ir3.ConstantString(expr.loc, value)
+				else:
+					return None
 
-			elif isinstance(expr.lhs, ir3.ConstantBool):
-				const = ir3.ConstantBool(expr.loc, eval_ops[expr.op](expr.lhs.value, expr.rhs.value)) # type: ignore
-				num_changed += 1
-				return ir3.ValueExpr(expr.loc, const)
+			if isinstance(expr.lhs, ir3.ConstantInt) or isinstance(expr.lhs, ir3.ConstantBool)  \
+				or isinstance(expr.lhs, ir3.ConstantString):
 
-			elif isinstance(expr.lhs, ir3.ConstantString):
-				const = ir3.ConstantString(expr.loc, eval_ops[expr.op](expr.lhs.value, expr.rhs.value)) # type: ignore
-				num_changed += 1
-				return ir3.ValueExpr(expr.loc, const)
+				res = get_result(eval_ops[expr.op](expr.lhs.value, expr.rhs.value)) # type: ignore
+				if res is not None:
+					num_changed += 1
+					return ir3.ValueExpr(expr.loc, res)
+
 
 		return expr
 
@@ -498,6 +507,9 @@ def evaluate_constants(func: ir3.FuncDefn) -> bool:
 			# if the thing inside is already a constant:
 			if isinstance(stmt.cond, ir3.Value) and is_constant_value(stmt.cond):
 				num_changed += 1
+				if not isinstance(stmt.cond, ir3.ConstantBool):
+					print(f"fucky = {type(stmt.cond)}, '{stmt}'")
+
 				assert isinstance(stmt.cond, ir3.ConstantBool)
 				if stmt.cond.value:
 					return ir3.Branch(stmt.loc, stmt.label)
@@ -505,13 +517,13 @@ def evaluate_constants(func: ir3.FuncDefn) -> bool:
 					return cgpseudo.DummyStmt(stmt.loc)
 
 			elif isinstance(stmt.cond, ir3.RelOp):
-
 				if is_constant_value(stmt.cond.lhs) and is_constant_value(stmt.cond.rhs):
 					num_changed += 1
 					if eval_ops[stmt.cond.op](stmt.cond.lhs.value, stmt.cond.rhs.value): # type: ignore
 						return ir3.Branch(stmt.loc, stmt.label)
 					else:
 						return cgpseudo.DummyStmt(stmt.loc)
+
 
 		elif isinstance(stmt, ir3.AssignOp) or isinstance(stmt, ir3.AssignDotOp):
 			stmt.rhs = expr_visitor(stmt.rhs)
@@ -692,22 +704,6 @@ def visit_values_in_stmt(visitor_: Callable[[ir3.Value], Optional[ir3.Value]], s
 			stmt.cond = visitor(stmt.cond)
 
 
-def get_transitive_predecessors(sid: int, predecessors: Dict[int, Set[int]]) -> Set[int]:
-	final: Set[int] = set()
-	queue: List[int] = [ sid ]
-
-	while len(queue) > 0:
-		s = queue.pop(0)
-		if s in final:
-			continue
-
-		final.add(s)
-		if s in predecessors:
-			queue.extend(predecessors[s])
-
-	return final
-
-
 
 def is_constant_value(value: ir3.Value) -> bool:
 	return isinstance(value, ir3.ConstantInt) or isinstance(value, ir3.ConstantBool)  \
@@ -723,7 +719,7 @@ def compute_predecessors(func: ir3.FuncDefn) -> Dict[int, Set[int]]:
 		# for subsequent stmts, its pred is just the previous statement.
 		predecessors[first_id] = set()
 		for pred in b.predecessors:
-			for j in pred.stmts[-2:]:
+			for j in pred.stmts:
 				if isinstance(j, ir3.Branch) and j.label == b.name:
 					predecessors[first_id].add(j.id)
 				elif isinstance(j, ir3.CondBranch) and j.label == b.name:
@@ -740,19 +736,21 @@ def compute_successors(func: ir3.FuncDefn) -> Dict[int, Set[int]]:
 	labels: Dict[str, int] = { b.name: b.stmts[0].id for b in func.blocks }
 	successors: Dict[int, Set[int]] = dict()
 
+	num_stmts = 1 + func.blocks[-1].stmts[-1].id
+
 	for b in func.blocks:
 		first_id = b.stmts[0].id
-		for i, stmt in enumerate(b.stmts):
+		for stmt in b.stmts:
 			if isinstance(stmt, ir3.Branch):
 				successors[stmt.id] = set([ labels[stmt.label] ])
 
 			elif isinstance(stmt, ir3.CondBranch):
 				successors[stmt.id] = set([ labels[stmt.label] ])
-				if i + 1 < len(b.stmts):
-					successors[stmt.id].add(first_id + i + 1)
+				if stmt.id + 1 < num_stmts:
+					successors[stmt.id].add(stmt.id + 1)
 
-			elif i + 1 < len(b.stmts):
-				successors[stmt.id] = set([first_id + i + 1])
+			elif stmt.id + 1 < num_stmts:
+				successors[stmt.id] = set([stmt.id + 1])
 
 			else:
 				assert isinstance(stmt, ir3.Branch) or isinstance(stmt, ir3.ReturnStmt)

@@ -24,9 +24,17 @@ def alloc_function(func: ir3.FuncDefn, prespilled: Set[str] = set()) -> Tuple[Di
 	stmts = iropt.renumber_statements(func)
 	ins, outs, defs, uses = cgliveness.analyse(func, stmts)
 
-	# for s in stmts:
-	# 	print("{:02}  {}".format(s.id, s))
+	preds = iropt.compute_predecessors(func)
 
+	# print(f"func: {func.name}")
+	# for blk in func.blocks:
+	# 	print(f">> {blk.name}")
+	# 	for s in blk.stmts:
+	# 		print(f"{s.id:02}  {s}     -- {preds[s.id]}")
+	# 		print(f"  in =  {ins[s.id]}")
+	# 		print(f"  out = {outs[s.id]}")
+
+	# print("\n\n")
 	"""
 	TODO: do we need to consider OUT for def? the idea here is that, if we have the following:
 	0:  z = 69;
@@ -84,18 +92,55 @@ def alloc_function(func: ir3.FuncDefn, prespilled: Set[str] = set()) -> Tuple[Di
 			var_defs.setdefault(d, set()).add(n)
 
 
-	# we must pre-colour the incoming arguments (which are not shadowed by locals) as a1-a4.
-	preassigned: Dict[str, str] = dict()
+	# indicate preferences for the incoming arguments (which are not shadowed by locals) as a1-a4.
+	# the value is a dict from register -> num_prefs (ie. how many times it was preferred)
+	preassigned_tmp: Dict[str, Dict[str, int]] = dict()
 	first_four_args: Set[str] = set()
 
 	for i, param in enumerate(func.params[:4]):
 		# only if it's not shadowed.
 		if param.name not in func.vars:
-			preassigned[param.name] = f"a{i + 1}"
+			reg_name = f"a{i + 1}"
+			preassigned_tmp.setdefault(param.name, dict()).setdefault(reg_name, 0)
+			preassigned_tmp[param.name][reg_name] += 1
+
 			first_four_args.add(param.name)
 
 
-	registers = ["v1", "v2", "v3", "v4"]
+	# we also want to let variables sit in a nice register for function *calls* inside this body.
+	for blk in func.blocks:
+		for stmt in blk.stmts:
+			call: Optional[ir3.FnCall] = None
+
+			if isinstance(stmt, ir3.FnCallStmt):
+				call = stmt.call
+
+			elif isinstance(stmt, ir3.AssignOp) or isinstance(stmt, ir3.AssignDotOp):
+				if isinstance(stmt.rhs, ir3.FnCallExpr):
+					call = stmt.rhs.call
+
+			if call is not None:
+				# only consider the first 4 args (since they're the ones in registers)
+				for i, arg in enumerate(call.args[:4]):
+					if not isinstance(arg, ir3.VarRef):
+						continue
+
+					reg_name = f"a{i + 1}"
+					preassigned_tmp.setdefault(arg.name, dict()).setdefault(reg_name, 0)
+					preassigned_tmp[arg.name][reg_name] += 1
+
+
+	# make the preassigns but unique the preferences, sorting by count.
+	preassigned: Dict[str, List[str]] = dict()
+
+	for var in preassigned_tmp:
+		# note: negate the key to put the largest one first.
+		regs: Iterable = sorted(preassigned_tmp[var].items(), key = lambda x: -x[1])
+		regs = map(lambda x: x[0], regs)
+		preassigned[var] = list(regs)
+
+
+	registers = ["v1", "v2", "v3", "v4", "v5", "a1", "a2", "a3", "a4", "fp"]
 
 	# print(f"\nprespilled = {prespilled}")
 	# print(f"ranges: { {k: v  for k, v in map(lambda k: (k, live_ranges[k]), prespilled) } }")
@@ -146,10 +191,10 @@ def alloc_function(func: ir3.FuncDefn, prespilled: Set[str] = set()) -> Tuple[Di
 
 
 	# the statements where the register is live. we just compute this from the assignment.
-	reg_live_ranges: Dict[str, Set[int]] = dict()
+	reg_live_ranges: Dict[str, Set[int]] = { k: set() for k in registers }
 	for var in assigns:
-		reg = assigns[var]
-		reg_live_ranges.setdefault(reg, set()).update(live_ranges[var])
+		# reg_live_ranges[assigns[var]] = set(range(0, len(stmts)))
+		reg_live_ranges.setdefault(assigns[var], set()).update(live_ranges[var])
 
 
 	# print(f"assigns = {assigns}")
@@ -160,7 +205,7 @@ def alloc_function(func: ir3.FuncDefn, prespilled: Set[str] = set()) -> Tuple[Di
 
 
 def colour_graph(graph_: Graph, registers: List[str], uses: Dict[str, Set[int]], live_ranges: Dict[str, Set[int]],
-	preassigned: Dict[str, str], prespilled_: Set[str]) -> Tuple[Dict[str, str], Set[str], bool]:
+	preassigned: Dict[str, List[str]], prespilled_: Set[str]) -> Tuple[Dict[str, str], Set[str], bool]:
 
 	graph = deepcopy(graph_)
 	prespilled = copy(prespilled_)
@@ -186,6 +231,7 @@ def colour_graph(graph_: Graph, registers: List[str], uses: Dict[str, Set[int]],
 				stack.append(sel)
 				prespilled.discard(sel)
 				continue
+
 			"""
 			choose a node to spill. we have a few heuristics to use:
 			1. its degree, ie. how many other vars it interferes with
@@ -238,10 +284,19 @@ def colour_graph(graph_: Graph, registers: List[str], uses: Dict[str, Set[int]],
 		free_regs = list(filter(lambda x: x not in used_regs, registers))
 
 		if len(free_regs) > 0:
-			if var in preassigned and preassigned[var] in free_regs:
-				assignments[var] = preassigned[var]
-			else:
+
+			# preassignment is just a preference; no guarantees.
+			assigned = False
+			if var in preassigned:
+				for pref in preassigned[var]:
+					if pref in free_regs:
+						assignments[var] = pref
+						assigned = True
+						break
+
+			if not assigned:
 				assignments[var] = free_regs[0]
+
 		else:
 			# oops, we *really* need to spill.
 			return dict(), set([ var ]), True

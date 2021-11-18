@@ -9,6 +9,31 @@ from . import cgarm
 from .cgstate import *
 
 
+def optimise(fs: FuncState):
+	# return
+
+	passes = 0
+	while True:
+		passes += 1
+
+		if remove_redundant_branches(fs):
+			continue
+
+		if remove_redundant_consecutive_loads_stores(fs):
+			continue
+
+		if remove_redundant_load_store(fs):
+			continue
+
+		if optimise_conditional_branches(fs):
+			continue
+
+		if remove_redundant_arithmetic(fs):
+			continue
+
+		break
+
+
 
 def remove_redundant_branches(fs: FuncState) -> bool:
 	for i, instr in enumerate(fs.instructions):
@@ -35,6 +60,11 @@ def remove_redundant_consecutive_loads_stores(fs: FuncState) -> bool:
 		in2 = fs.instructions[i + 1]
 
 		if (in1.instr == "str" or in1.instr == "ldr") and in1 == in2:
+
+			# can't do this; they have side effects.
+			if cast(cgarm.Memory, in1.operands[1]).post_incr or cast(cgarm.Memory, in2.operands[1]).post_incr:
+				continue
+
 			# remove one of them.
 			fs.instructions.pop(i)
 			return True
@@ -63,10 +93,28 @@ def remove_redundant_load_store(fs: FuncState) -> bool:
 			if (in1.raw_operand != in2.raw_operand) or (in1.operands != in2.operands):
 				continue
 
+			# can't do this; they have side effects.
+			if cast(cgarm.Memory, in1.operands[1]).post_incr or cast(cgarm.Memory, in2.operands[1]).post_incr:
+				continue
+
 			# ok, we can remove the store.
 			fs.instructions.pop(i + 1)
+			return True
 
-			print(f"removed 1")
+
+		# use the annotations!
+		if "caller-restore" in in1.annotations and "caller-save" in in2.annotations:
+			if in1.instr != "ldmfd" or in2.instr != "stmfd":
+				continue
+
+			if (in1.operands != in2.operands) or (in1.raw_operand != in2.raw_operand):
+				continue
+
+			# in this situation, we can elide both -- since storing to the stack
+			# is NOT a "real" side effect. furthermore, we know that they will still
+			# be matched.
+			fs.instructions.pop(i)
+			fs.instructions.pop(i)  # not a typo
 			return True
 
 	return False
@@ -94,10 +142,6 @@ def remove_redundant_arithmetic(fs: FuncState) -> bool:
 				if cast(cgarm.Constant, instr.operands[2]).value == 0:
 					fs.instructions.remove(instr)
 					num_removed += 1
-
-
-	if num_removed > 0:
-		print(f"num_removed {num_removed}")
 
 	return num_removed > 0
 
@@ -163,22 +207,3 @@ def optimise_conditional_branches(fs: FuncState) -> bool:
 
 	return False
 
-
-def optimise(fs: FuncState):
-	passes = 0
-	while True:
-		passes += 1
-
-		if remove_redundant_branches(fs):
-			continue
-
-		if remove_redundant_consecutive_loads_stores(fs):
-			continue
-
-		if remove_redundant_load_store(fs):
-			continue
-
-		if optimise_conditional_branches(fs):
-			continue
-
-		break

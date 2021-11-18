@@ -208,7 +208,7 @@ def cmp(op1: Operand, op2: Operand) -> Instruction:
 		v: int = 1 if (res < -(2**31)) else 0
 
 		bits = (n << 31) | (z << 30) | (c << 29) | (v << 28)
-		return Instruction("msr", [], f"APSR_nzcv, #{hex(bits)}")
+		return Instruction("msr", [], f"APSR_nzcvq, #{hex(bits)}")
 
 
 	elif isinstance(op1, Constant):
@@ -356,6 +356,9 @@ def load_multiple(ptr: Register, regs: Iterable[Register]) -> Instruction:
 	sorted_regs = sorted(regs, key = lambda r: Register.reg_numbers[r.name])
 	return Instruction("ldmfd", [ ptr.post_incr() ], f"{{{', '.join(map(str, sorted_regs))}}}")
 
+
+def sort_registers(regs: Iterable[Register]) -> List[Register]:
+	return sorted(regs, key = lambda r: Register.reg_numbers[r.name])
 
 
 # globals... kekw

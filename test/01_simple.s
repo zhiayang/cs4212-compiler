@@ -3,14 +3,11 @@
 .global main_dummy
 .type main_dummy, %function
 main_dummy:
-	@ spills:  '_t1'
-	@ assigns:  '_c1' = v1;  '_c27' = v1;   '_t0' = v1;   '_t2' = v1;   '_t3' = v1
-	@           '_t4' = v1;   '_t5' = v1;   '_t6' = v1;   '_t7' = v1;     'k' = v1
-	@             'r' = v1;   '_c9' = v2;   '_t1' = v2;     'j' = v2;  '_c12' = v3
-	@          '_c11' = v4
+	@ spills:  <none>
+	@ assigns:  '_t0' = a1;   '_t2' = a1;   '_c9' = a3;   '_c1' = v1;  '_c12' = v1
+	@          '_c16' = v1;  '_c11' = v2
 	stmfd sp!, {lr}
-	sub sp, sp, #8
-	stmfd sp!, {v1, v2, v3, v4}
+	stmfd sp!, {v1, v2}
 .main_dummy_entry:
 	ldr v1, =.string0                       @ _c1 = "asdf";
 	mov a1, v1                              @ println(_c1);
@@ -19,54 +16,54 @@ main_dummy:
 	mov a1, #1                              @ _t0 = new Foo();
 	mov a2, #12
 	bl calloc(PLT)
-	mov v1, a1
-	mov a1, v1                              @ _t1 = _J3Foo_4asdfE(_t0);
+	sub sp, sp, #4                          @ _J3Foo_4asdfE(_t0);; align adjustment
+	stmfd sp!, {a1}                         @ caller-save
 	bl _J3Foo_4asdfE
-	mov v2, a1
-	str v2, [sp, #4]                        @ spill _t1;
+	add sp, sp, #4                          @ caller-restore/1
+	add sp, sp, #4                          @ align adjustment
 	mov a1, #1                              @ _t2 = new Foo();
 	mov a2, #12
 	bl calloc(PLT)
-	mov v1, a1
-	ldr v2, =#420                           @ _c9 = 420;
-	ldr v4, =#69420                         @ _c11 = 69420;
-	ldr v3, =#12345                         @ _c12 = 12345;
-	str v3, [sp, #-4]!                      @ _t3 = _J3Foo_3fooiiiiiE(_t2, 69, _c9, 77, _c11, _c12);
-	str v4, [sp, #-4]!
-	mov a1, v1
+	ldr a3, =#420                           @ _c9 = 420;
+	ldr v2, =#69420                         @ _c11 = 69420;
+	ldr v1, =#12345                         @ _c12 = 12345;
+	stmfd sp!, {a1, a3}                     @ _J3Foo_3fooiiiiiE(_t2, 69, _c9, 77, _c11, _c12);; caller-save
+	str v1, [sp, #-4]!
+	str v2, [sp, #-4]!
 	mov a2, #69
-	mov a3, v2
 	mov a4, #77
 	bl _J3Foo_3fooiiiiiE
 	add sp, sp, #8
-	mov v1, a1
-	ldr v2, [sp, #4]                        @ restore _t1;
-	add v1, v2, v1                          @ _t4 = _t1 + _t3;
-	mov v1, #69                             @ k = 69;
-	mov v2, #1                              @ j = true;
-	rsb v1, v1, #0                          @ _t5 = -k;
-	ldr a1, =.string1_raw                   @ println(_t5);
+	add sp, sp, #4                          @ caller-restore/1
+	ldmfd sp!, {a3}                         @ caller-restore/2
+	sub sp, sp, #4                          @ println(-69);; align adjustment
+	ldr a1, =.string1_raw
+	mov a2, #-69
+	bl printf(PLT)
+	add sp, sp, #4                          @ align adjustment
+	ldr v1, =#420                           @ _c16 = 420;
+	sub sp, sp, #4                          @ println(_c16);; align adjustment
+	ldr a1, =.string1_raw
 	mov a2, v1
 	bl printf(PLT)
-	ldr v1, =#420                           @ _c27 = 420;
-	ldr a1, =.string1_raw                   @ println(_c27);
-	mov a2, v1
-	bl printf(PLT)
-	rsb v1, v2, #1                          @ _t6 = !j;
-	mov v1, v1                              @ r = _t6;
-	movs a1, #0                             @ println(false);
+	add sp, sp, #4                          @ align adjustment
+	sub sp, sp, #4                          @ println(false);; align adjustment
+	mov a1, #0
+	cmp a1, #0
 	ldreq a1, =.string2_raw
 	ldrne a1, =.string3_raw
 	bl puts(PLT)
-	rsb v1, v1, #1                          @ _t7 = !r;
-	movs a1, v1                             @ println(_t7);
+	add sp, sp, #4                          @ align adjustment
+	sub sp, sp, #4                          @ println(true);; align adjustment
+	mov a1, #1
+	cmp a1, #0
 	ldreq a1, =.string2_raw
 	ldrne a1, =.string3_raw
 	bl puts(PLT)
+	add sp, sp, #4                          @ align adjustment
 	b .main_dummy_exit                      @ return;
 .main_dummy_exit:
-	ldmfd sp!, {v1, v2, v3, v4}
-	add sp, sp, #8
+	ldmfd sp!, {v1, v2}
 	ldmfd sp!, {pc}
 
 
@@ -86,110 +83,128 @@ _J3Foo_4asdfE:
 .global _J3Foo_3fooiiiiiE
 .type _J3Foo_3fooiiiiiE, %function
 _J3Foo_3fooiiiiiE:
-	@ spills:  'm', 'w'
-	@ assigns: '_c15' = v1;  '_c20' = v1;  '_c24' = v1;  '_c26' = v1;  '_c34' = v1
-	@          '_c36' = v1;  '_c44' = v1;  '_c55' = v1;  '_c58' = v1;  '_c66' = v1
-	@          '_c69' = v1;  '_g31' = v1;  '_g41' = v1;  '_g45' = v1;   '_g9' = v1
-	@           '_t1' = v1;  '_t10' = v1;  '_t11' = v1;   '_t2' = v1;   '_t3' = v1
-	@           '_t4' = v1;   '_t5' = v1;   '_t6' = v1;   '_t7' = v1;   '_t8' = v1
-	@           '_t9' = v1;     'm' = v1;     'w' = v1;     'y' = v1;   '_t0' = v2
-	@             'k' = v2;     'x' = v2;  'this' = v3;   '_c1' = v4;  '_c51' = v4
+	@ spills:  <none>
+	@ assigns: '_t12' = a1;  'this' = a1;     'x' = a2;     'y' = a3;  '_c47' = v1
+	@          '_c50' = v1;  '_c53' = v1;  '_t10' = v1;  '_t11' = v1;   '_t6' = v1
+	@           '_t7' = v1;   '_t9' = v1;     'w' = v1;   '_c1' = v2;   '_t0' = v2
+	@             'k' = v2;  '_c13' = v3;  '_c16' = v3;  '_c20' = v3;  '_c22' = v3
+	@          '_c28' = v3;  '_c30' = v3;  '_c36' = v3;  '_c43' = v3;  '_g25' = v3
+	@          '_g33' = v3;  '_g37' = v3;   '_g7' = v3;   '_t3' = v3
 	stmfd sp!, {lr}
-	stmfd sp!, {v1, v2, v3, v4}
-	mov v3, a1
-	mov v2, a2
-	mov v1, a3
+	stmfd sp!, {v1, v2, v3}
 ._J3Foo_3fooiiiiiE_entry:
-	mov v4, #3                              @ _c1 = 3;
-	mul v2, v2, v4                          @ _t0 = x * _c1;
-	add v1, v2, v1                          @ _t1 = _t0 + y;
-	mov v2, v1                              @ k = _t1;
-	mov v1, #102                            @ _g9 = 102;
-	str v1, [v3, #8]                        @ storefield: Int, *this.f3 = _g9;
-	ldr a1, =.string1_raw                   @ println(k);
+	mov v2, #3                              @ _c1 = 3;
+	mul v2, a2, v2                          @ _t0 = x * _c1;
+	add v2, v2, a3                          @ k = _t0 + y;
+	mov v3, #102                            @ _g7 = 102;
+	str v3, [a1, #8]                        @ storefield: Int, *this.f3 = _g7;
+	sub sp, sp, #4                          @ println(k);; align adjustment
+	stmfd sp!, {a1}                         @ caller-save
+	ldr a1, =.string1_raw
 	mov a2, v2
 	bl printf(PLT)
-	mov v1, #50                             @ m = 50;
-	str v1, [sp, #12]                       @ spill m;
-	mov v1, #1                              @ _c15 = 1;
-	mul v1, v2, v1                          @ _t2 = k * _c15;
-	mov v2, v1                              @ k = _t2;
-	ldr v1, =#627                           @ _c20 = 627;
-	cmp v2, v1                              @ _t3 = k == _c20;
+	ldmfd sp!, {a1}                         @ caller-restore
+	add sp, sp, #4                          @ align adjustment
+	mov v3, #1                              @ _c13 = 1;
+	mul v2, v2, v3                          @ k = k * _c13;
+	ldr v3, =#627                           @ _c16 = 627;
+	cmp v2, v3                              @ _t3 = k == _c16;
 	beq ._J3Foo_3fooiiiiiE_L1
 ._J3Foo_3fooiiiiiE_L2:
-	ldr v1, =.string4                       @ _c24 = "omegalul";
-	mov a1, v1                              @ println(_c24);
+	ldr v3, =.string4                       @ _c20 = "omegalul";
+	sub sp, sp, #4                          @ println(_c20);; align adjustment
+	stmfd sp!, {a1}                         @ caller-save
+	mov a1, v3
 	add a1, a1, #4
 	bl puts(PLT)
-	mov v1, #5                              @ _c26 = 5;
-	mul v1, v2, v1                          @ _t5 = k * _c26;
-	mov v2, v1                              @ k = _t5;
-	mov v1, #19                             @ _g31 = 19;
-	str v1, [v3, #4]                        @ storefield: Int, *this.f2 = _g31;
+	ldmfd sp!, {a1}                         @ caller-restore
+	add sp, sp, #4                          @ align adjustment
+	mov v3, #5                              @ _c22 = 5;
+	mul v2, v2, v3                          @ k = k * _c22;
+	mov v3, #19                             @ _g25 = 19;
+	str v3, [a1, #4]                        @ storefield: Int, *this.f2 = _g25;
 	b ._J3Foo_3fooiiiiiE_L3                 @ goto .L3;
 ._J3Foo_3fooiiiiiE_L1:
-	ldr v1, =.string5                       @ _c34 = "kekw";
-	mov a1, v1                              @ println(_c34);
+	ldr v3, =.string5                       @ _c28 = "kekw";
+	sub sp, sp, #4                          @ println(_c28);; align adjustment
+	stmfd sp!, {a1}                         @ caller-save
+	mov a1, v3
 	add a1, a1, #4
 	bl puts(PLT)
-	mov v1, #2                              @ _c36 = 2;
-	mul v1, v2, v1                          @ _t4 = k * _c36;
-	mov v2, v1                              @ k = _t4;
-	mov v1, #69                             @ _g41 = 69;
-	str v1, [v3, #4]                        @ storefield: Int, *this.f2 = _g41;
+	ldmfd sp!, {a1}                         @ caller-restore
+	add sp, sp, #4                          @ align adjustment
+	mov v3, #2                              @ _c30 = 2;
+	mul v2, v2, v3                          @ k = k * _c30;
+	mov v3, #69                             @ _g33 = 69;
+	str v3, [a1, #4]                        @ storefield: Int, *this.f2 = _g33;
 ._J3Foo_3fooiiiiiE_L3:
-	ldr v1, =#420                           @ _c44 = 420;
-	mov v1, v1                              @ _g45 = _c44;
-	str v1, [v3, #0]                        @ storefield: Int, *this.f1 = _g45;
-	ldr v1, [sp, #8]                        @ restore w;
+	ldr v3, =#420                           @ _c36 = 420;
+	str v3, [a1, #0]                        @ storefield: Int, *this.f1 = _g37;
 	add v1, v1, #1                          @ _t6 = w + 1;
-	ldr v4, =#69420                         @ _c51 = 69420;
-	cmp v1, v4                              @ _t7 = _t6 != _c51;
+	ldr v3, =#69420                         @ _c43 = 69420;
+	cmp v1, v3                              @ _t7 = _t6 != _c43;
 	bne ._J3Foo_3fooiiiiiE_L4
 ._J3Foo_3fooiiiiiE_L5:
-	ldr v1, =.string6                       @ _c55 = "sadge";
-	mov a1, v1                              @ println(_c55);
+	ldr v1, =.string6                       @ _c47 = "sadge";
+	sub sp, sp, #4                          @ println(_c47);; align adjustment
+	stmfd sp!, {a1}                         @ caller-save
+	mov a1, v1
 	add a1, a1, #4
 	bl puts(PLT)
-	b ._J3Foo_3fooiiiiiE_L6                 @ goto .L6;
+	ldmfd sp!, {a1}                         @ caller-restore
+	add sp, sp, #4                          @ align adjustment
+	b ._J3Foo_3fooiiiiiE_L7                 @ goto .L7;
 ._J3Foo_3fooiiiiiE_L4:
-	ldr v1, =.string7                       @ _c58 = "poggers";
-	mov a1, v1                              @ println(_c58);
+	ldr v1, =.string7                       @ _c50 = "poggers";
+	sub sp, sp, #4                          @ println(_c50);; align adjustment
+	stmfd sp!, {a1}                         @ caller-save
+	mov a1, v1
 	add a1, a1, #4
 	bl puts(PLT)
-._J3Foo_3fooiiiiiE_L6:
-	ldr v1, [sp, #12]                       @ restore m;
-	cmp v1, #50                             @ _t8 = m == 50;
-	beq ._J3Foo_3fooiiiiiE_L7
-._J3Foo_3fooiiiiiE_L8:
-	ldr v1, =.string8                       @ _c66 = "riperino";
-	mov a1, v1                              @ println(_c66);
-	add a1, a1, #4
-	bl puts(PLT)
-	b ._J3Foo_3fooiiiiiE_L9                 @ goto .L9;
+	ldmfd sp!, {a1}                         @ caller-restore
+	add sp, sp, #4                          @ align adjustment
 ._J3Foo_3fooiiiiiE_L7:
-	ldr v1, =.string9                       @ _c69 = "poggerino";
-	mov a1, v1                              @ println(_c69);
+	ldr v1, =.string8                       @ _c53 = "poggerino";
+	sub sp, sp, #4                          @ println(_c53);; align adjustment
+	stmfd sp!, {a1}                         @ caller-save
+	mov a1, v1
 	add a1, a1, #4
 	bl puts(PLT)
+	ldmfd sp!, {a1}                         @ caller-restore
+	add sp, sp, #4                          @ align adjustment
 ._J3Foo_3fooiiiiiE_L9:
-	ldr v1, [v3, #0]                        @ _t9 = this.f1;
-	ldr a1, =.string1_raw                   @ println(_t9);
+	ldr v1, [a1, #0]                        @ _t9 = this.f1;
+	sub sp, sp, #4                          @ println(_t9);; align adjustment
+	stmfd sp!, {a1}                         @ caller-save
+	ldr a1, =.string1_raw
 	mov a2, v1
 	bl printf(PLT)
-	ldr v1, [v3, #4]                        @ _t10 = this.f2;
-	ldr a1, =.string1_raw                   @ println(_t10);
+	ldmfd sp!, {a1}                         @ caller-restore
+	add sp, sp, #4                          @ align adjustment
+	ldr v1, [a1, #4]                        @ _t10 = this.f2;
+	sub sp, sp, #4                          @ println(_t10);; align adjustment
+	stmfd sp!, {a1}                         @ caller-save
+	ldr a1, =.string1_raw
 	mov a2, v1
 	bl printf(PLT)
-	ldr v1, [v3, #8]                        @ _t11 = this.f3;
+	ldmfd sp!, {a1}                         @ caller-restore
+	add sp, sp, #4                          @ align adjustment
+	ldr v1, [a1, #8]                        @ _t11 = this.f3;
 	ldr a1, =.string1_raw                   @ println(_t11);
 	mov a2, v1
 	bl printf(PLT)
+	mov a1, #1                              @ _t12 = new Foo();
+	mov a2, #12
+	bl calloc(PLT)
+	sub sp, sp, #4                          @ _J3Foo_4asdfE(_t12);; align adjustment
+	stmfd sp!, {a1}                         @ caller-save
+	bl _J3Foo_4asdfE
+	add sp, sp, #4                          @ caller-restore/1
+	add sp, sp, #4                          @ align adjustment
 	mov a1, v2                              @ return k;
 	b ._J3Foo_3fooiiiiiE_exit
 ._J3Foo_3fooiiiiiE_exit:
-	ldmfd sp!, {v1, v2, v3, v4}
+	ldmfd sp!, {v1, v2, v3}
 	ldmfd sp!, {pc}
 
 
@@ -252,12 +267,7 @@ main:
     .asciz "poggers"
 
 .string8:
-    .word 8
-.string8_raw:
-    .asciz "riperino"
-
-.string9:
     .word 9
-.string9_raw:
+.string8_raw:
     .asciz "poggerino"
 

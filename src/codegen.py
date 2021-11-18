@@ -148,7 +148,7 @@ def codegen_expr(cs: CodegenState, fs: FuncState, expr: ir3.Expr, dest_reg: cgar
 		# move the return value from A1 to the correct destination
 		fs.emit(cgarm.mov(dest_reg, cgarm.A1))
 
-		post_function_call(cs, fs, spills, stack_adjust)
+		post_function_call(cs, fs, spills, stack_adjust, dest_reg)
 
 	else:
 		cs.comment(f"NOT IMPLEMENTED (expression)")
@@ -209,25 +209,41 @@ def pre_function_call(cs: CodegenState, fs: FuncState, stmt_id: int) -> Tuple[Li
 		if fs.is_register_live(r, stmt_id):
 			saves.append(cgarm.Register(r))
 
-	if len(saves) > 0:
-		fs.emit(cgarm.store_multiple(cgarm.SP.post_incr(), saves)).annotate("caller-save")
-		fs.stack_extra_32n(len(saves))
-
-	if fs.current_stack_offset() % STACK_ALIGNMENT == 0:
+	if (fs.current_stack_offset() + 4 * len(saves)) % STACK_ALIGNMENT == 0:
 		stack_adjust = 0
 
 	else:
 		fs.stack_push_32n(1).annotate("align adjustment")
 		stack_adjust = 1
 
+
+	if len(saves) > 0:
+		fs.emit(cgarm.store_multiple(cgarm.SP.post_incr(), saves)).annotate("caller-save")
+		fs.stack_extra_32n(len(saves))
+
 	return saves, stack_adjust
 
 
-def post_function_call(cs: CodegenState, fs: FuncState, saves: List[cgarm.Register], stack_adjust: int) -> None:
-	# now, restore a1-a4 (if we spilled them)
-	if len(saves) > 0:
-		fs.emit(cgarm.load_multiple(cgarm.SP.post_incr(), saves)).annotate("caller-restore")
-		fs.stack_extra_32n(-1 * len(saves))
+def post_function_call(cs: CodegenState, fs: FuncState, saves: List[cgarm.Register],
+	stack_adjust: int, dest_reg: Optional[cgarm.Register] = None) -> None:
+
+	# if we have a dest, then don't restore it
+	if dest_reg is not None and dest_reg in saves:
+
+		# very hacky. we don't know where in `saves` dest_reg is (might even be in the middle)
+		# so there is no way we can correctly place the additional +4 before or after the ldmfd.
+		# so, we are forced to expand it in the order in `saves`:
+		regs = cgarm.sort_registers(saves)
+		for i, reg in enumerate(regs):
+			if reg == dest_reg:
+				fs.stack_pop_32n(1).annotate(f"caller-restore/{i + 1}")
+			else:
+				fs.emit(cgarm.load_multiple(cgarm.SP.post_incr(), [ reg ])).annotate(f"caller-restore/{i + 1}")
+	else:
+		# now, restore a1-a4 (if we spilled them)
+		if len(saves) > 0:
+			fs.emit(cgarm.load_multiple(cgarm.SP.post_incr(), saves)).annotate("caller-restore")
+			fs.stack_extra_32n(-1 * len(saves))
 
 	if stack_adjust > 0:
 		fs.stack_pop_32n(stack_adjust).annotate("align adjustment")
@@ -254,7 +270,8 @@ def codegen_println(cs: CodegenState, fs: FuncState, stmt: ir3.PrintLnCall):
 
 	elif ty == "Bool":
 		# update the condition flags here, so that we can elide an additional 'cmp a1, #0'
-		fs.emit(cgarm.mov_s(cgarm.A1, value))
+		fs.emit(cgarm.mov(cgarm.A1, value))
+		fs.emit(cgarm.cmp(cgarm.A1, cgarm.Constant(0)))
 		fs.emit(cgarm.load_label(cgarm.A1, cs.add_string("false") + "_raw").conditional(cgarm.Cond.EQ))
 		fs.emit(cgarm.load_label(cgarm.A1, cs.add_string("true") + "_raw").conditional(cgarm.Cond.NE))
 		fs.emit(cgarm.call("puts(PLT)"))
@@ -305,7 +322,7 @@ def codegen_call(cs: CodegenState, fs: FuncState, call: ir3.FnCall, dest_reg: cg
 	# move the return value into place.
 	fs.emit(cgarm.mov(dest_reg, cgarm.A1))
 
-	post_function_call(cs, fs, saves, stack_adjust)
+	post_function_call(cs, fs, saves, stack_adjust, dest_reg = dest_reg)
 
 
 

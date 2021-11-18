@@ -7,7 +7,7 @@ QEMU        := qemu-arm-static
 
 GEM5_OPTS   := --cpu-type=TimingSimpleCPU --l1d_size=64kB --l1i_size=16kB --caches
 GEM5_CMD    =  $(GEM5_DIR)/build/ARM/gem5.fast -q -e --stderr-file=/dev/null
-GEM5_CMD    += $(GEM5_DIR)/configs/example/se.py --errout=/dev/null -c
+GEM5_CMD    += $(GEM5_DIR)/configs/example/se.py $(GEM5_OPTS) --errout=/dev/null -c
 
 ifeq ("$(shell uname)","Darwin")
 	ARM_CC      := toolchain/bin/arm-unknown-linux-gnueabihf-gcc
