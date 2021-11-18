@@ -39,7 +39,7 @@ class Main
 		ggg = 700;
 		hhh = 800;
 		iii = 900;
-/*
+
 		// this will result in _t0 = foo + bar; x = _t0 + baz.
 		// this should let is CSE away 'a'
 		x = foo + bar + baz;
@@ -68,28 +68,25 @@ class Main
 		println(x);
 
 
-		// things with side effects cannot be CSE-ed away
-		d = aaa + foooo.side_effect() + bbb;
-		e = aaa + foooo.side_effect() + bbb;
+		// things with side effects cannot be CSE-ed away... but 'aaa + bbb' is still common
+		d = aaa + bbb + foooo.side_effect();
+		e = aaa + bbb + foooo.side_effect();
 
 		println(d);
 		println(e);
-*/
+
 		// even though these are complex, multiple passes of CSE and copy-propagation
 		// should eliminate everything.
-		f = ccc + ddd + eee + fff ;// + ggg + hhh + iii;
+		f = ccc + ddd + eee + fff + ggg + hhh + iii;
 		println(f);
 
-		g = ccc + ddd + eee + fff ;//+ ggg + hhh + iii;
+		g = ccc + ddd + eee + fff + ggg + hhh + iii;
 		println(g);
 
-
-/*
 		// due to the associativity, if the first one (ccc) is assigned, nothing should be optimised:
 		ccc = 1;
 		h = ccc + ddd + eee + fff + ggg + hhh + iii;
 		println(h);
-*/
 	}
 }
 

@@ -271,10 +271,13 @@ def propagate_copies(func: ir3.FuncDefn, all_stmts: List[ir3.Stmt]):
 	# 3. for `_t1 = _t0`, the definition of _t0 must be visible at this point.
 
 	def gen_func(stmt: ir3.Stmt, _: List[Any]) -> Set[str]:
-		if (isinstance(stmt, ir3.AssignOp) or isinstance(stmt, cgpseudo.PhiNode)) and is_temporary(stmt.lhs):
+		if isinstance(stmt, ir3.AssignOp) or isinstance(stmt, cgpseudo.PhiNode):
+			if not is_temporary(stmt.lhs):
+				return set()
+
 			return set([ stmt.lhs ])
-		else:
-			return set()
+
+		return set()
 
 	# we operate in SSA for temporaries, so a value is never killed.
 	def kill_func(stmt: ir3.Stmt, _: List[Any]) -> Set[str]:
@@ -282,23 +285,38 @@ def propagate_copies(func: ir3.FuncDefn, all_stmts: List[ir3.Stmt]):
 
 	ins, outs, gens, kills = forward_dataflow(func, all_stmts, str, [], gen_func, kill_func)
 
+	# which statements does a particular value reach
+	reaching_stmts: Dict[str, Set[int]] = dict()
+	for n, vars in enumerate(ins):
+		for v in vars:
+			reaching_stmts.setdefault(v, set()).add(n)
+
+	# map of name -> copied_name, ie. we want to replace `copied_name` with `name`
+	copiers: Dict[str, str] = dict()
+	def visit(stmt: ir3.Stmt):
+		nonlocal copiers
+		nonlocal reaching_stmts
+		for var in reaching_stmts:
+			if stmt.id not in reaching_stmts[var]:
+				continue
+
+			if isinstance(stmt, ir3.AssignOp) and isinstance(stmt.rhs, ir3.ValueExpr):
+				if isinstance(stmt.rhs.value, ir3.VarRef) and stmt.rhs.value.name == var:
+					copiers[var] = stmt.lhs
+					print(f"{var} is copied by {stmt.lhs}")
+
+	visit_stmts(visit, func)
+
 	# find all statements that are copies
 	num_removed = 0
-	for stmt in all_stmts:
-		if isinstance(stmt, ir3.AssignOp) and is_temporary(stmt.lhs):
-			# check that the right hand is also a temporary
-			if isinstance(stmt.rhs, ir3.ValueExpr) and isinstance(stmt.rhs.value, ir3.VarRef):
-				old_name = stmt.lhs
-				new_name = stmt.rhs.value.name
-				if not is_temporary(new_name):
-					continue
+	for var, stmts in reaching_stmts.items():
+		if var not in copiers:
+			continue
 
-				# ok, now we can replace all uses of `old_name` with `new_name`
-				for other_stmt in all_stmts:
-					if (other_stmt.id != stmt.id) and (new_name in ins[other_stmt.id]):
-						replace_variables_in_stmt(other_stmt, old_name, ir3.VarRef(stmt.loc, new_name))
-						num_removed += 1
-
+		copier = copiers[var]
+		for sid in stmts:
+			replace_variables_in_stmt(all_stmts[sid], copier, ir3.VarRef(all_stmts[sid].loc, var))
+			num_removed += 1
 
 	log_opt(func, "copies", "propagated", num_removed, singular = "copy")
 	return num_removed > 0
@@ -327,7 +345,21 @@ def propagate_constants(func: ir3.FuncDefn, all_stmts: List[ir3.Stmt]):
 
 	ins, outs, gens, kills = forward_dataflow(func, all_stmts, str, [], gen_func, kill_func)
 
+	num_removed = 0
+	for stmt in all_stmts:
+		if isinstance(stmt, ir3.AssignOp) and is_temporary(stmt.lhs):
+			# check that the right hand is also a temporary
+			if isinstance(stmt.rhs, ir3.ValueExpr) and isinstance(stmt.rhs.value, ir3.VarRef):
+				old_name = stmt.lhs
+				new_name = stmt.rhs.value.name
+				if not is_temporary(new_name):
+					continue
 
+				# ok, now we can replace all uses of `old_name` with `new_name`
+				for other_stmt in all_stmts:
+					if (other_stmt.id != stmt.id) and (new_name in ins[other_stmt.id]):
+						replace_variables_in_stmt(other_stmt, old_name, ir3.VarRef(stmt.loc, new_name))
+						num_removed += 1
 
 
 
