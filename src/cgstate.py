@@ -230,11 +230,11 @@ class FuncState:
 
 	def load_stack_location(self, var: str, reg: cgarm.Register) -> None:
 		ofs = self.calculate_stack_offset(self.get_location(var).stack_ofs())
-		self.emit(cgarm.load(reg, cgarm.Memory(cgarm.SP, ofs)).annotate(f"restore {var}"))
+		self.emit(cgarm.load(reg, cgarm.Memory(cgarm.SP, ofs)))
 
 	def store_stack_location(self, var: str, reg: cgarm.Register) -> None:
 		ofs = self.calculate_stack_offset(self.get_location(var).stack_ofs())
-		self.emit(cgarm.store(reg, cgarm.Memory(cgarm.SP, ofs)).annotate(f"spill/wb {var}"))
+		self.emit(cgarm.store(reg, cgarm.Memory(cgarm.SP, ofs)))
 
 
 

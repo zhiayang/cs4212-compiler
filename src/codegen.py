@@ -119,15 +119,6 @@ def codegen_dotop(cs: CodegenState, fs: FuncState, dot: ir3.DotOp, dest_reg: cga
 		fs.emit(cgarm.load(dest_reg, cgarm.Memory(ptr, offset)))
 
 
-def codegen_gep(cs: CodegenState, fs: FuncState, expr: cgpseudo.GetElementPtr, dest_reg: cgarm.Register, _: int):
-	ptr = fs.get_location(expr.ptr).register()
-	layout = cs.get_class_layout(fs.get_type(expr.ptr))
-
-	offset = layout.field_offset(expr.field)
-	fs.emit(cgarm.add(dest_reg, ptr, cgarm.Constant(offset)))
-
-
-
 def codegen_expr(cs: CodegenState, fs: FuncState, expr: ir3.Expr, dest_reg: cgarm.Register, stmt_id: int):
 	if isinstance(expr, ir3.BinaryOp):
 		codegen_binop(cs, fs, expr, dest_reg)
@@ -160,10 +151,6 @@ def codegen_expr(cs: CodegenState, fs: FuncState, expr: ir3.Expr, dest_reg: cgar
 		fs.emit(cgarm.mov(dest_reg, cgarm.A1))
 
 		post_function_call(cs, fs, spills, stack_adjust)
-
-
-	elif isinstance(expr, cgpseudo.GetElementPtr):
-		codegen_gep(cs, fs, expr, dest_reg, stmt_id)
 
 	else:
 		cs.comment(f"NOT IMPLEMENTED (expression)")
@@ -317,15 +304,21 @@ def codegen_call(cs: CodegenState, fs: FuncState, call: ir3.FnCall, dest_reg: cg
 	post_function_call(cs, fs, saves, stack_adjust)
 
 
+
+
+	# fs.emit(cgarm.add(dest_reg, ptr, cgarm.Constant(offset)))
+
 def codegen_storefield(cs: CodegenState, fs: FuncState, store: cgpseudo.StoreField):
 	ptr = fs.get_location(store.ptr).register()
-	value = codegen_value(cs, fs, store.value)
+	layout = cs.get_class_layout(fs.get_type(store.ptr))
+	offset = layout.field_offset(store.field)
+
+	value = fs.get_location(store.rhs).register()
 
 	if store.type == "Bool":
-		fs.emit(cgarm.store_byte(value, cgarm.Memory(ptr, 0)))
-
+		fs.emit(cgarm.store_byte(value, cgarm.Memory(ptr, offset)))
 	else:
-		fs.emit(cgarm.store(value, cgarm.Memory(ptr, 0)))
+		fs.emit(cgarm.store(value, cgarm.Memory(ptr, offset)))
 
 
 
@@ -431,8 +424,7 @@ def codegen(prog: ir3.Program, opt: bool) -> List[str]:
 .type main, %function
 main:
 	str lr, [sp, #-4]!
-	@ we need a 'this' argument for this guy, so just allocate
-	@ nothing.
+	@ we need a 'this' argument for this guy, so just allocate nothing.
 	sub sp, sp, #4
 	mov a1, sp
 

@@ -101,23 +101,18 @@ def lower_stmt(stmt: ir3.Stmt, ctr: List[int]) -> Tuple[List[ir3.Stmt], List[ir3
 		return [ *ss, ir3.AssignOp(stmt.loc, stmt.lhs, e) ], vr
 
 	elif isinstance(stmt, ir3.AssignDotOp):
-		# this must be lowered into a GEP and a store. we also split the store into two pieces;
 		# the rhs must first be saved into a temporary, because we don't want to (re)introduce
-		# scratch registers (to place the result of the rhs expr)
-		gep = cgpseudo.GetElementPtr(stmt.loc, stmt.lhs1, stmt.lhs2)
-		ptr = ir3.VarDecl(stmt.loc, f"_g{ctr[0] + 0}", "Int")
+		# scratch registers (to place the result of the rhs expr). then we lower this into
+		# a separate "store" instruction.
 		tmp = ir3.VarDecl(stmt.loc, f"_g{ctr[0] + 1}", "Int")
 
 		ss, vr, e = lower_expr(stmt.rhs, ctr)
 		ss.extend([
-			ir3.AssignOp(stmt.loc, ptr.name, gep),
 			ir3.AssignOp(stmt.loc, tmp.name, e),
-			cgpseudo.StoreField(stmt.loc, ptr.name, ir3.VarRef(tmp.loc, tmp.name), stmt.type)
+			cgpseudo.StoreField(stmt.loc, stmt.lhs1, stmt.lhs2, tmp.name, stmt.type)
 		])
 
-		# we used 2 vars here
-		ctr[0] += 2
-		vr.append(ptr)
+		ctr[0] += 1
 		vr.append(tmp)
 
 		return ss, vr
