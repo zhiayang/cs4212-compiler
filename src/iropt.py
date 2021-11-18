@@ -57,7 +57,7 @@ def remove_unreachable_blocks(func: ir3.FuncDefn) -> bool:
 		for blk in func.blocks:
 			blk.predecessors.discard(rem)
 
-	log_opt(func, "unreachable block", len(removed_blocks))
+	log_opt(func, "unreachable block", "removed", len(removed_blocks))
 	return len(removed_blocks) > 0
 
 
@@ -88,7 +88,7 @@ def remove_double_jumps(func: ir3.FuncDefn) -> bool:
 	# note that we only eliminate the double jump. the unreachable-block pruning actually
 	# removes the "middle" block, since it is now unreachable.
 
-	log_opt(func, "double-jump", num_removed)
+	log_opt(func, "double jump", "removed", num_removed)
 	return num_removed > 0
 
 
@@ -140,7 +140,7 @@ def remove_redundant_temporaries(func: ir3.FuncDefn) -> bool:
 					next_stmt.rhs = ass.rhs
 					num_removed += 1
 
-	log_opt(func, "redundant assignment", num_removed)
+	log_opt(func, "redundant assignment", "removed", num_removed)
 	return num_removed > 0
 
 
@@ -178,13 +178,13 @@ def remove_unused_variables(func: ir3.FuncDefn) -> bool:
 			func.vars.remove(var)
 			num_removed += 1
 
-	log_opt(func, "unused variable", num_removed)
+	log_opt(func, "unused variable", "removed", num_removed)
 	return num_removed > 0
 
 
 def eliminate_common_subexpressions(func: ir3.FuncDefn, all_stmts: List[ir3.Stmt], all_exprs: List[ir3.Expr]) -> bool:
 
-	def get_stmt_gen_exprs(stmt: ir3.Stmt, _: List[ir3.Expr]) -> Set[int]:
+	def gen_func(stmt: ir3.Stmt, _: List[ir3.Expr]) -> Set[int]:
 		# a statement only "generates" an expression when there is an expression on its rhs.
 		# we do not want to consider dotops to "generate" their expressions (since it would
 		# be too expensive to load from memory versus just doing arithmetic), so we are left
@@ -199,7 +199,7 @@ def eliminate_common_subexpressions(func: ir3.FuncDefn, all_stmts: List[ir3.Stmt
 		else:
 			return set()
 
-	def get_stmt_kill_exprs(stmt: ir3.Stmt, all_exprs: List[ir3.Expr]) -> Set[int]:
+	def kill_func(stmt: ir3.Stmt, all_exprs: List[ir3.Expr]) -> Set[int]:
 		stmt_defs = get_statement_defs(stmt)
 
 		# an expression is "killed" by this statement if the statement defines
@@ -212,8 +212,7 @@ def eliminate_common_subexpressions(func: ir3.FuncDefn, all_stmts: List[ir3.Stmt
 
 
 	# perform forward flow analysis.
-	ins, outs, gens, kills = forward_dataflow(func, all_stmts, int, all_exprs,
-		get_stmt_gen_exprs, get_stmt_kill_exprs)
+	ins, outs, gens, kills = forward_dataflow(func, all_stmts, int, all_exprs, gen_func, kill_func)
 
 	# gens is a map of stmt -> gen-ed expr
 	# we want to invert it. to get expr -> variable name
@@ -260,7 +259,8 @@ def eliminate_common_subexpressions(func: ir3.FuncDefn, all_stmts: List[ir3.Stmt
 					stmt.rhs = ir3.ValueExpr(stmt.rhs.loc, ir3.VarRef(stmt.rhs.loc, expr_generators[in_expr_id]))
 					num_removed += 1
 
-	log_opt(func, "common subexpression", num_removed)
+
+	log_opt(func, "common subexpression", "eliminated", num_removed)
 	return num_removed > 0
 
 
@@ -270,23 +270,21 @@ def propagate_copies(func: ir3.FuncDefn, all_stmts: List[ir3.Stmt]):
 	# 2. temporaries are in SSA form
 	# 3. for `_t1 = _t0`, the definition of _t0 must be visible at this point.
 
-	def get_stmt_gen_temps(stmt: ir3.Stmt, _: List[Any]) -> Set[str]:
+	def gen_func(stmt: ir3.Stmt, _: List[Any]) -> Set[str]:
 		if (isinstance(stmt, ir3.AssignOp) or isinstance(stmt, cgpseudo.PhiNode)) and is_temporary(stmt.lhs):
 			return set([ stmt.lhs ])
 		else:
 			return set()
 
 	# we operate in SSA for temporaries, so a value is never killed.
-	def get_stmt_kill_temps(stmt: ir3.Stmt, _: List[Any]) -> Set[str]:
+	def kill_func(stmt: ir3.Stmt, _: List[Any]) -> Set[str]:
 		return set()
 
-	ins, outs, gens, kills = forward_dataflow(func, all_stmts, str, [],
-		get_stmt_gen_temps, get_stmt_kill_temps)
+	ins, outs, gens, kills = forward_dataflow(func, all_stmts, str, [], gen_func, kill_func)
 
-
-	num_removed = 0
 	# find all statements that are copies
-	for i, stmt in enumerate(all_stmts):
+	num_removed = 0
+	for stmt in all_stmts:
 		if isinstance(stmt, ir3.AssignOp) and is_temporary(stmt.lhs):
 			# check that the right hand is also a temporary
 			if isinstance(stmt.rhs, ir3.ValueExpr) and isinstance(stmt.rhs.value, ir3.VarRef):
@@ -296,11 +294,46 @@ def propagate_copies(func: ir3.FuncDefn, all_stmts: List[ir3.Stmt]):
 					continue
 
 				# ok, now we can replace all uses of `old_name` with `new_name`
-				replace_variables(func, old_name, ir3.VarRef(stmt.loc, new_name))
-				num_removed += 1
+				for other_stmt in all_stmts:
+					if (other_stmt.id != stmt.id) and (new_name in ins[other_stmt.id]):
+						replace_variables_in_stmt(other_stmt, old_name, ir3.VarRef(stmt.loc, new_name))
+						num_removed += 1
 
-	log_opt(func, "copies", num_removed)
+
+	log_opt(func, "copies", "propagated", num_removed, singular = "copy")
 	return num_removed > 0
+
+
+def propagate_constants(func: ir3.FuncDefn, all_stmts: List[ir3.Stmt]):
+	# similar in theory to propagating copies.
+
+	# a constant is generated when you assign a constant to a variable
+	def gen_func(stmt: ir3.Stmt, _: List[Any]) -> Set[str]:
+		if isinstance(stmt, ir3.AssignOp) and isinstance(stmt.rhs, ir3.ValueExpr):
+			# no difference, just want them to fit on one line.
+			if isinstance(stmt.rhs.value, ir3.ConstantInt) or isinstance(stmt.rhs.value, ir3.ConstantBool):
+				return set([ stmt.lhs ])
+			elif isinstance(stmt.rhs.value, ir3.ConstantString) or isinstance(stmt.rhs.value, ir3.ConstantNull):
+				return set([ stmt.lhs ])
+
+		return set()
+
+	# a constant is killed if the variable (to which you assigned a constant) is re-assigned
+	def kill_func(stmt: ir3.Stmt, _: List[Any]) -> Set[str]:
+		if isinstance(stmt, ir3.AssignOp) or isinstance(stmt, cgpseudo.PhiNode):
+			return set([ stmt.lhs ])
+		else:
+			return set()
+
+	ins, outs, gens, kills = forward_dataflow(func, all_stmts, str, [], gen_func, kill_func)
+
+
+
+
+
+
+# def simplify
+
 
 
 
@@ -309,6 +342,9 @@ def optimise(func: ir3.FuncDefn):
 	passes = 0
 	while True:
 		passes += 1
+
+		# print(func)
+
 
 		all_stmts = renumber_statements(func)
 		all_exprs = renumber_expressions(all_stmts)
@@ -347,7 +383,7 @@ def forward_dataflow(func: ir3.FuncDefn, all_stmts: List[ir3.Stmt], set_types: T
 	get_kills: Callable[[ir3.Stmt, List[K]], Set[T]]) -> Tuple[List[Set[T]], List[Set[T]], List[Set[T]], List[Set[T]]]:
 
 	# forward dataflow analysis. determines the in/out for expressions.
-	# we do this on a statement basis. similar algorithm to liveness in cgliveness.py.
+	# we do this on a statement basis. similar algorithm to liveness in cgliveness.py, but forward.
 
 	successors = compute_successors(func)
 	predecessors = compute_predecessors(func)
@@ -381,26 +417,19 @@ def forward_dataflow(func: ir3.FuncDefn, all_stmts: List[ir3.Stmt], set_types: T
 
 
 
-def replace_variables(func: ir3.FuncDefn, old_name: str, new_value: ir3.Value) -> None:
-	for blk in func.blocks:
-		for i, stmt in enumerate(blk.stmts):
-			def visit(value: ir3.Value) -> ir3.Value:
-				if isinstance(value, ir3.VarRef) and value.name == old_name:
-					return new_value
-				else:
-					return value
 
-			if isinstance(stmt, ir3.AssignDotOp) and isinstance(new_value, ir3.VarRef):
-				if stmt.lhs1 == old_name:
-					stmt.lhs1 = new_value.name
+def replace_variables_in_stmt(stmt: ir3.Stmt, old_name: str, new_value: ir3.Value) -> None:
+	def visit(value: ir3.Value) -> ir3.Value:
+		if isinstance(value, ir3.VarRef) and value.name == old_name:
+			return new_value
+		else:
+			return value
 
-			visit_values_in_stmt(visit, stmt)
+	if isinstance(stmt, ir3.AssignDotOp) and isinstance(new_value, ir3.VarRef):
+		if stmt.lhs1 == old_name:
+			stmt.lhs1 = new_value.name
 
-
-
-
-
-
+	visit_values_in_stmt(visit, stmt)
 
 
 
@@ -629,9 +658,15 @@ def is_temporary(name: str) -> bool:
 	return name.startswith('_')
 
 
-def log_opt(func: ir3.FuncDefn, kind: str, num: int):
+def log_opt(func: ir3.FuncDefn, kind: str, verb: str, num: int, singular: str = ""):
+	# this is very important to me.
+	if num == 1:
+		count = kind if singular == "" else singular
+	else:
+		count = kind + "s" if singular == "" else kind
+
 	if num > 0:
-		util.log(f"opt({func.name}): removed {num} {kind}{'' if num == 1 else 's'}")
+		util.log(f"opt({func.name}): {verb} {num} {count}")
 
 
 def get_var_uses(func: ir3.FuncDefn, var: str) -> List[ir3.Stmt]:
