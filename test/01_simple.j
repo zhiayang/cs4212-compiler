@@ -10,6 +10,22 @@ class Main
 		Bool r;
 		Int mm;
 
+		Int ri;
+		Bool rb;
+		String rs;
+
+		readln(ri);
+		println("read integer:");
+		println(ri);
+
+		readln(rs);
+		println("read string:");
+		println(rs);
+
+		readln(rb);
+		println("read boolean:");
+		println(rb);
+/*
 		println("asdf");
 		z = new Foo().asdf() + new Foo().foo(69, 420, 77, 69420, 12345);
 
@@ -22,6 +38,10 @@ class Main
 		println(!true);
 		println(!r);
 		// println(z);
+*/
+/*
+
+*/
 	}
 }
 

@@ -1,8 +1,5 @@
 TODO
 
-1. support functions:
-	- readln
-
 11. see if we need (want) to toposort the basic blocks before renumbering/allocating
 
 17. register allocation coalescing

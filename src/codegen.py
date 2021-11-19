@@ -59,9 +59,9 @@ def codegen_binop(cs: CodegenState, fs: FuncState, expr: ir3.BinaryOp, dest_reg:
 		fs.emit(cgarm.mov(cgarm.A1, lhs))
 		fs.emit(cgarm.mov(cgarm.A2, rhs))
 		if expr.op == "s+":
-			fs.emit(cgarm.call("__string_concat"))
+			fs.emit(cgarm.call(cs.require_string_concat_function()))
 		elif expr.op == "/":
-			fs.emit(cgarm.call("__divide_int"))
+			fs.emit(cgarm.call(cs.require_divide_function()))
 		else:
 			assert False and "unreachable"
 
@@ -246,6 +246,29 @@ def post_function_call(cs: CodegenState, fs: FuncState, saves: List[cgarm.Regist
 		fs.stack_pop_32n(stack_adjust).annotate("align adjustment")
 
 
+def codegen_readln(cs: CodegenState, fs: FuncState, stmt: ir3.ReadLnCall):
+	dest = fs.get_location(stmt.name)
+	ty = fs.get_type(stmt.name)
+
+	saves, stack_adjust = pre_function_call(cs, fs, stmt.id, dest.register())
+
+	if ty == "String":
+		fs.emit(cgarm.call(cs.require_readln_string_function()))
+		fs.emit(cgarm.mov(dest.register(), cgarm.A1))
+
+	elif ty == "Bool":
+		fs.emit(cgarm.call(cs.require_readln_bool_function()))
+		fs.emit(cgarm.mov(dest.register(), cgarm.A1))
+
+	elif ty == "Int":
+		fs.emit(cgarm.call(cs.require_readln_int_function()))
+		fs.emit(cgarm.mov(dest.register(), cgarm.A1))
+
+	else:
+		raise CGException(f"argument to readln has invalid type '{ty}'")
+
+	post_function_call(cs, fs, saves, stack_adjust)
+
 
 
 def codegen_println(cs: CodegenState, fs: FuncState, stmt: ir3.PrintLnCall):
@@ -282,9 +305,10 @@ def codegen_println(cs: CodegenState, fs: FuncState, stmt: ir3.PrintLnCall):
 		fs.emit(cgarm.call("puts(PLT)"))
 
 	else:
-		assert False and f"unknown type {ty}"
+		raise CGException(f"argument to println has invalid type '{ty}'")
 
 	post_function_call(cs, fs, saves, stack_adjust)
+
 
 
 def codegen_call(cs: CodegenState, fs: FuncState, call: ir3.FnCall, dest_reg: cgarm.Register, stmt_id: int):
@@ -355,6 +379,9 @@ def codegen_stmt(cs: CodegenState, fs: FuncState, stmt: ir3.Stmt):
 
 	elif isinstance(stmt, ir3.PrintLnCall):
 		codegen_println(cs, fs, stmt)
+
+	elif isinstance(stmt, ir3.ReadLnCall):
+		codegen_readln(cs, fs, stmt)
 
 	elif isinstance(stmt, ir3.Branch):
 		codegen_uncond_branch(cs, fs, stmt)
@@ -461,13 +488,14 @@ main:
 """)
 
 
-	# other helper functions
-	cs.emit_raw("""
-.global __string_concat
-.type __string_concat, %function
-__string_concat:
+	if (fn := cs.get_string_concat_function()) in cs.needed_builtins:
+		# other helper functions
+		cs.emit_raw(f"""
+.global {fn}
+.type {fn}, %function
+{fn}:
 	@ takes two args: (the strings, duh) and returns 1 (the result, duh)
-	stmfd sp!, {v1, v2, v3, v4, v5, fp, lr}
+	stmfd sp!, {{v1, v2, v3, v4, v5, fp, lr}}
 	mov v1, a1              @ save the string pointers into not-a1 and not-a2
 	mov v2, a2
 	ldr v4, [v1, #0]        @ load the lengths of the two strings
@@ -488,41 +516,129 @@ __string_concat:
 	mov a3, v5              @ len - string 2
 	bl memcpy(PLT)          @ copy the second string
 	mov a1, fp              @ return value
-	ldmfd sp!, {v1, v2, v3, v4, v5, fp, pc}
+	ldmfd sp!, {{v1, v2, v3, v4, v5, fp, pc}}
 """)
 
-	cs.emit_raw("""
-.global __divide_int
-.type __divide_int, %function
-__divide_int:
+	if (fn := cs.get_divide_function()) in cs.needed_builtins:
+		cs.emit_raw(f"""
+.global {fn}
+.type {fn}, %function
+{fn}:
 	@ takes two args: (dividend, divisor) and returns the quotient.
-	stmfd sp!, {v1, v2, v3, v4, v5, fp, lr}
+	stmfd sp!, {{v1, v2, v3, v4, v5, fp, lr}}
 	movs v4, a1, asr #31    @ sign bit (1 if negative)
 	rsbne a1, a1, #0        @ negate if the sign bit was set (ie. abs)
 	movs v5, a2, asr #31    @ also sign bit
 	rsbne a2, a2, #0        @ negate if the sign bit was set (ie. abs)
 	mov v3, #0              @ store the quotient
-.__divide_int_L1:
+.{fn}_L1:
 	subs a1, a1, a2         @ check if we're done
-	blt .__divide_int_done
+	blt .{fn}_done
 	add v3, v3, #1
-	b .__divide_int_L1
-.__divide_int_done:
+	b .{fn}_L1
+.{fn}_done:
 	mov a1, v3
 	eors v1, v4, v5         @ check if the sign bits are different
 	rsbne a1, a1, #0        @ negate if so
-	ldmfd sp!, {v1, v2, v3, v4, v5, fp, pc}
+	ldmfd sp!, {{v1, v2, v3, v4, v5, fp, pc}}
+""")
+
+	if (fn := cs.get_readln_int_function()) in cs.needed_builtins:
+		scanf_int = cs.add_string("%d")
+		cs.emit_raw(f"""
+.global {fn}
+.type {fn}, %function
+{fn}:
+	@ takes no args and returns the int
+	stmfd sp!, {{lr}}
+	sub sp, sp, #4          @ save some stack space (scanf wants a pointer)
+	mov a2, sp              @ a2 is the pointer argument
+	ldr a1, ={scanf_int}_raw
+	bl scanf(PLT)
+	cmp a1, #1              @ if scanf returned < 1...
+	bge .{fn}_ok
+	mov a1, #0              @ just return 0.
+	b .{fn}_exit
+.{fn}_ok:
+	ldr a1, [sp, #0]        @ load the value from stack
+.{fn}_exit:
+	add sp, sp, #4          @ restore the stack
+	ldmfd sp!, {{pc}}
+""")
+
+	if (fn := cs.get_readln_bool_function()) in cs.needed_builtins:
+		scanf_bool = cs.add_string("%7s")
+		cs.emit_raw(f"""
+.global {fn}
+.type {fn}, %function
+{fn}:
+	@ takes no args and returns the bool
+	@ accepts: '1_' (anything starting with '1', or 'T_'/'t_' (anything starting with 't')
+	@ anything else is false.
+	stmfd sp!, {{lr}}
+	sub sp, sp, #12          @ space for the buffer
+	mov a2, sp
+	ldr a1, ={scanf_bool}_raw
+	bl scanf(PLT)
+	cmp a1, #1              @ if scanf returned < 1, then it's probably eof?
+	blt .{fn}_false
+	ldrb a1, [sp, #0]       @ otherwise, load the first char
+	cmp a1, #49             @ 49 = '1'
+	beq .{fn}_true
+	cmp a1, #84             @ 84 = 'T'
+	beq .{fn}_true
+	cmp a1, #116            @ 116 = 't'
+	beq .{fn}_true
+.{fn}_false:
+	mov a1, #0
+	b .{fn}_exit
+.{fn}_true:
+	mov a1, #1
+.{fn}_exit:
+	add sp, sp, #12
+	ldmfd sp!, {{pc}}
+""")
+
+	if (fn := cs.get_readln_string_function()) in cs.needed_builtins:
+		cs.emit_raw(f"""
+.global {fn}
+.type {fn}, %function
+{fn}:
+	@ takes no args and returns the string
+	stmfd sp!, {{v1, lr}}
+	mov a1, #256            @ allocate 256 for the actual string
+	add a1, a1, #5          @ plus 4 (len) + 1 (null term)
+	mov a2, #1
+	bl calloc(PLT)
+	mov v1, a1              @ save it
+	add a1, a1, #4          @ skip the length (will write later)
+	mov a2, #256            @ buffer len
+	ldr a3, =stdin
+	ldr a3, [a3, #0]
+	bl fgets(PLT)           @ 'a1' is now the string
+	cmp a1, #0
+	beq .{fn}_bar
+	bl strlen(PLT)          @ get the length
+	b .{fn}_exit
+.{fn}_bar:
+	mov a1, #0
+.{fn}_exit:
+	str a1, [v1, #0]        @ write the length
+	mov a1, v1              @ return
+	ldmfd sp!, {{v1, pc}}
 """)
 
 
 	cs.emit_raw(".data")
+	cs.emit_raw(".global stdin")
+
 	for string, id in cs.strings.items():
+		cs.emit_raw(f".align 4")
 		cs.emit_raw(f".string{id}:")
 		cs.emit_raw(f"    .word {len(string)}")
 		cs.emit_raw(f".string{id}_raw:")
 		cs.emit_raw(f'    .asciz "{escape_string(string)}"')
 		cs.comment()
-
 
 	return cs.lines
 

@@ -24,6 +24,8 @@ class CodegenState:
 
 		self.class_layouts: Dict[str, CGClass] = { cls.name: CGClass(self, cls) for cls in classes }
 
+		self.needed_builtins: Set[str] = set()
+
 	def emit_raw(self, line: str) -> None:
 		self.lines.append(line)
 
@@ -54,6 +56,41 @@ class CodegenState:
 		return self.lines
 
 
+	def require_string_concat_function(self) -> str:
+		self.needed_builtins.add(foo := self.get_string_concat_function())
+		return foo
+
+	def require_divide_function(self) -> str:
+		self.needed_builtins.add(foo := self.get_divide_function())
+		return foo
+
+	def require_readln_int_function(self) -> str:
+		self.needed_builtins.add(foo := self.get_readln_int_function())
+		return foo
+
+	def require_readln_bool_function(self) -> str:
+		self.needed_builtins.add(foo := self.get_readln_bool_function())
+		return foo
+
+	def require_readln_string_function(self) -> str:
+		self.needed_builtins.add(foo := self.get_readln_string_function())
+		return foo
+
+
+	def get_string_concat_function(self) -> str:
+		return "__string_concat"
+
+	def get_divide_function(self) -> str:
+		return "__divide_int"
+
+	def get_readln_int_function(self) -> str:
+		return "__readln_int"
+
+	def get_readln_bool_function(self) -> str:
+		return "__readln_bool"
+
+	def get_readln_string_function(self) -> str:
+		return "__readln_string"
 
 
 class VarLoc:
