@@ -261,7 +261,7 @@ def typecheck_binaryop(ts: TypecheckState, bi: ast.BinaryOp) -> Tuple[List[ir3.S
 
 	allowables = {
 		"Int": ["+", "-", "*", "/", "==", "!=", ">", "<", ">=", "<="],
-		"Bool": ["&&", "||"],
+		"Bool": ["&&", "||", "==", "!="],
 		"String": ["+", "==", "!="]
 	}
 
@@ -981,6 +981,9 @@ def typecheck_method(ts: TypecheckState, meth: ast.MethodDefn) -> ir3.FuncDefn:
 
 	ensure_correct_basic_blocks(func)
 	ensure_temporaries_are_ssa(func)
+
+	if options.should_print_ir():
+		print(func)
 
 	if options.optimisations_enabled():
 		iropt.optimise(func)

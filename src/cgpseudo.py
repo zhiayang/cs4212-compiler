@@ -73,3 +73,4 @@ class PhiNode(ir3.Stmt):
 
 	def __str__(self) -> str:
 		return f"{self.lhs} = phi {list(map(lambda x: x[0], self.values))};"
+

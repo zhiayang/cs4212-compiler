@@ -197,6 +197,10 @@ class FnCall:
 		self.name: str = name
 		self.args: List[Value] = args
 
+		# this is incredibly hacky
+		self.ignored_var_uses: Set[str] = set()
+		self.stack_stores: List[StoreFunctionStackArg] = []
+
 	def __str__(self) -> str:
 		return f"{self.name}({', '.join(map(str, self.args))})"
 
@@ -362,3 +366,30 @@ class Program:
 	def __str__(self) -> str:
 		return "\n\n".join(map(str, self.classes)) + "\n\n" + "\n\n".join(map(str, self.funcs))
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+# FnCall needs this, and i don't want to circularly import
+class StoreFunctionStackArg(Stmt):
+	def __init__(self, loc: Location, var: str, is_first: bool, call: FnCall, arg_num: int, total_args: int) -> None:
+		super().__init__(loc)
+		self.is_first = is_first
+		self.total_args = total_args
+		self.arg_num = arg_num
+		self.call = call
+		self.var = var
+
+		self.gen_instr: Any = None
+
+	def __str__(self) -> str:
+		return f"stack_arg {self.arg_num}: {self.var};"

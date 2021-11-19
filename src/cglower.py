@@ -48,7 +48,37 @@ def lower_const_value(value: ir3.Value, ctr: List[int], force_int: bool = False)
 		return [], [], value
 
 
-# for constants that cannot fit in an immediate (ie. strings, integers out of range),
+def lower_call(call: ir3.FnCall, ctr: List[int]) -> Tuple[List[ir3.Stmt], List[ir3.VarDecl], ir3.FnCall]:
+	ss = []
+	vs = []
+	vrs = []
+
+	non_const_args: List[str] = []
+	stack_stores: List[ir3.StoreFunctionStackArg] = []
+	for i, arg in enumerate(call.args):
+		s, vr, v = lower_const_value(arg, ctr)
+		ss.extend(s)
+		vrs.extend(vr)
+		vs.append(v)
+
+		if i >= 4 and isinstance(arg, ir3.VarRef):
+			store = ir3.StoreFunctionStackArg(arg.loc, arg.name, len(non_const_args) == 0,
+				call, i, len(call.args))
+
+			ss.append(store)
+			stack_stores.append(store)
+			non_const_args.append(arg.name)
+
+	if len(ss) == 0 and len(non_const_args) == 0:
+		return [], [], call
+
+	new_call = ir3.FnCall(call.loc, call.name, vs)
+	new_call.ignored_var_uses.update(non_const_args)
+	new_call.stack_stores.extend(stack_stores)
+
+	return ss, vrs, new_call
+
+
 def lower_expr(expr: ir3.Expr, ctr: List[int]) -> Tuple[List[ir3.Stmt], List[ir3.VarDecl], ir3.Expr]:
 	if isinstance(expr, ir3.BinaryOp):
 		# special case '*' here. we cannot multiply by a constant on arm, because it sucks.
@@ -76,19 +106,8 @@ def lower_expr(expr: ir3.Expr, ctr: List[int]) -> Tuple[List[ir3.Stmt], List[ir3
 		return ss, vr, ir3.ValueExpr(expr.loc, v)
 
 	elif isinstance(expr, ir3.FnCallExpr):
-		ss = []
-		vs = []
-		vrs = []
-		for arg in expr.call.args:
-			s, vr, v = lower_const_value(arg, ctr)
-			ss.extend(s)
-			vrs.extend(vr)
-			vs.append(v)
-
-		if len(ss) == 0:
-			return [], [], expr
-
-		return ss, vrs, ir3.FnCallExpr(expr.loc, ir3.FnCall(expr.loc, expr.call.name, vs))
+		ss, vrs, call = lower_call(expr.call, ctr)
+		return ss, vrs, ir3.FnCallExpr(expr.loc, call)
 
 	else:
 		return [], [], expr
@@ -125,19 +144,22 @@ def lower_stmt(stmt: ir3.Stmt, ctr: List[int]) -> Tuple[List[ir3.Stmt], List[ir3
 		return [ *ss, ir3.PrintLnCall(stmt.loc, v) ], vr
 
 	elif isinstance(stmt, ir3.FnCallStmt):
-		ss = []
-		vs = []
-		vrs = []
-		for arg in stmt.call.args:
-			s, vr, v = lower_const_value(arg, ctr)
-			ss.extend(s)
-			vs.append(v)
-			vrs.extend(vr)
+		ss, vrs, call = lower_call(stmt.call, ctr)
+		return [ *ss, ir3.FnCallStmt(stmt.loc, call) ], vrs
 
-		if len(ss) == 0:
-			return [ stmt ], []
+		# ss = []
+		# vs = []
+		# vrs = []
+		# for arg in stmt.call.args:
+		# 	s, vr, v = lower_const_value(arg, ctr)
+		# 	ss.extend(s)
+		# 	vs.append(v)
+		# 	vrs.extend(vr)
 
-		return [ *ss, ir3.FnCallStmt(stmt.loc, ir3.FnCall(stmt.loc, stmt.call.name, vs)) ], vrs
+		# if len(ss) == 0:
+		# 	return [ stmt ], []
+
+		# return [ *ss, ir3.FnCallStmt(stmt.loc, ir3.FnCall(stmt.loc, stmt.call.name, vs)) ], vrs
 
 	elif isinstance(stmt, ir3.ReturnStmt):
 		if stmt.value is None:
@@ -195,7 +217,3 @@ def lower_function(func: ir3.FuncDefn) -> None:
 
 			b.stmts.extend(ss)
 			const_nums[0] += 1
-
-
-	if options.should_print_lowered_ir():
-		print(f"{func}")

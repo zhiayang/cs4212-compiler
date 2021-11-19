@@ -60,6 +60,10 @@ class CodegenState:
 		self.needed_builtins.add(foo := self.get_string_concat_function())
 		return foo
 
+	def require_string_compare_function(self) -> str:
+		self.needed_builtins.add(foo := self.get_string_compare_function())
+		return foo
+
 	def require_divide_function(self) -> str:
 		self.needed_builtins.add(foo := self.get_divide_function())
 		return foo
@@ -79,6 +83,9 @@ class CodegenState:
 
 	def get_string_concat_function(self) -> str:
 		return "__string_concat"
+
+	def get_string_compare_function(self) -> str:
+		return "__string_compare"
 
 	def get_divide_function(self) -> str:
 		return "__divide_int"
@@ -143,7 +150,7 @@ class VarLoc:
 
 class FuncState:
 	def __init__(self, cs: CodegenState, method: ir3.FuncDefn, assignments: Dict[str, str],
-		spills: Set[str], reg_ranges: Dict[str, Set[int]]) -> None:
+		spills: Set[str], reg_ranges: Dict[str, Set[int]], defined_on_entry: Set[str]) -> None:
 
 		self.cs = cs
 		self.locations: Dict[str, VarLoc] = dict()
@@ -194,11 +201,9 @@ class FuncState:
 				# infer that it is not used anywhere, so we can just... ignore it.
 
 			else:
-				# these arguments are passed on the stack. these are positive offsets from bp,
-				# since they are "above" the current stack frame.
-				ploc.set_stack(8 + (i - 4) * 4)
-
-				# these still have registers
+				# these arguments are passed on the stack, but they're "above" the current frame;
+				# we need to know the size of our own frame before we can calculate the offset,
+				# so defer it.
 				if param.name in assigns:
 					ploc.set_register(assigns[param.name])
 
@@ -237,7 +242,24 @@ class FuncState:
 		self.assigns: Dict[str, cgarm.Register] = assigns
 		self.spilled: Set[str] = spills
 
+		self.callee_saved = ["v1", "v2", "v3", "v4", "v5", "v6", "v7", "fp"]
+		saved_regs = self.used_regs.intersection(self.callee_saved)
+
 		self.stack_extra_offset = 0
+
+		# now that we know the frame size, we must emit code to load the 5+ arguments from the stack
+		# to get them their initial value. they come right-to-left, so enumerate them in reverse.
+		for i, param in enumerate(reversed(method.params[4:])):
+			if param.name in assigns and param.name not in map(lambda x: x.name, method.vars):
+				# now that we know the frame size, we can calculate the proper offset for these.
+				# restore_variable already accounts for the frame size, so don't double-count
+				ofs = 4 * (i + 1 + len(saved_regs))
+
+				self.locations[param.name].set_stack(ofs)
+
+				# only load variables that need to be alive on entry.
+				if param.name in defined_on_entry:
+					self.restore_variable(param.name)
 
 
 
@@ -377,8 +399,7 @@ class FuncState:
 
 
 	def get_prologue(self) -> List[cgarm.Instruction]:
-		callee_saved = ["v1", "v2", "v3", "v4", "v5", "v6", "v7", "fp"]
-		restore = self.used_regs.intersection(callee_saved)
+		restore = self.used_regs.intersection(self.callee_saved)
 
 		instrs = []
 
@@ -398,8 +419,7 @@ class FuncState:
 
 
 	def get_epilogue(self) -> List[cgarm.Instruction]:
-		callee_saved = ["v1", "v2", "v3", "v4", "v5", "v6", "v7", "fp"]
-		restore = self.used_regs.intersection(callee_saved)
+		restore = self.used_regs.intersection(self.callee_saved)
 
 		instrs = []
 		instrs.append(cgarm.label(self.exit_label))

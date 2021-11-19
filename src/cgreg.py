@@ -13,14 +13,17 @@ from .util import Location, TCException, CGException, StringView, print_warning,
 
 
 
-# func -> (assignments, spills, reg_live_ranges)
-def allocate_registers(func: ir3.FuncDefn) -> Tuple[Dict[str, str], Set[str], Dict[str, Set[int]]]:
+# func -> (assignments, spills, reg_live_ranges, defined_at_entry)
+def allocate_registers(func: ir3.FuncDefn) -> Tuple[Dict[str, str], Set[str], Dict[str, Set[int]], Set[str]]:
 	# this wrapper only exists so that we lower functions exactly once.
 	cglower.lower_function(func)
 	return alloc_function(func)
 
 
-def alloc_function(func: ir3.FuncDefn, prespilled: Set[str] = set()) -> Tuple[Dict[str, str], Set[str], Dict[str, Set[int]]]:
+def alloc_function(func: ir3.FuncDefn, prespilled: Set[str] = set()) -> Tuple[Dict[str, str], Set[str], \
+	Dict[str, Set[int]], Set[str]]:
+
+
 	stmts = iropt.renumber_statements(func)
 	ins, outs, defs, uses = cgliveness.analyse(func, stmts)
 
@@ -200,7 +203,8 @@ def alloc_function(func: ir3.FuncDefn, prespilled: Set[str] = set()) -> Tuple[Di
 	# print(f"assigns = {assigns}")
 	# print(f"spills = {spills}")
 
-	return assigns, spills, reg_live_ranges
+	# outs[0] are the variables that need to be defined at entry
+	return assigns, spills, reg_live_ranges, outs[0]
 
 
 

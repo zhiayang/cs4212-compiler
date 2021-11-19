@@ -23,6 +23,8 @@ def optimise(func: ir3.FuncDefn):
 		all_stmts = renumber_statements(func)
 		all_exprs = renumber_expressions(all_stmts)
 
+		# print(func)
+
 		# these things might remove statements, which screws up the numbering.
 		# it's safer to just restart it (and renumber the statements) when any
 		# of the optimisations makes a change.
@@ -36,7 +38,6 @@ def optimise(func: ir3.FuncDefn):
 			continue
 
 		if propagate_copies(func, all_stmts):
-			print(func)
 			continue
 
 		if propagate_constants(func, all_stmts):
@@ -51,6 +52,7 @@ def optimise(func: ir3.FuncDefn):
 		break
 
 	util.log(f"opt({func.name}): completed in {passes} pass{'' if passes == 1 else 'es'}")
+	# print(func)
 
 
 
@@ -175,19 +177,31 @@ def remove_redundant_temporaries(func: ir3.FuncDefn) -> bool:
 
 		# get the block...
 		block = block_names[parent_blocks[ass.id]]
-		next_stmt = next(filter(lambda s: s.id == next_id, block.stmts))
+
+		ass_id_in_blk = 0
+		next_id_in_blk = 0
+		for i, s in enumerate(block.stmts):
+			if s.id == next_id:
+				next_id_in_blk = i
+			elif s.id == ass.id:
+				ass_id_in_blk = i
+
+		next_stmt = block.stmts[next_id_in_blk]
 
 		if isinstance(next_stmt, ir3.AssignOp) or isinstance(next_stmt, ir3.AssignDotOp):
 			if isinstance(next_stmt.rhs, ir3.ValueExpr) and isinstance(next_stmt.rhs.value, ir3.VarRef):
 				if next_stmt.rhs.value.name == temp.name:
-					# ok, we are clear to eliminate this guy. another pass will
-					# remove unused variables, so we don't need to check it here
-					# (and anyway removing statements will mess up the numbering)
+					# ok, we are clear to eliminate this guy. to prevent side effect duplication,
+					# we need to actually yeet the previous assignment; replace it with a dummy.
 					assert isinstance(ass, ir3.AssignOp)
+
+					# print(f"elim: {next_stmt}, {ass}")
+
 					next_stmt.rhs = ass.rhs
+					block.stmts[ass_id_in_blk] = cgpseudo.DummyStmt(ass.loc)
 					num_removed += 1
 
-	log_opt(func, "redundant assignment", "removed", num_removed)
+	log_opt(func, "redundant temporary", "removed", num_removed)
 	return num_removed > 0
 
 
@@ -321,7 +335,7 @@ def propagate_copies(func: ir3.FuncDefn, all_stmts: List[ir3.Stmt]) -> bool:
 	# 3. for `_t1 = _t0`, the definition of _t0 must be visible at this point.
 
 	def gen_func(stmt: ir3.Stmt, _: List[Any]) -> Set[str]:
-		if isinstance(stmt, ir3.AssignOp) or isinstance(stmt, cgpseudo.PhiNode) and is_temporary(stmt.lhs):
+		if (isinstance(stmt, ir3.AssignOp) or isinstance(stmt, cgpseudo.PhiNode)) and is_temporary(stmt.lhs):
 			return set([ stmt.lhs ])
 
 		return set()
@@ -843,8 +857,11 @@ def get_expr_uses(expr: ir3.Expr) -> Set[str]:
 		return get_value_uses(expr.value)
 
 	elif isinstance(expr, ir3.FnCallExpr):
-		tmp: Set[str] = set()       # stupidest language ever designed
-		return tmp.union(*map(lambda a: get_value_uses(a), expr.call.args))
+		tmp: Set[str] = set()           # stupidest language ever designed
+		for arg in expr.call.args:
+			tmp.update(get_value_uses(arg) - expr.call.ignored_var_uses)
+
+		return tmp
 
 	else:
 		return set()
@@ -853,7 +870,10 @@ def get_expr_uses(expr: ir3.Expr) -> Set[str]:
 def get_statement_uses(stmt: ir3.Stmt) -> Set[str]:
 	if isinstance(stmt, ir3.FnCallStmt):
 		tmp: Set[str] = set()           # stupidest language ever designed
-		return tmp.union(*map(lambda a: get_value_uses(a), stmt.call.args))
+		for arg in stmt.call.args:
+			tmp.update(get_value_uses(arg) - stmt.call.ignored_var_uses)
+
+		return tmp
 
 	elif isinstance(stmt, ir3.ReturnStmt):
 		return get_value_uses(stmt.value) if stmt.value is not None else set()
@@ -862,6 +882,9 @@ def get_statement_uses(stmt: ir3.Stmt) -> Set[str]:
 		return get_value_uses(stmt.value)
 
 	elif isinstance(stmt, ir3.AssignOp):
+		return get_expr_uses(stmt.rhs)
+
+	elif isinstance(stmt, ir3.AssignDotOp):
 		return get_expr_uses(stmt.rhs)
 
 	elif isinstance(stmt, ir3.CondBranch):
@@ -879,6 +902,9 @@ def get_statement_uses(stmt: ir3.Stmt) -> Set[str]:
 
 	elif isinstance(stmt, cgpseudo.PhiNode):
 		return set(map(lambda x: x[0], stmt.values))
+
+	elif isinstance(stmt, ir3.StoreFunctionStackArg):
+		return set([ stmt.var ])
 
 	else:
 		return set()
@@ -950,54 +976,5 @@ def get_side_effects(expr: ir3.Expr) -> Optional[ir3.Stmt]:
 
 	return None
 
-
-def is_var_used_in_value(value: ir3.Value, var: str) -> bool:
-	return isinstance(value, ir3.VarRef) and value.name == var
-
-def is_var_used_in_expr(expr: ir3.Expr, var: str) -> bool:
-	if isinstance(expr, ir3.BinaryOp):
-		return is_var_used_in_value(expr.lhs, var) or is_var_used_in_value(expr.rhs, var)
-
-	elif isinstance(expr, ir3.UnaryOp):
-		return is_var_used_in_value(expr.expr, var)
-
-	elif isinstance(expr, ir3.DotOp):
-		return expr.lhs == var
-
-	elif isinstance(expr, ir3.ValueExpr):
-		return is_var_used_in_value(expr.value, var)
-
-	elif isinstance(expr, ir3.FnCallExpr):
-		return len(list(filter(None, map(lambda v: is_var_used_in_value(v, var), expr.call.args)))) > 0
-
-	else:
-		return False
-
-
 def is_var_used_in_stmt(stmt: ir3.Stmt, var: str) -> bool:
-	if isinstance(stmt, ir3.FnCallStmt):
-		return len(list(filter(None, map(lambda v: is_var_used_in_value(v, var), stmt.call.args)))) > 0
-
-	elif isinstance(stmt, ir3.AssignOp) or isinstance(stmt, ir3.AssignDotOp):
-		return is_var_used_in_expr(stmt.rhs, var)
-
-	elif isinstance(stmt, ir3.ReturnStmt):
-		return is_var_used_in_value(stmt.value, var) if stmt.value is not None else False
-
-	elif isinstance(stmt, ir3.ReadLnCall):
-		return stmt.name == var
-
-	elif isinstance(stmt, ir3.PrintLnCall):
-		return is_var_used_in_value(stmt.value, var)
-
-	elif isinstance(stmt, ir3.CondBranch):
-		if isinstance(stmt.cond, ir3.RelOp):
-			return is_var_used_in_value(stmt.cond.lhs, var) or is_var_used_in_value(stmt.cond.rhs, var)
-		else:
-			return is_var_used_in_value(stmt.cond, var)
-
-	elif isinstance(stmt, cgpseudo.PhiNode):
-		return var in map(lambda x: x[0], stmt.values)
-
-	else:
-		return False
+	return var in get_statement_uses(stmt)

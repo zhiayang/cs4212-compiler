@@ -264,6 +264,34 @@ def add(dest: Operand, op1: Operand, op2: Operand) -> Instruction:
 
 
 
+def bit_and(dest: Operand, op1: Operand, op2: Operand) -> Instruction:
+	ensure_operand_kind("and", dest, "destination", Register)
+
+	# emit a constant move after adding the values.
+	if isinstance(op1, Constant) and isinstance(op2, Constant):
+		return mov(dest, Constant(1 if op1.value != 0 and op2.value != 0 else 0))
+
+	elif isinstance(op1, Constant):
+		op1, op2 = op2, op1
+
+	return Instruction("and", [ dest, op1, op2 ])
+
+
+
+def bit_or(dest: Operand, op1: Operand, op2: Operand) -> Instruction:
+	ensure_operand_kind("orr", dest, "destination", Register)
+
+	# emit a constant move after adding the values.
+	if isinstance(op1, Constant) and isinstance(op2, Constant):
+		return mov(dest, Constant(1 if op1.value != 0 or op2.value != 0 else 0))
+
+	elif isinstance(op1, Constant):
+		op1, op2 = op2, op1
+
+	return Instruction("orr", [ dest, op1, op2 ])
+
+
+
 def sub(dest: Operand, op1: Operand, op2: Operand) -> Instruction:
 	ensure_operand_kind("sub", dest, "destination", Register)
 

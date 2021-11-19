@@ -12,11 +12,13 @@ from src import parser
 from src import lexer
 from src import ast
 
-
-print_ir3 = False
+dont_output_file = False
+dont_print_to_stdout = False
 
 def parse_args(args: List[str]) -> Tuple[str, str]:
 	global print_ir3
+	global dont_output_file
+	global dont_print_to_stdout
 
 	input_file: Optional[str] = None
 	output_file: Optional[str] = None
@@ -39,10 +41,16 @@ def parse_args(args: List[str]) -> Tuple[str, str]:
 			options.enable_verbose()
 
 		elif (args[0] == "--dump-ir3"):
-			print_ir3 = True
+			options.enable_print_ir(True)
 
 		elif (args[0] == "--dump-ir3-lowered"):
 			options.enable_print_lowered_ir(True)
+
+		elif (args[0] == "-q") or (args[0] == "--quiet"):
+			dont_print_to_stdout = True
+
+		elif (args[0] == "-no") or (args[0] == "--no-output"):
+			dont_output_file = True
 
 		elif args[0] == "-o":
 			if output_file is not None:
@@ -77,7 +85,7 @@ def parse_args(args: List[str]) -> Tuple[str, str]:
 		sys.exit(1)
 
 	if output_file is None:
-		output_file = os.path.splitext(input_file)[0] + ".s"
+		output_file = os.path.basename(os.path.splitext(input_file)[0] + ".s")
 
 	return cast(str, input_file), cast(str, output_file)
 
@@ -90,8 +98,10 @@ options:
     --annotate      -a      enable annotations on the generated assembly
     --no-annotate   -na     disable annotations
     --verbose       -v      print logging statements (mostly optimisation-related)
+    --quiet         -q      don't print the assembly to stdout
     --dump-ir3              print the generated ir3 to stdout
     --dump-ir3-lowered      print the lowered ir3 to stdout
+    --no-output     -no     don't output a file; print only to stdout
     -o <filename>           set the output filename
 """)
 
@@ -112,11 +122,13 @@ if __name__ == "__main__":
 	prog = parse_file(input_file)
 	ir3p = typecheck.typecheck_program(prog)
 
-	if print_ir3:
-		print(ir3p)
-
 	asms = codegen.codegen(ir3p, ' '.join(sys.argv))
 
-	with open(output_file, "w") as f:
-		f.write('\n'.join(asms))
-		f.write("\n")
+	if not dont_print_to_stdout:
+		print('\n'.join(asms), end="")
+		print("\n", end="")
+
+	if not dont_output_file:
+		with open(output_file, "w") as f:
+			f.write('\n'.join(asms))
+			f.write("\n")

@@ -5,3 +5,9 @@ deploy
 *.out
 toolchain/
 m5out/
+*.aux
+*.aex
+*.pyg
+*.toc
+*.log
+_minted*

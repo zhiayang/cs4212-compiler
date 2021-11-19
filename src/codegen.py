@@ -15,7 +15,7 @@ from .cgstate import *
 
 
 # returns (string, is_constant, type)
-def codegen_value(cs: CodegenState, fs: FuncState, val: ir3.Value) -> cgarm.Operand:
+def get_value(cs: CodegenState, fs: FuncState, val: ir3.Value) -> cgarm.Operand:
 	if isinstance(val, ir3.VarRef):
 		return fs.get_location(val.name).register()
 
@@ -50,8 +50,8 @@ def get_value_type(cs: CodegenState, fs: FuncState, val: ir3.Value) -> str:
 
 def codegen_binop(cs: CodegenState, fs: FuncState, expr: ir3.BinaryOp, dest_reg: cgarm.Register, stmt_id: int):
 
-	lhs = codegen_value(cs, fs, expr.lhs)
-	rhs = codegen_value(cs, fs, expr.rhs)
+	lhs = get_value(cs, fs, expr.lhs)
+	rhs = get_value(cs, fs, expr.rhs)
 
 	if expr.op == "s+" or expr.op == "/":
 		spills, stack_adjust = pre_function_call(cs, fs, stmt_id, dest_reg)
@@ -83,21 +83,47 @@ def codegen_binop(cs: CodegenState, fs: FuncState, expr: ir3.BinaryOp, dest_reg:
 		instr_map   = {"==": "eq", "!=": "ne", "<=": "le", ">=": "ge", "<": "lt", ">": "gt"}
 		flipped_map = {"eq": "ne", "ne": "eq", "le": "gt", "ge": "lt", "lt": "ge", "gt": "le"}
 
-		cond = cgarm.Cond.from_operator(expr.op)
-		if lhs.is_constant():
-			cond = cond.invert()
-			lhs, rhs = rhs, lhs
+		lty = get_value_type(cs, fs, expr.lhs)
+		rty = get_value_type(cs, fs, expr.lhs)
 
-		fs.emit(cgarm.cmp(lhs, rhs))
-		fs.emit(cgarm.mov_cond(dest_reg, cgarm.Constant(1), cond))
-		fs.emit(cgarm.mov_cond(dest_reg, cgarm.Constant(0), cond.invert()))
+		# for strings, emit a call.
+		if lty == "String" and rty == "String":
+			spills, stack_adjust = pre_function_call(cs, fs, stmt_id, dest_reg)
+
+			fs.emit(cgarm.mov(cgarm.A1, lhs))
+			fs.emit(cgarm.mov(cgarm.A2, rhs))
+			fs.emit(cgarm.call(cs.require_string_compare_function()))
+
+			# move the return value from A1 to the correct destination
+			if expr.op == "==":
+				fs.emit(cgarm.mov(dest_reg, cgarm.A1))
+			else:
+				fs.emit(cgarm.rsb(dest_reg, cgarm.A1, cgarm.Constant(1)))
+
+			post_function_call(cs, fs, spills, stack_adjust)
+
+		else:
+			cond = cgarm.Cond.from_operator(expr.op)
+			if lhs.is_constant():
+				cond = cond.invert()
+				lhs, rhs = rhs, lhs
+
+			fs.emit(cgarm.cmp(lhs, rhs))
+			fs.emit(cgarm.mov_cond(dest_reg, cgarm.Constant(1), cond))
+			fs.emit(cgarm.mov_cond(dest_reg, cgarm.Constant(0), cond.invert()))
+
+	elif expr.op == "&&":
+		fs.emit(cgarm.bit_and(dest_reg, lhs, rhs))
+
+	elif expr.op == "||":
+		fs.emit(cgarm.bit_or(dest_reg, lhs, rhs))
 
 	else:
-		cs.comment(f"NOT IMPLEMENTED (binop '{expr.op}')")
+		raise CGException(f"unknown binary op '{expr.op}'")
 
 
 def codegen_unaryop(cs: CodegenState, fs: FuncState, expr: ir3.UnaryOp, dest_reg: cgarm.Register):
-	oper = codegen_value(cs, fs, expr.expr)
+	oper = get_value(cs, fs, expr.expr)
 
 	if expr.op == "-":
 		fs.emit(cgarm.rsb(dest_reg, oper, cgarm.Constant(0)))
@@ -131,7 +157,7 @@ def codegen_expr(cs: CodegenState, fs: FuncState, expr: ir3.Expr, dest_reg: cgar
 
 	elif isinstance(expr, ir3.ValueExpr):
 		# we might potentially want to abstract this out, but for now idgaf
-		operand = codegen_value(cs, fs, expr.value)
+		operand = get_value(cs, fs, expr.value)
 		fs.emit(cgarm.mov(dest_reg, operand))
 
 	elif isinstance(expr, ir3.FnCallExpr):
@@ -156,7 +182,7 @@ def codegen_expr(cs: CodegenState, fs: FuncState, expr: ir3.Expr, dest_reg: cgar
 		post_function_call(cs, fs, spills, stack_adjust)
 
 	else:
-		cs.comment(f"NOT IMPLEMENTED (expression)")
+		raise CGException(f"expression '{type(expr)}' not implemented")
 
 
 
@@ -176,7 +202,7 @@ def codegen_assign(cs: CodegenState, fs: FuncState, assign: ir3.AssignOp):
 
 def codegen_return(cs: CodegenState, fs: FuncState, stmt: ir3.ReturnStmt):
 	if stmt.value is not None:
-		value = codegen_value(cs, fs, stmt.value)
+		value = get_value(cs, fs, stmt.value)
 		fs.emit(cgarm.mov(cgarm.A1, value))
 
 	fs.branch_to_exit()
@@ -200,9 +226,77 @@ def codegen_cond_branch(cs: CodegenState, fs: FuncState, cbr: ir3.CondBranch):
 			cs.comment("constant branch eliminated; fallthrough")
 			pass
 	else:
-		value = codegen_value(cs, fs, cbr.cond)
+		value = get_value(cs, fs, cbr.cond)
 		fs.emit(cgarm.cmp(value, cgarm.Constant(0)))
 		fs.emit(cgarm.branch_cond(target, cgarm.Cond.NE))
+
+
+
+
+
+def codegen_readln(cs: CodegenState, fs: FuncState, stmt: ir3.ReadLnCall):
+	dest = fs.get_location(stmt.name)
+	ty = fs.get_type(stmt.name)
+
+	saves, stack_adjust = pre_function_call(cs, fs, stmt.id, dest.register())
+
+	if ty == "String":
+		fs.emit(cgarm.call(cs.require_readln_string_function()))
+		fs.emit(cgarm.mov(dest.register(), cgarm.A1))
+
+	elif ty == "Bool":
+		fs.emit(cgarm.call(cs.require_readln_bool_function()))
+		fs.emit(cgarm.mov(dest.register(), cgarm.A1))
+
+	elif ty == "Int":
+		fs.emit(cgarm.call(cs.require_readln_int_function()))
+		fs.emit(cgarm.mov(dest.register(), cgarm.A1))
+
+	else:
+		raise CGException(f"argument to readln has invalid type '{ty}'")
+
+	post_function_call(cs, fs, saves, stack_adjust)
+
+
+
+def codegen_println(cs: CodegenState, fs: FuncState, stmt: ir3.PrintLnCall):
+	value = get_value(cs, fs, stmt.value)
+	ty = get_value_type(cs, fs, stmt.value)
+
+	saves, stack_adjust = pre_function_call(cs, fs, stmt.id)
+
+	# strings are always in registers
+	if ty == "String":
+		fs.emit(cgarm.mov(cgarm.A1, value))
+
+		# for strings specifically, increment by 4 to skip the length. the value is a pointer anyway.
+		fs.emit(cgarm.add(cgarm.A1, cgarm.A1, cgarm.Constant(4)))
+		fs.emit(cgarm.call("puts(PLT)"))
+
+	elif ty == "Int":
+		# if value is in a1, we want to move it to a2 before we clobber it
+		fs.emit(cgarm.mov(cgarm.A2, value))
+		fs.emit(cgarm.load_label(cgarm.A1, cs.add_string("%d\n") + "_raw"))
+		fs.emit(cgarm.call("printf(PLT)"))
+
+	elif ty == "Bool":
+		# update the condition flags here, so that we can elide an additional 'cmp a1, #0'
+		fs.emit(cgarm.mov_s(cgarm.A1, value))
+
+		fs.emit(cgarm.load_label(cgarm.A1, cs.add_string("false") + "_raw").conditional(cgarm.Cond.EQ))
+		fs.emit(cgarm.load_label(cgarm.A1, cs.add_string("true") + "_raw").conditional(cgarm.Cond.NE))
+		fs.emit(cgarm.call("puts(PLT)"))
+
+	elif ty == "$NullObject":
+		fs.emit(cgarm.load_label(cgarm.A1, cs.add_string("null") + "_raw"))
+		fs.emit(cgarm.call("puts(PLT)"))
+
+	else:
+		raise CGException(f"argument to println has invalid type '{ty}'")
+
+	post_function_call(cs, fs, saves, stack_adjust)
+
+
 
 
 def pre_function_call(cs: CodegenState, fs: FuncState, stmt_id: int,
@@ -246,68 +340,20 @@ def post_function_call(cs: CodegenState, fs: FuncState, saves: List[cgarm.Regist
 		fs.stack_pop_32n(stack_adjust).annotate("align adjustment")
 
 
-def codegen_readln(cs: CodegenState, fs: FuncState, stmt: ir3.ReadLnCall):
-	dest = fs.get_location(stmt.name)
-	ty = fs.get_type(stmt.name)
-
-	saves, stack_adjust = pre_function_call(cs, fs, stmt.id, dest.register())
-
-	if ty == "String":
-		fs.emit(cgarm.call(cs.require_readln_string_function()))
-		fs.emit(cgarm.mov(dest.register(), cgarm.A1))
-
-	elif ty == "Bool":
-		fs.emit(cgarm.call(cs.require_readln_bool_function()))
-		fs.emit(cgarm.mov(dest.register(), cgarm.A1))
-
-	elif ty == "Int":
-		fs.emit(cgarm.call(cs.require_readln_int_function()))
-		fs.emit(cgarm.mov(dest.register(), cgarm.A1))
-
-	else:
-		raise CGException(f"argument to readln has invalid type '{ty}'")
-
-	post_function_call(cs, fs, saves, stack_adjust)
 
 
 
-def codegen_println(cs: CodegenState, fs: FuncState, stmt: ir3.PrintLnCall):
-	value = codegen_value(cs, fs, stmt.value)
-	ty = get_value_type(cs, fs, stmt.value)
+def codegen_storestackarg(cs: CodegenState, fs: FuncState, stmt: ir3.StoreFunctionStackArg):
+	# calculate the offset it needs to be moved
+	offset = stmt.arg_num - 4
 
-	saves, stack_adjust = pre_function_call(cs, fs, stmt.id)
+	# the offset needs to be fixed up in the actual call once we know how many caller-saved
+	# args we need to push.
+	val = fs.get_location(stmt.var).register()
 
-	# strings are always in registers
-	if ty == "String":
-		fs.emit(cgarm.mov(cgarm.A1, value))
-
-		# for strings specifically, increment by 4 to skip the length. the value is a pointer anyway.
-		fs.emit(cgarm.add(cgarm.A1, cgarm.A1, cgarm.Constant(4)))
-		fs.emit(cgarm.call("puts(PLT)"))
-
-	elif ty == "Int":
-		fs.emit(cgarm.load_label(cgarm.A1, cs.add_string("%d\n") + "_raw"))
-		fs.emit(cgarm.mov(cgarm.A2, value))
-		fs.emit(cgarm.call("printf(PLT)"))
-
-	elif ty == "Bool":
-		# update the condition flags here, so that we can elide an additional 'cmp a1, #0'
-		fs.emit(cgarm.mov_s(cgarm.A1, value))
-
-		# fs.emit(cgarm.mov(cgarm.A1, value))
-		# fs.emit(cgarm.cmp(cgarm.A1, cgarm.Constant(0)))
-		fs.emit(cgarm.load_label(cgarm.A1, cs.add_string("false") + "_raw").conditional(cgarm.Cond.EQ))
-		fs.emit(cgarm.load_label(cgarm.A1, cs.add_string("true") + "_raw").conditional(cgarm.Cond.NE))
-		fs.emit(cgarm.call("puts(PLT)"))
-
-	elif ty == "$NullObject":
-		fs.emit(cgarm.load_label(cgarm.A1, cs.add_string("null") + "_raw"))
-		fs.emit(cgarm.call("puts(PLT)"))
-
-	else:
-		raise CGException(f"argument to println has invalid type '{ty}'")
-
-	post_function_call(cs, fs, saves, stack_adjust)
+	# very hacky. very very hacky.
+	stmt.gen_instr = cgarm.store(val, cgarm.Memory(cgarm.SP, -(offset + 1) * 4))
+	fs.emit(stmt.gen_instr)
 
 
 
@@ -315,27 +361,77 @@ def codegen_call(cs: CodegenState, fs: FuncState, call: ir3.FnCall, dest_reg: cg
 	# if the number of arguments is > 4, then we set up the stack first; this
 	# is so we can just use a1 as a scratch register
 
+	# sorry to disappoint, but we need backpatching now. first, generate the instruction
+	# to save whichever of a1-a4 we need to save
+	old_ofs = fs.stack_extra_offset
 	saves, stack_adjust = pre_function_call(cs, fs, stmt_id, dest_reg = dest_reg)
 
-	if len(call.args) > 4:
-		# to match the C calling convention, stack arguments go right-to-left.
-		stack_args = reversed(call.args[4:])
+	# then, for each of the things, add the extra offset.
+	for storer in call.stack_stores:
+		extra_ofs = fs.stack_extra_offset - old_ofs
+		victim = cast(cgarm.Instruction, storer.gen_instr)
 
-		for i, arg in enumerate(stack_args):
+		assert victim is not None
+		assert victim.instr == "str"
+		assert victim.operands[1].is_memory()
+
+		cast(cgarm.Memory, victim.operands[1]).offset -= extra_ofs
+
+
+	if len(call.args) > 4:
+
+		# allocate the whole block at a time (instead of doing pushes)
+		fs.stack_push_32n(len(call.args) - 4)
+
+		# to match the C calling convention, stack arguments go right-to-left.
+		for i, arg in enumerate(reversed(call.args[4:])):
+			if isinstance(arg, ir3.VarRef) and arg.name in call.ignored_var_uses:
+				continue
+
 			# just always use a1 as a hint, since it's bound to get spilled anyway
 			# note the stack offset is always -4, since we do the post increment
-			val = codegen_value(cs, fs, arg)
+			val = get_value(cs, fs, arg)
+			ofs = i * 4
+
 			if val.is_constant():
 				fs.emit(cgarm.mov(cgarm.A1, val))
-				fs.stack_push(cgarm.A1)
+				fs.emit(cgarm.store(cgarm.A1, cgarm.Memory(cgarm.SP, ofs)))
 
 			else:
 				assert val.is_register()
-				fs.stack_push(cast(cgarm.Register, val))
+				fs.emit(cgarm.store(val, cgarm.Memory(cgarm.SP, ofs)))
+
+
+	# this is a little scuffed, but there can be instances where, eg. we need to
+	# move a4 -> a3, a3 -> a2, a2 -> a1 (or the reverse). in such situations, the
+	# order matters...
+	ordering: List[Tuple[int, str, str, cgarm.Operand]] = []
 
 	for i, arg in enumerate(call.args[:4]):
-		val = codegen_value(cs, fs, arg)
-		fs.emit(cgarm.mov(cgarm.Register(f"a{i + 1}"), val))
+		val = get_value(cs, fs, arg)
+		if val.is_register():
+			ordering.append((i, f"a{i + 1}", cast(cgarm.Register, val).name, val))
+		else:
+			ordering.append((i, f"a{i + 1}", "", val))
+
+
+	while len(ordering) > 0:
+
+		# for each thingy:
+		flag = False
+		# print(f"ordering = {ordering}")
+
+		for idx, (i, dst, src, val) in enumerate(ordering):
+			# see if anybody else sets our src
+			if src == dst or len(list(filter(lambda s: s == dst, map(lambda f: f[2], ordering)))) == 0:
+				# nobody does; we can generate now
+				fs.emit(cgarm.mov(cgarm.Register(f"a{i + 1}"), val))
+				ordering.pop(idx)
+				flag = True
+				break
+
+		if not flag:
+			raise CGException("failed to find a proper ordering to set arguments!")
 
 	fs.emit(cgarm.call(call.name))
 
@@ -410,21 +506,27 @@ def codegen_stmt(cs: CodegenState, fs: FuncState, stmt: ir3.Stmt):
 	elif isinstance(stmt, cgpseudo.StoreField):
 		codegen_storefield(cs, fs, stmt)
 
+	elif isinstance(stmt, ir3.StoreFunctionStackArg):
+		codegen_storestackarg(cs, fs, stmt)
+
 	elif isinstance(stmt, cgpseudo.DummyStmt):
 		pass
 
 	else:
-		cs.comment("NOT IMPLEMENTED")
+		raise CGException(f"statement '{type(stmt)}' not implemented")
 
 
 
 
 
 def codegen_method(cs: CodegenState, method: ir3.FuncDefn):
-	assigns, spills, reg_live_ranges = cgreg.allocate_registers(method)
+	assigns, spills, reg_live_ranges, defined_on_entry = cgreg.allocate_registers(method)
+
+	if options.should_print_lowered_ir():
+		print(f"{method}")
 
 	# setup the function state
-	fs = FuncState(cs, method, assigns, spills, reg_live_ranges)
+	fs = FuncState(cs, method, assigns, spills, reg_live_ranges, defined_on_entry)
 
 	# and codegen all the blocks.
 	for block in method.blocks:
@@ -459,7 +561,6 @@ def codegen_method(cs: CodegenState, method: ir3.FuncDefn):
 def codegen(prog: ir3.Program, flags: str) -> List[str]:
 	cs = CodegenState(prog.classes)
 
-	cs.emit_raw(f"@ jlite compiler: {flags}")
 	cs.emit_raw(".text")
 	for method in prog.funcs:
 		if method.name == "main":
@@ -489,15 +590,21 @@ main:
 
 
 	if (fn := cs.get_string_concat_function()) in cs.needed_builtins:
-		# other helper functions
 		cs.emit_raw(f"""
 .global {fn}
 .type {fn}, %function
 {fn}:
 	@ takes two args: (the strings, duh) and returns 1 (the result, duh)
+	@ anything + null = anything; null + null = null.
 	stmfd sp!, {{v1, v2, v3, v4, v5, fp, lr}}
 	mov v1, a1              @ save the string pointers into not-a1 and not-a2
 	mov v2, a2
+	cmp v1, #0              @ check left for null
+	moveq a1, v2            @ if null return right
+	beq .{fn}_exit
+	cmp v2, #0              @ check right for null
+	moveq a1, v1            @ if null return left
+	beq .{fn}_exit
 	ldr v4, [v1, #0]        @ load the lengths of the two strings
 	ldr v5, [v2, #0]
 	add v3, v4, v5          @ get the new length; a1 contains the +5 (for length + null term)
@@ -516,8 +623,37 @@ main:
 	mov a3, v5              @ len - string 2
 	bl memcpy(PLT)          @ copy the second string
 	mov a1, fp              @ return value
+.{fn}_exit:
 	ldmfd sp!, {{v1, v2, v3, v4, v5, fp, pc}}
 """)
+
+	if (fn := cs.get_string_compare_function()) in cs.needed_builtins:
+		cs.emit_raw(f"""
+.global {fn}
+.type {fn}, %function
+{fn}:
+	@ takes two args: (the strings, duh) and returns 1 if they are equal, and 0 otherwise.
+	stmfd sp!, {{lr}}
+	cmp a1, a2              @ if the pointers are equal, then they are trivially equal
+	moveq a1, #1            @ return 0
+	beq .{fn}_exit          @ and exit
+	cmp a1, #0              @ check left and right for null
+	moveq a1, #0            @ if the pointers not equal but one of them is null,
+	beq .{fn}_exit          @ then they will never be equal
+	cmp a2, #0              @ right side
+	moveq a2, #0
+	beq .{fn}_exit
+	add a1, a1, #4          @ offset by 4 to skip the length
+	add a2, a2, #4
+	bl strcmp(PLT)
+	cmp a1, #0              @ strcmp returns 0 for equal, nonzero otherwise
+	moveq a1, #1
+	movne a1, #0
+.{fn}_exit:
+	ldmfd sp!, {{pc}}
+""")
+
+
 
 	if (fn := cs.get_divide_function()) in cs.needed_builtins:
 		cs.emit_raw(f"""
@@ -526,6 +662,8 @@ main:
 {fn}:
 	@ takes two args: (dividend, divisor) and returns the quotient.
 	stmfd sp!, {{v1, v2, v3, v4, v5, fp, lr}}
+	cmp a2, #0              @ check if we're dividing by 0. if so, just quit.
+	beq .{fn}_exit
 	movs v4, a1, asr #31    @ sign bit (1 if negative)
 	rsbne a1, a1, #0        @ negate if the sign bit was set (ie. abs)
 	movs v5, a2, asr #31    @ also sign bit
@@ -540,11 +678,12 @@ main:
 	mov a1, v3
 	eors v1, v4, v5         @ check if the sign bits are different
 	rsbne a1, a1, #0        @ negate if so
+.{fn}_exit:
 	ldmfd sp!, {{v1, v2, v3, v4, v5, fp, pc}}
 """)
 
 	if (fn := cs.get_readln_int_function()) in cs.needed_builtins:
-		scanf_int = cs.add_string("%d")
+		scanf_int = cs.add_string(" %d ")
 		cs.emit_raw(f"""
 .global {fn}
 .type {fn}, %function
@@ -567,7 +706,7 @@ main:
 """)
 
 	if (fn := cs.get_readln_bool_function()) in cs.needed_builtins:
-		scanf_bool = cs.add_string("%7s")
+		scanf_bool = cs.add_string(" %7s ")
 		cs.emit_raw(f"""
 .global {fn}
 .type {fn}, %function
@@ -619,9 +758,21 @@ main:
 	cmp a1, #0
 	beq .{fn}_bar
 	bl strlen(PLT)          @ get the length
+	cmp a1, #0
+	beq .{fn}_exit          @ don't do funny stuff (underflow)
+	add a3, v1, a1
+	add a3, a3, #4
+	ldrb a2, [a3, #-1]      @ check the last char...
+	cmp a2, #10
+	beq .{fn}_trim
 	b .{fn}_exit
 .{fn}_bar:
 	mov a1, #0
+	b .{fn}_exit
+.{fn}_trim:                 @ get rid of the trailing newline
+	mov a4, #0
+	strb a4, [a3, #-1]
+	sub a1, a1, #1
 .{fn}_exit:
 	str a1, [v1, #0]        @ write the length
 	mov a1, v1              @ return

@@ -110,11 +110,15 @@ def remove_redundant_load_store(fs: FuncState) -> bool:
 			if (in1.operands != in2.operands) or (in1.raw_operand != in2.raw_operand):
 				continue
 
-			# in this situation, we can elide both -- since storing to the stack
-			# is NOT a "real" side effect. furthermore, we know that they will still
-			# be matched.
-			fs.instructions.pop(i)
-			fs.instructions.pop(i)  # not a typo
+			# both must have side effects
+			if not cast(cgarm.Register, in1.operands[0]).exclaim or not cast(cgarm.Register, in2.operands[0]).exclaim:
+				continue
+
+			# now, the store can be eliminated.
+			fs.instructions.pop(i + 1)
+
+			# BUT, we get rid of the post-incr from the load so the stack position doesn't change.
+			cast(cgarm.Register, in1.operands[0]).exclaim = False
 			return True
 
 	return False

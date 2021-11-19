@@ -8,6 +8,7 @@ __opts_enabled = False
 __annotations_enabled = True
 __is_verbose = False
 __print_lowered_ir = False
+__print_ir = False
 
 
 def should_print_lowered_ir():
@@ -17,6 +18,17 @@ def should_print_lowered_ir():
 def enable_print_lowered_ir(en: bool = True):
 	global __print_lowered_ir
 	__print_lowered_ir = en
+
+
+def should_print_ir():
+	global __print_ir
+	return __print_ir
+
+def enable_print_ir(en: bool = True):
+	global __print_ir
+	__print_ir = en
+
+
 
 
 def is_verbose() -> bool:
