@@ -1,0 +1,54 @@
+.text
+.global main_dummy
+.type main_dummy, %function
+main_dummy:
+	@ spills:  <none>
+	@ assigns: '_c7' = v1;  '_t0' = v1;    'c' = v1;    'b' = v2;    'a' = v3
+	stmfd sp!, {v1, v2, v3, lr}
+.main_dummy_entry:
+	mov v3, #0                              @ a = 0;
+	mov v2, #1                              @ b = 1;
+.main_dummy_L1:
+	ldr v1, =#1836311903                    @ _c7 = 1836311903;
+	cmp v3, v1                              @ _t0 = a != _c7;
+	bne .main_dummy_L2
+	b .main_dummy_L3                        @ goto .L3;
+.main_dummy_L2:
+	mov a2, v3                              @ println(a);
+	ldr a1, =.string0_raw
+	bl printf(PLT)
+	add v1, v3, v2                          @ c = a + b;
+	mov v3, v2                              @ a = b;
+	mov v2, v1                              @ b = c;
+	b .main_dummy_L1                        @ goto .L1;
+.main_dummy_L3:
+	b .main_dummy_exit                      @ return;
+.main_dummy_exit:
+	ldmfd sp!, {v1, v2, v3, pc}
+
+
+
+.global main
+.type main, %function
+main:
+	str lr, [sp, #-4]!
+	@ we need a 'this' argument for this guy, so just allocate nothing.
+	sub sp, sp, #4
+	mov a1, sp
+
+	bl main_dummy
+
+	add sp, sp, #4
+
+	@ set the return code to 0
+	mov a1, #0
+	ldr pc, [sp], #4
+
+.data
+.global stdin
+.align 4
+.string0:
+    .word 3
+.string0_raw:
+    .asciz "%d\n"
+

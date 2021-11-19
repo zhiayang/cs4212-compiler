@@ -1,0 +1,291 @@
+.text
+.global main_dummy
+.type main_dummy, %function
+main_dummy:
+	@ spills:  <none>
+	@ assigns:  '_t0' = a1;   '_t2' = a1;   '_t4' = a1;   '_t6' = a1;  '_c10' = a2
+	@          '_c17' = a2;  '_c24' = a2;   '_c3' = a2;  '_c11' = a3;  '_c18' = a3
+	@          '_c25' = a3;   '_t1' = v1;   '_t3' = v1;   '_t5' = v1;   '_t7' = v1
+	stmfd sp!, {v1, lr}
+.main_dummy_entry:
+	mov a1, #1                              @ _t0 = new Foo();
+	mov a2, #4
+	bl calloc(PLT)
+	mov a1, a1
+	ldr a2, =#420                           @ _c3 = 420;
+	stmfd sp!, {a1, a2}                     @ _t1 = _J3Foo_3fooiiE(_t0, _c3, 69);; caller-save
+	mov a1, a1
+	mov a2, a2
+	mov a3, #69
+	bl _J3Foo_3fooiiE
+	mov v1, a1
+	ldmfd sp!, {a1, a2}                     @ caller-restore
+	mov a2, v1                              @ println(_t1);
+	ldr a1, =.string0_raw
+	bl printf(PLT)
+	mov a1, #1                              @ _t2 = new Foo();
+	mov a2, #4
+	bl calloc(PLT)
+	mov a1, a1
+	ldr a2, =.string1                       @ _c10 = "aaa";
+	ldr a3, =.string1                       @ _c11 = "aaa";
+	sub sp, sp, #4                          @ _t3 = _J3Foo_3barssE(_t2, _c10, _c11);; align adjustment
+	stmfd sp!, {a1, a2, a3}                 @ caller-save
+	mov a1, a1
+	mov a2, a2
+	mov a3, a3
+	bl _J3Foo_3barssE
+	mov v1, a1
+	ldmfd sp!, {a1, a2, a3}                 @ caller-restore
+	add sp, sp, #4                          @ align adjustment
+	mov a2, v1                              @ println(_t3);
+	ldr a1, =.string0_raw
+	bl printf(PLT)
+	mov a1, #1                              @ _t4 = new Foo();
+	mov a2, #4
+	bl calloc(PLT)
+	mov a1, a1
+	ldr a2, =.string1                       @ _c17 = "aaa";
+	ldr a3, =.string2                       @ _c18 = "a";
+	sub sp, sp, #4                          @ _t5 = _J3Foo_3barssE(_t4, _c17, _c18);; align adjustment
+	stmfd sp!, {a1, a2, a3}                 @ caller-save
+	mov a1, a1
+	mov a2, a2
+	mov a3, a3
+	bl _J3Foo_3barssE
+	mov v1, a1
+	ldmfd sp!, {a1, a2, a3}                 @ caller-restore
+	add sp, sp, #4                          @ align adjustment
+	mov a2, v1                              @ println(_t5);
+	ldr a1, =.string0_raw
+	bl printf(PLT)
+	mov a1, #1                              @ _t6 = new Foo();
+	mov a2, #4
+	bl calloc(PLT)
+	mov a1, a1
+	ldr a2, =.string3                       @ _c24 = "xxx";
+	ldr a3, =.string4                       @ _c25 = "bbb";
+	sub sp, sp, #4                          @ _t7 = _J3Foo_3barssE(_t6, _c24, _c25);; align adjustment
+	stmfd sp!, {a1, a2, a3}                 @ caller-save
+	mov a1, a1
+	mov a2, a2
+	mov a3, a3
+	bl _J3Foo_3barssE
+	mov v1, a1
+	ldmfd sp!, {a1, a2, a3}                 @ caller-restore
+	add sp, sp, #4                          @ align adjustment
+	mov a2, v1                              @ println(_t7);
+	ldr a1, =.string0_raw
+	bl printf(PLT)
+	b .main_dummy_exit                      @ return;
+.main_dummy_exit:
+	ldmfd sp!, {v1, pc}
+
+
+.global _J3Foo_3fooiiE
+.type _J3Foo_3fooiiE, %function
+_J3Foo_3fooiiE:
+	@ spills:  <none>
+	@ assigns:    'x' = a2;     'y' = a3;  '_c37' = v1;   '_t0' = v1;   '_t1' = v1
+	@           '_t2' = v1;   '_t3' = v1;   '_t4' = v1;   '_t6' = v1;   '_t7' = v1
+	@             'd' = v1;     'c' = v2;     'b' = v3;     'a' = v4;   '_t5' = v5
+	stmfd sp!, {v1, v2, v3, v4, v5, lr}
+	mov a2, a2
+	mov a3, a3
+._J3Foo_3fooiiE_entry:
+	stmfd sp!, {a2, a3}                     @ _t0 = x / y;; caller-save
+	mov a1, a2
+	mov a2, a3
+	bl __divide_int
+	mov v1, a1
+	ldmfd sp!, {a2, a3}                     @ caller-restore
+	mov v4, v1                              @ a = _t0;
+	rsb v1, a2, #0                          @ _t1 = -x;
+	stmfd sp!, {a2, a3}                     @ _t2 = _t1 / y;; caller-save
+	mov a1, v1
+	mov a2, a3
+	bl __divide_int
+	mov v1, a1
+	ldmfd sp!, {a2, a3}                     @ caller-restore
+	mov v3, v1                              @ b = _t2;
+	rsb v1, a3, #0                          @ _t3 = -y;
+	stmfd sp!, {a2, a3}                     @ _t4 = x / _t3;; caller-save
+	mov a1, a2
+	mov a2, v1
+	bl __divide_int
+	mov v1, a1
+	ldmfd sp!, {a2, a3}                     @ caller-restore
+	mov v2, v1                              @ c = _t4;
+	rsb v5, a2, #0                          @ _t5 = -x;
+	rsb v1, a3, #0                          @ _t6 = -y;
+	mov a1, v5                              @ _t7 = _t5 / _t6;
+	mov a2, v1
+	bl __divide_int
+	mov v1, a1
+	mov v1, v1                              @ d = _t7;
+	mov a2, v4                              @ println(a);
+	ldr a1, =.string0_raw
+	bl printf(PLT)
+	mov a2, v3                              @ println(b);
+	ldr a1, =.string0_raw
+	bl printf(PLT)
+	mov a2, v2                              @ println(c);
+	ldr a1, =.string0_raw
+	bl printf(PLT)
+	mov a2, v1                              @ println(d);
+	ldr a1, =.string0_raw
+	bl printf(PLT)
+	ldr v1, =#420                           @ _c37 = 420;
+	mov a1, v1                              @ return _c37;
+	b ._J3Foo_3fooiiE_exit
+._J3Foo_3fooiiE_exit:
+	ldmfd sp!, {v1, v2, v3, v4, v5, pc}
+
+
+.global _J3Foo_3barssE
+.type _J3Foo_3barssE, %function
+_J3Foo_3barssE:
+	@ spills:  <none>
+	@ assigns:   'a' = a2;    'b' = a3;  '_t0' = v1;  '_t1' = v1
+	stmfd sp!, {v1, lr}
+	mov a2, a2
+	mov a3, a3
+._J3Foo_3barssE_entry:
+	stmfd sp!, {a2, a3}                     @ _t0 = a == b;; caller-save
+	mov a1, a2
+	mov a2, a3
+	bl __string_compare
+	mov v1, a1
+	ldmfd sp!, {a2, a3}                     @ caller-restore
+	stmfd sp!, {a2, a3}                     @ println(_t0);; caller-save
+	movs a1, v1
+	ldreq a1, =.string5_raw
+	ldrne a1, =.string6_raw
+	bl puts(PLT)
+	ldmfd sp!, {a2, a3}                     @ caller-restore
+	stmfd sp!, {a2, a3}                     @ _t1 = a != b;; caller-save
+	mov a1, a2
+	mov a2, a3
+	bl __string_compare
+	rsb v1, a1, #1
+	ldmfd sp!, {a2, a3}                     @ caller-restore
+	movs a1, v1                             @ println(_t1);
+	ldreq a1, =.string5_raw
+	ldrne a1, =.string6_raw
+	bl puts(PLT)
+	mov a1, #69                             @ return 69;
+	b ._J3Foo_3barssE_exit
+._J3Foo_3barssE_exit:
+	ldmfd sp!, {v1, pc}
+
+
+
+.global main
+.type main, %function
+main:
+	str lr, [sp, #-4]!
+	@ we need a 'this' argument for this guy, so just allocate nothing.
+	sub sp, sp, #4
+	mov a1, sp
+
+	bl main_dummy
+
+	add sp, sp, #4
+
+	@ set the return code to 0
+	mov a1, #0
+	ldr pc, [sp], #4
+
+
+.global __string_compare
+.type __string_compare, %function
+__string_compare:
+	@ takes two args: (the strings, duh) and returns 1 if they are equal, and 0 otherwise.
+	stmfd sp!, {lr}
+	cmp a1, a2              @ if the pointers are equal, then they are trivially equal
+	moveq a1, #1            @ return 0
+	beq .__string_compare_exit          @ and exit
+	cmp a1, #0              @ check left and right for null
+	moveq a1, #0            @ if the pointers not equal but one of them is null,
+	beq .__string_compare_exit          @ then they will never be equal
+	cmp a2, #0              @ right side
+	moveq a2, #0
+	beq .__string_compare_exit
+	add a1, a1, #4          @ offset by 4 to skip the length
+	add a2, a2, #4
+	bl strcmp(PLT)
+	cmp a1, #0              @ strcmp returns 0 for equal, nonzero otherwise
+	moveq a1, #1
+	movne a1, #0
+.__string_compare_exit:
+	ldmfd sp!, {pc}
+
+
+.global __divide_int
+.type __divide_int, %function
+__divide_int:
+	@ takes two args: (dividend, divisor) and returns the quotient.
+	stmfd sp!, {v1, v2, v3, v4, v5, fp, lr}
+	cmp a2, #0              @ check if we're dividing by 0. if so, just quit.
+	beq .__divide_int_exit
+	movs v4, a1, asr #31    @ sign bit (1 if negative)
+	rsbne a1, a1, #0        @ negate if the sign bit was set (ie. abs)
+	movs v5, a2, asr #31    @ also sign bit
+	rsbne a2, a2, #0        @ negate if the sign bit was set (ie. abs)
+	mov v3, #0              @ store the quotient
+.__divide_int_L1:
+	subs a1, a1, a2         @ check if we're done
+	blt .__divide_int_done
+	add v3, v3, #1
+	b .__divide_int_L1
+.__divide_int_done:
+	mov a1, v3
+	eors v1, v4, v5         @ check if the sign bits are different
+	rsbne a1, a1, #0        @ negate if so
+.__divide_int_exit:
+	ldmfd sp!, {v1, v2, v3, v4, v5, fp, pc}
+
+.data
+.global stdin
+.align 4
+.string0:
+    .word 3
+.string0_raw:
+    .asciz "%d\n"
+
+.align 4
+.string1:
+    .word 3
+.string1_raw:
+    .asciz "aaa"
+
+.align 4
+.string2:
+    .word 1
+.string2_raw:
+    .asciz "a"
+
+.align 4
+.string3:
+    .word 3
+.string3_raw:
+    .asciz "xxx"
+
+.align 4
+.string4:
+    .word 3
+.string4_raw:
+    .asciz "bbb"
+
+.align 4
+.string5:
+    .word 5
+.string5_raw:
+    .asciz "false"
+
+.align 4
+.string6:
+    .word 4
+.string6_raw:
+    .asciz "true"
+

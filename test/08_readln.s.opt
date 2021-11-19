@@ -1,0 +1,308 @@
+.text
+.global main_dummy
+.type main_dummy, %function
+main_dummy:
+	@ spills:  <none>
+	@ assigns:    '_t0' = a1;    '_c16' = v1;  'string' = v1;    '_c12' = v2
+	@             '_c8' = v2;     'int' = v2;    'bool' = v3;     '_c4' = v4
+	stmfd sp!, {v1, v2, v3, v4, lr}
+.main_dummy_entry:
+	bl __readln_int                         @ readln(int);
+	mov v2, a1
+	bl __readln_bool                        @ readln(bool);
+	mov v3, a1
+	bl __readln_string                      @ readln(string);
+	mov v1, a1
+	ldr v4, =.string0                       @ _c4 = "your integer was:";
+	mov a1, v4                              @ println(_c4);
+	add a1, a1, #4
+	bl puts(PLT)
+	mov a2, v2                              @ println(int);
+	ldr a1, =.string1_raw
+	bl printf(PLT)
+	ldr v2, =.string2                       @ _c8 = "your boolean was:";
+	mov a1, v2                              @ println(_c8);
+	add a1, a1, #4
+	bl puts(PLT)
+	movs a1, v3                             @ println(bool);
+	ldreq a1, =.string3_raw
+	ldrne a1, =.string4_raw
+	bl puts(PLT)
+	ldr v2, =.string5                       @ _c12 = "your string was:";
+	mov a1, v2                              @ println(_c12);
+	add a1, a1, #4
+	bl puts(PLT)
+	mov a1, v1                              @ println(string);
+	add a1, a1, #4
+	bl puts(PLT)
+	ldr v1, =.string6                       @ _c16 = "done";
+	mov a1, v1                              @ println(_c16);
+	add a1, a1, #4
+	bl puts(PLT)
+	mov a1, #1                              @ _t0 = new Foo();
+	mov a2, #4
+	bl calloc(PLT)
+	mov a2, #69
+	bl _J3Foo_5guessiE
+	b .main_dummy_exit                      @ return;
+.main_dummy_exit:
+	ldmfd sp!, {v1, v2, v3, v4, pc}
+
+
+.global _J3Foo_5guessiE
+.type _J3Foo_5guessiE, %function
+_J3Foo_5guessiE:
+	@ spills:  <none>
+	@ assigns:   'num' = a2;   '_c35' = v1;    '_t0' = v1;      'x' = v1;  'tries' = v2
+	@           '_c22' = v3;   '_c25' = v3;   '_c28' = v3;    '_t1' = v3;    '_t2' = v3
+	stmfd sp!, {v1, v2, v3, lr}
+._J3Foo_5guessiE_entry:
+	mov v1, #0                              @ x = 0;
+	mov v2, #0                              @ tries = 0;
+._J3Foo_5guessiE_L1:
+	cmp v1, a2                              @ _t0 = x != num;
+	bne ._J3Foo_5guessiE_L8
+	b ._J3Foo_5guessiE_L9                   @ goto .L9;
+._J3Foo_5guessiE_L8:
+	sub sp, sp, #4                          @ readln(x);; align adjustment
+	stmfd sp!, {a2}                         @ caller-save
+	bl __readln_int
+	mov v1, a1
+	ldmfd sp!, {a2}                         @ caller-restore
+	add sp, sp, #4                          @ align adjustment
+	cmp v1, a2                              @ _t1 = x == num;
+	beq ._J3Foo_5guessiE_L5
+._J3Foo_5guessiE_L6:
+	cmp v1, a2                              @ _t2 = x < num;
+	blt ._J3Foo_5guessiE_L2
+._J3Foo_5guessiE_L3:
+	ldr v3, =.string7                       @ _c22 = "lower";
+	sub sp, sp, #4                          @ println(_c22);; align adjustment
+	stmfd sp!, {a2}                         @ caller-save
+	mov a1, v3
+	add a1, a1, #4
+	bl puts(PLT)
+	ldmfd sp!, {a2}                         @ caller-restore
+	add sp, sp, #4                          @ align adjustment
+	b ._J3Foo_5guessiE_L7                   @ goto .L7;
+._J3Foo_5guessiE_L2:
+	ldr v3, =.string8                       @ _c25 = "higher";
+	sub sp, sp, #4                          @ println(_c25);; align adjustment
+	stmfd sp!, {a2}                         @ caller-save
+	mov a1, v3
+	add a1, a1, #4
+	bl puts(PLT)
+	ldmfd sp!, {a2}                         @ caller-restore
+	add sp, sp, #4                          @ align adjustment
+	b ._J3Foo_5guessiE_L7                   @ goto .L7;
+._J3Foo_5guessiE_L5:
+	ldr v3, =.string9                       @ _c28 = "uwu";
+	sub sp, sp, #4                          @ println(_c28);; align adjustment
+	stmfd sp!, {a2}                         @ caller-save
+	mov a1, v3
+	add a1, a1, #4
+	bl puts(PLT)
+	ldmfd sp!, {a2}                         @ caller-restore
+	add sp, sp, #4                          @ align adjustment
+._J3Foo_5guessiE_L7:
+	add v2, v2, #1                          @ tries = tries + 1;
+	b ._J3Foo_5guessiE_L1                   @ goto .L1;
+._J3Foo_5guessiE_L9:
+	ldr v1, =.string10                      @ _c35 = "tries:";
+	mov a1, v1                              @ println(_c35);
+	add a1, a1, #4
+	bl puts(PLT)
+	mov a2, v2                              @ println(tries);
+	ldr a1, =.string1_raw
+	bl printf(PLT)
+	b ._J3Foo_5guessiE_exit                 @ return;
+._J3Foo_5guessiE_exit:
+	ldmfd sp!, {v1, v2, v3, pc}
+
+
+
+.global main
+.type main, %function
+main:
+	str lr, [sp, #-4]!
+	@ we need a 'this' argument for this guy, so just allocate nothing.
+	sub sp, sp, #4
+	mov a1, sp
+
+	bl main_dummy
+
+	add sp, sp, #4
+
+	@ set the return code to 0
+	mov a1, #0
+	ldr pc, [sp], #4
+
+
+.global __readln_int
+.type __readln_int, %function
+__readln_int:
+	@ takes no args and returns the int
+	stmfd sp!, {lr}
+	sub sp, sp, #4          @ save some stack space (scanf wants a pointer)
+	mov a2, sp              @ a2 is the pointer argument
+	ldr a1, =.string11_raw
+	bl scanf(PLT)
+	cmp a1, #1              @ if scanf returned < 1...
+	bge .__readln_int_ok
+	mov a1, #0              @ just return 0.
+	b .__readln_int_exit
+.__readln_int_ok:
+	ldr a1, [sp, #0]        @ load the value from stack
+.__readln_int_exit:
+	add sp, sp, #4          @ restore the stack
+	ldmfd sp!, {pc}
+
+
+.global __readln_bool
+.type __readln_bool, %function
+__readln_bool:
+	@ takes no args and returns the bool
+	@ accepts: '1_' (anything starting with '1', or 'T_'/'t_' (anything starting with 't')
+	@ anything else is false.
+	stmfd sp!, {lr}
+	sub sp, sp, #12          @ space for the buffer
+	mov a2, sp
+	ldr a1, =.string12_raw
+	bl scanf(PLT)
+	cmp a1, #1              @ if scanf returned < 1, then it's probably eof?
+	blt .__readln_bool_false
+	ldrb a1, [sp, #0]       @ otherwise, load the first char
+	cmp a1, #49             @ 49 = '1'
+	beq .__readln_bool_true
+	cmp a1, #84             @ 84 = 'T'
+	beq .__readln_bool_true
+	cmp a1, #116            @ 116 = 't'
+	beq .__readln_bool_true
+.__readln_bool_false:
+	mov a1, #0
+	b .__readln_bool_exit
+.__readln_bool_true:
+	mov a1, #1
+.__readln_bool_exit:
+	add sp, sp, #12
+	ldmfd sp!, {pc}
+
+
+.global __readln_string
+.type __readln_string, %function
+__readln_string:
+	@ takes no args and returns the string
+	stmfd sp!, {v1, lr}
+	mov a1, #256            @ allocate 256 for the actual string
+	add a1, a1, #5          @ plus 4 (len) + 1 (null term)
+	mov a2, #1
+	bl calloc(PLT)
+	mov v1, a1              @ save it
+	add a1, a1, #4          @ skip the length (will write later)
+	mov a2, #256            @ buffer len
+	ldr a3, =stdin
+	ldr a3, [a3, #0]
+	bl fgets(PLT)           @ 'a1' is now the string
+	cmp a1, #0
+	beq .__readln_string_bar
+	bl strlen(PLT)          @ get the length
+	cmp a1, #0
+	beq .__readln_string_exit          @ don't do funny stuff (underflow)
+	add a3, v1, a1
+	add a3, a3, #4
+	ldrb a2, [a3, #-1]      @ check the last char...
+	cmp a2, #10
+	beq .__readln_string_trim
+	b .__readln_string_exit
+.__readln_string_bar:
+	mov a1, #0
+	b .__readln_string_exit
+.__readln_string_trim:                 @ get rid of the trailing newline
+	mov a4, #0
+	strb a4, [a3, #-1]
+	sub a1, a1, #1
+.__readln_string_exit:
+	str a1, [v1, #0]        @ write the length
+	mov a1, v1              @ return
+	ldmfd sp!, {v1, pc}
+
+.data
+.global stdin
+.align 4
+.string0:
+    .word 17
+.string0_raw:
+    .asciz "your integer was:"
+
+.align 4
+.string1:
+    .word 3
+.string1_raw:
+    .asciz "%d\n"
+
+.align 4
+.string2:
+    .word 17
+.string2_raw:
+    .asciz "your boolean was:"
+
+.align 4
+.string3:
+    .word 5
+.string3_raw:
+    .asciz "false"
+
+.align 4
+.string4:
+    .word 4
+.string4_raw:
+    .asciz "true"
+
+.align 4
+.string5:
+    .word 16
+.string5_raw:
+    .asciz "your string was:"
+
+.align 4
+.string6:
+    .word 4
+.string6_raw:
+    .asciz "done"
+
+.align 4
+.string7:
+    .word 5
+.string7_raw:
+    .asciz "lower"
+
+.align 4
+.string8:
+    .word 6
+.string8_raw:
+    .asciz "higher"
+
+.align 4
+.string9:
+    .word 3
+.string9_raw:
+    .asciz "uwu"
+
+.align 4
+.string10:
+    .word 6
+.string10_raw:
+    .asciz "tries:"
+
+.align 4
+.string11:
+    .word 4
+.string11_raw:
+    .asciz " %d "
+
+.align 4
+.string12:
+    .word 5
+.string12_raw:
+    .asciz " %7s "
+

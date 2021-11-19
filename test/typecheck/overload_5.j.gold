@@ -1,0 +1,12 @@
+overload_5.j:8:19: error: ambiguous call to function: 2 overloads match
+   |
+ 8 |     new Foo().kekw(null);
+   |               ^
+overload_5.j:14:5: note: here
+    |
+ 14 |     String kekw(String a)
+    |     ^
+overload_5.j:20:5: note: here
+    |
+ 20 |     String kekw(Foo a)
+    |     ^

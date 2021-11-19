@@ -1,0 +1,104 @@
+.text
+.global main_dummy
+.type main_dummy, %function
+main_dummy:
+	@ spills:  <none>
+	@ assigns: '_t0' = a1;  '_t1' = v1
+	stmfd sp!, {v1, lr}
+.main_dummy_entry:
+	mov a1, #1                              @ _t0 = new Foo();
+	mov a2, #4
+	bl calloc(PLT)
+	sub sp, sp, #4                          @ _t1 = _J3Foo_4sumsiE(_t0, 100);; align adjustment
+	stmfd sp!, {a1}                         @ caller-save
+	mov a2, #100
+	bl _J3Foo_4sumsiE
+	mov v1, a1
+	ldmfd sp!, {a1}                         @ caller-restore
+	add sp, sp, #4                          @ align adjustment
+	mov a2, v1                              @ println(_t1);
+	ldr a1, =.string0_raw
+	bl printf(PLT)
+	b .main_dummy_exit                      @ return;
+.main_dummy_exit:
+	ldmfd sp!, {v1, pc}
+
+
+.global _J3Foo_4sumsiE
+.type _J3Foo_4sumsiE, %function
+_J3Foo_4sumsiE:
+	@ spills:  <none>
+	@ assigns: 'this' = a1;   'num' = a2;   '_t0' = v1
+	stmfd sp!, {v1, lr}
+._J3Foo_4sumsiE_entry:
+	stmfd sp!, {a1, a2}                     @ _t0 = _J3Foo_4sumsiiE(this, 0, num);; caller-save
+	mov a3, a2
+	mov a2, #0
+	bl _J3Foo_4sumsiiE
+	mov v1, a1
+	ldmfd sp!, {a1, a2}                     @ caller-restore
+	mov a1, v1                              @ return _t0;
+	b ._J3Foo_4sumsiE_exit
+._J3Foo_4sumsiE_exit:
+	ldmfd sp!, {v1, pc}
+
+
+.global _J3Foo_4sumsiiE
+.type _J3Foo_4sumsiiE, %function
+_J3Foo_4sumsiiE:
+	@ spills:  <none>
+	@ assigns: 'this' = a1;   '_t1' = a2;   'acc' = a2;   '_t2' = a3;   'num' = a3
+	@           '_t0' = v1;   '_t3' = v1
+	stmfd sp!, {v1, lr}
+._J3Foo_4sumsiiE_entry:
+	cmp a3, #0                              @ _t0 = num == 0;
+	beq ._J3Foo_4sumsiiE_L1
+._J3Foo_4sumsiiE_L2:
+	sub sp, sp, #4                          @ println(acc);; align adjustment
+	stmfd sp!, {a1, a2, a3}                 @ caller-save
+	ldr a1, =.string0_raw
+	bl printf(PLT)
+	ldmfd sp!, {a1, a2, a3}                 @ caller-restore
+	add sp, sp, #4                          @ align adjustment
+	add a2, a2, a3                          @ _t1 = acc + num;
+	sub a3, a3, #1                          @ _t2 = num - 1;
+	sub sp, sp, #4                          @ _t3 = _J3Foo_4sumsiiE(this, _t1, _t2);; align adjustment
+	stmfd sp!, {a1, a2, a3}                 @ caller-save
+	bl _J3Foo_4sumsiiE
+	mov v1, a1
+	ldmfd sp!, {a1, a2, a3}                 @ caller-restore
+	add sp, sp, #4                          @ align adjustment
+	mov a1, v1                              @ return _t3;
+	b ._J3Foo_4sumsiiE_exit
+._J3Foo_4sumsiiE_L1:
+	mov a1, a2                              @ return acc;
+	b ._J3Foo_4sumsiiE_exit
+._J3Foo_4sumsiiE_exit:
+	ldmfd sp!, {v1, pc}
+
+
+
+.global main
+.type main, %function
+main:
+	str lr, [sp, #-4]!
+	@ we need a 'this' argument for this guy, so just allocate nothing.
+	sub sp, sp, #4
+	mov a1, sp
+
+	bl main_dummy
+
+	add sp, sp, #4
+
+	@ set the return code to 0
+	mov a1, #0
+	ldr pc, [sp], #4
+
+.data
+.global stdin
+.align 4
+.string0:
+    .word 3
+.string0_raw:
+    .asciz "%d\n"
+

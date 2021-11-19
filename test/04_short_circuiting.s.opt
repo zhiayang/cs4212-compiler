@@ -1,0 +1,596 @@
+.text
+.global main_dummy
+.type main_dummy, %function
+main_dummy:
+	@ spills:  <none>
+	@ assigns: '_t0' = a1;  '_c4' = a3;  '_t1' = v1
+	stmfd sp!, {v1, lr}
+.main_dummy_entry:
+	mov a1, #1                              @ _t0 = new Foo();
+	mov a2, #4
+	bl calloc(PLT)
+	ldr a3, =#420                           @ _c4 = 420;
+	stmfd sp!, {a1, a3}                     @ _t1 = _J3Foo_4testiiE(_t0, 10, _c4);; caller-save
+	mov a2, #10
+	bl _J3Foo_4testiiE
+	mov v1, a1
+	ldmfd sp!, {a1, a3}                     @ caller-restore
+	mov a1, v1                              @ println(_t1);
+	add a1, a1, #4
+	bl puts(PLT)
+	b .main_dummy_exit                      @ return;
+.main_dummy_exit:
+	ldmfd sp!, {v1, pc}
+
+
+.global _J3Foo_4testiiE
+.type _J3Foo_4testiiE, %function
+_J3Foo_4testiiE:
+	@ spills:  <none>
+	@ assigns:  'this' = a1;      'x' = a2;  '_c105' = v1;  '_c108' = v1;   '_c18' = v1
+	@          '_c180' = v1;  '_c183' = v1;   '_c21' = v1;  '_c270' = v1;  '_c273' = v1
+	@          '_c276' = v1;   '_c49' = v1;   '_c76' = v1;   '_c79' = v1;    '_t0' = v1
+	@            '_t1' = v1;   '_t10' = v1;   '_t13' = v1;   '_t15' = v1;   '_t16' = v1
+	@           '_t19' = v1;   '_t21' = v1;   '_t22' = v1;   '_t23' = v1;   '_t26' = v1
+	@           '_t28' = v1;   '_t29' = v1;   '_t32' = v1;   '_t33' = v1;   '_t36' = v1
+	@           '_t37' = v1;    '_t4' = v1;   '_t40' = v1;   '_t41' = v1;   '_t44' = v1
+	@           '_t45' = v1;   '_t48' = v1;   '_t49' = v1;   '_t50' = v1;   '_t53' = v1
+	@           '_t55' = v1;   '_t58' = v1;    '_t6' = v1;   '_t60' = v1;   '_t63' = v1
+	@           '_t65' = v1;   '_t68' = v1;   '_t70' = v1;   '_t73' = v1;    '_t9' = v1
+	@            '_t5' = v2
+	stmfd sp!, {v1, v2, lr}
+._J3Foo_4testiiE_entry:
+	stmfd sp!, {a1, a2}                     @ _t0 = _J3Foo_7effect1E(this);; caller-save
+	bl _J3Foo_7effect1E
+	mov v1, a1
+	ldmfd sp!, {a1, a2}                     @ caller-restore
+	cmp v1, #0                              @ if (_t0) goto .L1;
+	bne ._J3Foo_4testiiE_L1
+._J3Foo_4testiiE_L2:
+	stmfd sp!, {a1, a2}                     @ _t1 = _J3Foo_7effect2E(this);; caller-save
+	bl _J3Foo_7effect2E
+	mov v1, a1
+	ldmfd sp!, {a1, a2}                     @ caller-restore
+	cmp v1, #0                              @ if (_t1) goto .L1;
+	bne ._J3Foo_4testiiE_L1
+._J3Foo_4testiiE_L3:
+	mov v1, #0                              @ _t4 = false;
+	b ._J3Foo_4testiiE_L4                   @ goto .L4;
+._J3Foo_4testiiE_L1:
+	mov v1, #1                              @ _t4 = true;
+._J3Foo_4testiiE_L4:
+	cmp v1, #0                              @ if (_t4) goto .L5;
+	bne ._J3Foo_4testiiE_L5
+._J3Foo_4testiiE_L6:
+	ldr v1, =.string0                       @ _c18 = "??????????";
+	stmfd sp!, {a1, a2}                     @ println(_c18);; caller-save
+	mov a1, v1
+	add a1, a1, #4
+	bl puts(PLT)
+	ldmfd sp!, {a1, a2}                     @ caller-restore
+	b ._J3Foo_4testiiE_L8                   @ goto .L8;
+._J3Foo_4testiiE_L5:
+	ldr v1, =.string1                       @ _c21 = "uwu";
+	stmfd sp!, {a1, a2}                     @ println(_c21);; caller-save
+	mov a1, v1
+	add a1, a1, #4
+	bl puts(PLT)
+	ldmfd sp!, {a1, a2}                     @ caller-restore
+._J3Foo_4testiiE_L8:
+	cmp a2, #0                              @ _t5 = x >= 0;
+	movge v2, #1
+	movlt v2, #0
+	cmp a2, #7                              @ _t6 = x < 7;
+	movlt v1, #1
+	movge v1, #0
+	and v1, v2, v1                          @ _t9 = _t5 && _t6;
+	cmp v1, #0                              @ if (_t9) goto .L9;
+	bne ._J3Foo_4testiiE_L9
+._J3Foo_4testiiE_L10:
+	stmfd sp!, {a1, a2}                     @ _t10 = _J3Foo_7effect3iE(this, x);; caller-save
+	bl _J3Foo_7effect3iE
+	mov v1, a1
+	ldmfd sp!, {a1, a2}                     @ caller-restore
+	cmp v1, #0                              @ if (_t10) goto .L9;
+	bne ._J3Foo_4testiiE_L9
+._J3Foo_4testiiE_L11:
+	mov v1, #0                              @ _t13 = false;
+	b ._J3Foo_4testiiE_L12                  @ goto .L12;
+._J3Foo_4testiiE_L9:
+	mov v1, #1                              @ _t13 = true;
+._J3Foo_4testiiE_L12:
+	cmp v1, #0                              @ if (_t13) goto .L13;
+	bne ._J3Foo_4testiiE_L13
+	b ._J3Foo_4testiiE_L14                  @ goto .L14;
+._J3Foo_4testiiE_L13:
+	ldr v1, =.string2                       @ _c49 = "owo";
+	stmfd sp!, {a1, a2}                     @ println(_c49);; caller-save
+	mov a1, v1
+	add a1, a1, #4
+	bl puts(PLT)
+	ldmfd sp!, {a1, a2}                     @ caller-restore
+	sub a2, a2, #1                          @ x = x - 1;
+	b ._J3Foo_4testiiE_L8                   @ goto .L8;
+._J3Foo_4testiiE_L14:
+	sub sp, sp, #4                          @ _t15 = _J3Foo_7effect2E(this);; align adjustment
+	stmfd sp!, {a1}                         @ caller-save
+	bl _J3Foo_7effect2E
+	mov v1, a1
+	ldmfd sp!, {a1}                         @ caller-restore
+	add sp, sp, #4                          @ align adjustment
+	cmp v1, #0                              @ if (_t15) goto .L15;
+	bne ._J3Foo_4testiiE_L15
+._J3Foo_4testiiE_L16:
+	mov v1, #0                              @ _t19 = false;
+	b ._J3Foo_4testiiE_L19                  @ goto .L19;
+._J3Foo_4testiiE_L15:
+	sub sp, sp, #4                          @ _t16 = _J3Foo_7effect3iE(this, 69);; align adjustment
+	stmfd sp!, {a1}                         @ caller-save
+	mov a2, #69
+	bl _J3Foo_7effect3iE
+	mov v1, a1
+	ldmfd sp!, {a1}                         @ caller-restore
+	add sp, sp, #4                          @ align adjustment
+	cmp v1, #0                              @ if (_t16) goto .L17;
+	bne ._J3Foo_4testiiE_L17
+._J3Foo_4testiiE_L18:
+	mov v1, #0                              @ _t19 = false;
+	b ._J3Foo_4testiiE_L19                  @ goto .L19;
+._J3Foo_4testiiE_L17:
+	mov v1, #1                              @ _t19 = true;
+._J3Foo_4testiiE_L19:
+	cmp v1, #0                              @ if (_t19) goto .L20;
+	bne ._J3Foo_4testiiE_L20
+._J3Foo_4testiiE_L21:
+	ldr v1, =.string3                       @ _c76 = "asdf";
+	sub sp, sp, #4                          @ println(_c76);; align adjustment
+	stmfd sp!, {a1}                         @ caller-save
+	mov a1, v1
+	add a1, a1, #4
+	bl puts(PLT)
+	ldmfd sp!, {a1}                         @ caller-restore
+	add sp, sp, #4                          @ align adjustment
+	b ._J3Foo_4testiiE_L22                  @ goto .L22;
+._J3Foo_4testiiE_L20:
+	ldr v1, =.string4                       @ _c79 = "oh no";
+	sub sp, sp, #4                          @ println(_c79);; align adjustment
+	stmfd sp!, {a1}                         @ caller-save
+	mov a1, v1
+	add a1, a1, #4
+	bl puts(PLT)
+	ldmfd sp!, {a1}                         @ caller-restore
+	add sp, sp, #4                          @ align adjustment
+._J3Foo_4testiiE_L22:
+	sub sp, sp, #4                          @ _t21 = _J3Foo_7effect2E(this);; align adjustment
+	stmfd sp!, {a1}                         @ caller-save
+	bl _J3Foo_7effect2E
+	mov v1, a1
+	ldmfd sp!, {a1}                         @ caller-restore
+	add sp, sp, #4                          @ align adjustment
+	rsb v1, v1, #1                          @ _t22 = !_t21;
+	cmp v1, #0                              @ if (_t22) goto .L23;
+	bne ._J3Foo_4testiiE_L23
+._J3Foo_4testiiE_L24:
+	mov v1, #0                              @ _t26 = false;
+	b ._J3Foo_4testiiE_L27                  @ goto .L27;
+._J3Foo_4testiiE_L23:
+	sub sp, sp, #4                          @ _t23 = _J3Foo_7effect3iE(this, 4);; align adjustment
+	stmfd sp!, {a1}                         @ caller-save
+	mov a2, #4
+	bl _J3Foo_7effect3iE
+	mov v1, a1
+	ldmfd sp!, {a1}                         @ caller-restore
+	add sp, sp, #4                          @ align adjustment
+	cmp v1, #0                              @ if (_t23) goto .L25;
+	bne ._J3Foo_4testiiE_L25
+._J3Foo_4testiiE_L26:
+	mov v1, #0                              @ _t26 = false;
+	b ._J3Foo_4testiiE_L27                  @ goto .L27;
+._J3Foo_4testiiE_L25:
+	mov v1, #1                              @ _t26 = true;
+._J3Foo_4testiiE_L27:
+	cmp v1, #0                              @ if (_t26) goto .L28;
+	bne ._J3Foo_4testiiE_L28
+._J3Foo_4testiiE_L29:
+	ldr v1, =.string5                       @ _c105 = "bsdf";
+	sub sp, sp, #4                          @ println(_c105);; align adjustment
+	stmfd sp!, {a1}                         @ caller-save
+	mov a1, v1
+	add a1, a1, #4
+	bl puts(PLT)
+	ldmfd sp!, {a1}                         @ caller-restore
+	add sp, sp, #4                          @ align adjustment
+	b ._J3Foo_4testiiE_L30                  @ goto .L30;
+._J3Foo_4testiiE_L28:
+	ldr v1, =.string4                       @ _c108 = "oh no";
+	sub sp, sp, #4                          @ println(_c108);; align adjustment
+	stmfd sp!, {a1}                         @ caller-save
+	mov a1, v1
+	add a1, a1, #4
+	bl puts(PLT)
+	ldmfd sp!, {a1}                         @ caller-restore
+	add sp, sp, #4                          @ align adjustment
+._J3Foo_4testiiE_L30:
+	sub sp, sp, #4                          @ _t28 = _J3Foo_7effect2E(this);; align adjustment
+	stmfd sp!, {a1}                         @ caller-save
+	bl _J3Foo_7effect2E
+	mov v1, a1
+	ldmfd sp!, {a1}                         @ caller-restore
+	add sp, sp, #4                          @ align adjustment
+	cmp v1, #0                              @ if (_t28) goto .L31;
+	bne ._J3Foo_4testiiE_L31
+._J3Foo_4testiiE_L32:
+	sub sp, sp, #4                          @ _t29 = _J3Foo_7effect2E(this);; align adjustment
+	stmfd sp!, {a1}                         @ caller-save
+	bl _J3Foo_7effect2E
+	mov v1, a1
+	ldmfd sp!, {a1}                         @ caller-restore
+	add sp, sp, #4                          @ align adjustment
+	cmp v1, #0                              @ if (_t29) goto .L31;
+	bne ._J3Foo_4testiiE_L31
+._J3Foo_4testiiE_L33:
+	mov v1, #0                              @ _t32 = false;
+	b ._J3Foo_4testiiE_L34                  @ goto .L34;
+._J3Foo_4testiiE_L31:
+	mov v1, #1                              @ _t32 = true;
+._J3Foo_4testiiE_L34:
+	cmp v1, #0                              @ if (_t32) goto .L35;
+	bne ._J3Foo_4testiiE_L35
+._J3Foo_4testiiE_L36:
+	sub sp, sp, #4                          @ _t33 = _J3Foo_7effect2E(this);; align adjustment
+	stmfd sp!, {a1}                         @ caller-save
+	bl _J3Foo_7effect2E
+	mov v1, a1
+	ldmfd sp!, {a1}                         @ caller-restore
+	add sp, sp, #4                          @ align adjustment
+	cmp v1, #0                              @ if (_t33) goto .L35;
+	bne ._J3Foo_4testiiE_L35
+._J3Foo_4testiiE_L37:
+	mov v1, #0                              @ _t36 = false;
+	b ._J3Foo_4testiiE_L38                  @ goto .L38;
+._J3Foo_4testiiE_L35:
+	mov v1, #1                              @ _t36 = true;
+._J3Foo_4testiiE_L38:
+	cmp v1, #0                              @ if (_t36) goto .L39;
+	bne ._J3Foo_4testiiE_L39
+._J3Foo_4testiiE_L40:
+	sub sp, sp, #4                          @ _t37 = _J3Foo_7effect2E(this);; align adjustment
+	stmfd sp!, {a1}                         @ caller-save
+	bl _J3Foo_7effect2E
+	mov v1, a1
+	ldmfd sp!, {a1}                         @ caller-restore
+	add sp, sp, #4                          @ align adjustment
+	cmp v1, #0                              @ if (_t37) goto .L39;
+	bne ._J3Foo_4testiiE_L39
+._J3Foo_4testiiE_L41:
+	mov v1, #0                              @ _t40 = false;
+	b ._J3Foo_4testiiE_L42                  @ goto .L42;
+._J3Foo_4testiiE_L39:
+	mov v1, #1                              @ _t40 = true;
+._J3Foo_4testiiE_L42:
+	cmp v1, #0                              @ if (_t40) goto .L43;
+	bne ._J3Foo_4testiiE_L43
+._J3Foo_4testiiE_L44:
+	sub sp, sp, #4                          @ _t41 = _J3Foo_7effect2E(this);; align adjustment
+	stmfd sp!, {a1}                         @ caller-save
+	bl _J3Foo_7effect2E
+	mov v1, a1
+	ldmfd sp!, {a1}                         @ caller-restore
+	add sp, sp, #4                          @ align adjustment
+	cmp v1, #0                              @ if (_t41) goto .L43;
+	bne ._J3Foo_4testiiE_L43
+._J3Foo_4testiiE_L45:
+	mov v1, #0                              @ _t44 = false;
+	b ._J3Foo_4testiiE_L46                  @ goto .L46;
+._J3Foo_4testiiE_L43:
+	mov v1, #1                              @ _t44 = true;
+._J3Foo_4testiiE_L46:
+	cmp v1, #0                              @ if (_t44) goto .L47;
+	bne ._J3Foo_4testiiE_L47
+._J3Foo_4testiiE_L48:
+	sub sp, sp, #4                          @ _t45 = _J3Foo_7effect1E(this);; align adjustment
+	stmfd sp!, {a1}                         @ caller-save
+	bl _J3Foo_7effect1E
+	mov v1, a1
+	ldmfd sp!, {a1}                         @ caller-restore
+	add sp, sp, #4                          @ align adjustment
+	cmp v1, #0                              @ if (_t45) goto .L47;
+	bne ._J3Foo_4testiiE_L47
+._J3Foo_4testiiE_L49:
+	mov v1, #0                              @ _t48 = false;
+	b ._J3Foo_4testiiE_L50                  @ goto .L50;
+._J3Foo_4testiiE_L47:
+	mov v1, #1                              @ _t48 = true;
+._J3Foo_4testiiE_L50:
+	cmp v1, #0                              @ if (_t48) goto .L51;
+	bne ._J3Foo_4testiiE_L51
+._J3Foo_4testiiE_L52:
+	ldr v1, =.string4                       @ _c180 = "oh no";
+	sub sp, sp, #4                          @ println(_c180);; align adjustment
+	stmfd sp!, {a1}                         @ caller-save
+	mov a1, v1
+	add a1, a1, #4
+	bl puts(PLT)
+	ldmfd sp!, {a1}                         @ caller-restore
+	add sp, sp, #4                          @ align adjustment
+	b ._J3Foo_4testiiE_L53                  @ goto .L53;
+._J3Foo_4testiiE_L51:
+	ldr v1, =.string6                       @ _c183 = "ok";
+	sub sp, sp, #4                          @ println(_c183);; align adjustment
+	stmfd sp!, {a1}                         @ caller-save
+	mov a1, v1
+	add a1, a1, #4
+	bl puts(PLT)
+	ldmfd sp!, {a1}                         @ caller-restore
+	add sp, sp, #4                          @ align adjustment
+._J3Foo_4testiiE_L53:
+	sub sp, sp, #4                          @ _t49 = _J3Foo_7effect1E(this);; align adjustment
+	stmfd sp!, {a1}                         @ caller-save
+	bl _J3Foo_7effect1E
+	mov v1, a1
+	ldmfd sp!, {a1}                         @ caller-restore
+	add sp, sp, #4                          @ align adjustment
+	cmp v1, #0                              @ if (_t49) goto .L54;
+	bne ._J3Foo_4testiiE_L54
+._J3Foo_4testiiE_L55:
+	mov v1, #0                              @ _t53 = false;
+	b ._J3Foo_4testiiE_L58                  @ goto .L58;
+._J3Foo_4testiiE_L54:
+	sub sp, sp, #4                          @ _t50 = _J3Foo_7effect1E(this);; align adjustment
+	stmfd sp!, {a1}                         @ caller-save
+	bl _J3Foo_7effect1E
+	mov v1, a1
+	ldmfd sp!, {a1}                         @ caller-restore
+	add sp, sp, #4                          @ align adjustment
+	cmp v1, #0                              @ if (_t50) goto .L56;
+	bne ._J3Foo_4testiiE_L56
+._J3Foo_4testiiE_L57:
+	mov v1, #0                              @ _t53 = false;
+	b ._J3Foo_4testiiE_L58                  @ goto .L58;
+._J3Foo_4testiiE_L56:
+	mov v1, #1                              @ _t53 = true;
+._J3Foo_4testiiE_L58:
+	cmp v1, #0                              @ if (_t53) goto .L59;
+	bne ._J3Foo_4testiiE_L59
+._J3Foo_4testiiE_L60:
+	mov v1, #0                              @ _t58 = false;
+	b ._J3Foo_4testiiE_L63                  @ goto .L63;
+._J3Foo_4testiiE_L59:
+	sub sp, sp, #4                          @ _t55 = _J3Foo_7effect1E(this);; align adjustment
+	stmfd sp!, {a1}                         @ caller-save
+	bl _J3Foo_7effect1E
+	mov v1, a1
+	ldmfd sp!, {a1}                         @ caller-restore
+	add sp, sp, #4                          @ align adjustment
+	cmp v1, #0                              @ if (_t55) goto .L61;
+	bne ._J3Foo_4testiiE_L61
+._J3Foo_4testiiE_L62:
+	mov v1, #0                              @ _t58 = false;
+	b ._J3Foo_4testiiE_L63                  @ goto .L63;
+._J3Foo_4testiiE_L61:
+	mov v1, #1                              @ _t58 = true;
+._J3Foo_4testiiE_L63:
+	cmp v1, #0                              @ if (_t58) goto .L64;
+	bne ._J3Foo_4testiiE_L64
+._J3Foo_4testiiE_L65:
+	mov v1, #0                              @ _t63 = false;
+	b ._J3Foo_4testiiE_L68                  @ goto .L68;
+._J3Foo_4testiiE_L64:
+	sub sp, sp, #4                          @ _t60 = _J3Foo_7effect1E(this);; align adjustment
+	stmfd sp!, {a1}                         @ caller-save
+	bl _J3Foo_7effect1E
+	mov v1, a1
+	ldmfd sp!, {a1}                         @ caller-restore
+	add sp, sp, #4                          @ align adjustment
+	cmp v1, #0                              @ if (_t60) goto .L66;
+	bne ._J3Foo_4testiiE_L66
+._J3Foo_4testiiE_L67:
+	mov v1, #0                              @ _t63 = false;
+	b ._J3Foo_4testiiE_L68                  @ goto .L68;
+._J3Foo_4testiiE_L66:
+	mov v1, #1                              @ _t63 = true;
+._J3Foo_4testiiE_L68:
+	cmp v1, #0                              @ if (_t63) goto .L69;
+	bne ._J3Foo_4testiiE_L69
+._J3Foo_4testiiE_L70:
+	mov v1, #0                              @ _t68 = false;
+	b ._J3Foo_4testiiE_L73                  @ goto .L73;
+._J3Foo_4testiiE_L69:
+	sub sp, sp, #4                          @ _t65 = _J3Foo_7effect1E(this);; align adjustment
+	stmfd sp!, {a1}                         @ caller-save
+	bl _J3Foo_7effect1E
+	mov v1, a1
+	ldmfd sp!, {a1}                         @ caller-restore
+	add sp, sp, #4                          @ align adjustment
+	cmp v1, #0                              @ if (_t65) goto .L71;
+	bne ._J3Foo_4testiiE_L71
+._J3Foo_4testiiE_L72:
+	mov v1, #0                              @ _t68 = false;
+	b ._J3Foo_4testiiE_L73                  @ goto .L73;
+._J3Foo_4testiiE_L71:
+	mov v1, #1                              @ _t68 = true;
+._J3Foo_4testiiE_L73:
+	cmp v1, #0                              @ if (_t68) goto .L74;
+	bne ._J3Foo_4testiiE_L74
+._J3Foo_4testiiE_L75:
+	mov v1, #0                              @ _t73 = false;
+	b ._J3Foo_4testiiE_L78                  @ goto .L78;
+._J3Foo_4testiiE_L74:
+	sub sp, sp, #4                          @ _t70 = _J3Foo_7effect1E(this);; align adjustment
+	stmfd sp!, {a1}                         @ caller-save
+	bl _J3Foo_7effect1E
+	mov v1, a1
+	ldmfd sp!, {a1}                         @ caller-restore
+	add sp, sp, #4                          @ align adjustment
+	cmp v1, #0                              @ if (_t70) goto .L76;
+	bne ._J3Foo_4testiiE_L76
+._J3Foo_4testiiE_L77:
+	mov v1, #0                              @ _t73 = false;
+	b ._J3Foo_4testiiE_L78                  @ goto .L78;
+._J3Foo_4testiiE_L76:
+	mov v1, #1                              @ _t73 = true;
+._J3Foo_4testiiE_L78:
+	cmp v1, #0                              @ if (_t73) goto .L79;
+	bne ._J3Foo_4testiiE_L79
+._J3Foo_4testiiE_L80:
+	ldr v1, =.string4                       @ _c270 = "oh no";
+	mov a1, v1                              @ println(_c270);
+	add a1, a1, #4
+	bl puts(PLT)
+	b ._J3Foo_4testiiE_L81                  @ goto .L81;
+._J3Foo_4testiiE_L79:
+	ldr v1, =.string6                       @ _c273 = "ok";
+	mov a1, v1                              @ println(_c273);
+	add a1, a1, #4
+	bl puts(PLT)
+._J3Foo_4testiiE_L81:
+	ldr v1, =.string7                       @ _c276 = "kekw";
+	mov a1, v1                              @ return _c276;
+	b ._J3Foo_4testiiE_exit
+._J3Foo_4testiiE_exit:
+	ldmfd sp!, {v1, v2, pc}
+
+
+.global _J3Foo_7effect1E
+.type _J3Foo_7effect1E, %function
+_J3Foo_7effect1E:
+	@ spills:  <none>
+	@ assigns: '_c1' = v1
+	stmfd sp!, {v1, lr}
+._J3Foo_7effect1E_entry:
+	ldr v1, =.string8                       @ _c1 = "effect 1";
+	mov a1, v1                              @ println(_c1);
+	add a1, a1, #4
+	bl puts(PLT)
+	mov a1, #1                              @ return true;
+	b ._J3Foo_7effect1E_exit
+._J3Foo_7effect1E_exit:
+	ldmfd sp!, {v1, pc}
+
+
+.global _J3Foo_7effect2E
+.type _J3Foo_7effect2E, %function
+_J3Foo_7effect2E:
+	@ spills:  <none>
+	@ assigns: '_c1' = v1
+	stmfd sp!, {v1, lr}
+._J3Foo_7effect2E_entry:
+	ldr v1, =.string9                       @ _c1 = "effect 2";
+	mov a1, v1                              @ println(_c1);
+	add a1, a1, #4
+	bl puts(PLT)
+	mov a1, #0                              @ return false;
+	b ._J3Foo_7effect2E_exit
+._J3Foo_7effect2E_exit:
+	ldmfd sp!, {v1, pc}
+
+
+.global _J3Foo_7effect3iE
+.type _J3Foo_7effect3iE, %function
+_J3Foo_7effect3iE:
+	@ spills:  <none>
+	@ assigns:   'k' = a2;  '_c1' = v1;  '_t0' = v1
+	stmfd sp!, {v1, lr}
+._J3Foo_7effect3iE_entry:
+	ldr v1, =.string10                      @ _c1 = "effect 3";
+	sub sp, sp, #4                          @ println(_c1);; align adjustment
+	stmfd sp!, {a2}                         @ caller-save
+	mov a1, v1
+	add a1, a1, #4
+	bl puts(PLT)
+	ldmfd sp!, {a2}                         @ caller-restore
+	add sp, sp, #4                          @ align adjustment
+	cmp a2, #5                              @ _t0 = k > 5;
+	movgt v1, #1
+	movle v1, #0
+	mov a1, v1                              @ return _t0;
+	b ._J3Foo_7effect3iE_exit
+._J3Foo_7effect3iE_exit:
+	ldmfd sp!, {v1, pc}
+
+
+
+.global main
+.type main, %function
+main:
+	str lr, [sp, #-4]!
+	@ we need a 'this' argument for this guy, so just allocate nothing.
+	sub sp, sp, #4
+	mov a1, sp
+
+	bl main_dummy
+
+	add sp, sp, #4
+
+	@ set the return code to 0
+	mov a1, #0
+	ldr pc, [sp], #4
+
+.data
+.global stdin
+.align 4
+.string0:
+    .word 10
+.string0_raw:
+    .asciz "??????????"
+
+.align 4
+.string1:
+    .word 3
+.string1_raw:
+    .asciz "uwu"
+
+.align 4
+.string2:
+    .word 3
+.string2_raw:
+    .asciz "owo"
+
+.align 4
+.string3:
+    .word 4
+.string3_raw:
+    .asciz "asdf"
+
+.align 4
+.string4:
+    .word 5
+.string4_raw:
+    .asciz "oh no"
+
+.align 4
+.string5:
+    .word 4
+.string5_raw:
+    .asciz "bsdf"
+
+.align 4
+.string6:
+    .word 2
+.string6_raw:
+    .asciz "ok"
+
+.align 4
+.string7:
+    .word 4
+.string7_raw:
+    .asciz "kekw"
+
+.align 4
+.string8:
+    .word 8
+.string8_raw:
+    .asciz "effect 1"
+
+.align 4
+.string9:
+    .word 8
+.string9_raw:
+    .asciz "effect 2"
+
+.align 4
+.string10:
+    .word 8
+.string10_raw:
+    .asciz "effect 3"
+
