@@ -1,0 +1,1037 @@
+% report.tex
+
+\documentclass[12pt]{article}
+
+\usepackage{simpledoc}
+\usepackage{tikz}
+\usepackage{pgfplots}
+\usetikzlibrary{positioning}
+\usetikzlibrary{shapes.misc}
+\usetikzlibrary{shapes.geometric}
+
+\pgfplotsset{compat=1.18}
+
+\microtypesetup{activate=true,final=true}
+
+
+\setminted{autogobble,style=colorful,tabsize=4,xleftmargin=0.025\textwidth,xrightmargin=0.075\textwidth,
+	frame=leftline,framesep=4mm,framerule=0.4mm}
+
+\BeforeBeginEnvironment{minted}{\vspace{-1em}}
+\AfterEndEnvironment{minted}{\vspace{-1em}}
+
+\makeatletter
+\AtBeginEnvironment{minted}{\dontdofcolorbox}
+\def\dontdofcolorbox{\renewcommand\fcolorbox[4][]{##4}}
+\makeatother
+\renewcommand{\colorbox}[3][]{#3}
+
+\setstretch{1.105}
+\title{CS4212 Assigment 3}
+
+\geometry{a4paper, top=20.0mm, bottom=20.0mm, left=25.0mm, right=25.0mm, headheight=15pt}
+
+\newcommand{\cplusplus}{C\nolinebreak[4]\hspace{-0.05em}\raisebox{.1ex}{\small\bf +\hspace{-0.15em}+}}
+
+\titlespacing*{\section}{0mm}{0mm}{-19mm}
+\titlespacing*{\subsection}{0mm}{0mm}{-18mm}
+\titlespacing*{\subsubsection}{0mm}{0mm}{-18mm}
+\titlespacing*{\paragraph}{0mm}{0mm}{-16mm}
+
+% "brand colours"
+\colorlet{rb}{RoyalBlue}
+\colorlet{ws}{WildStrawberry}
+\colorlet{em}{Emerald}
+\colorlet{lv}{Lavender}
+\colorlet{vi}{Violet}
+\colorlet{ml}{Melon}
+
+\begin{document}
+
+% title page
+\pagenumbering{arabic}
+\hypersetup{pageanchor=false}
+
+{
+\subtext{CS4212 Assignment 3}
+\hfill
+zhiayang\vspace{0.5em}
+}\\ \vspace{-0.8em}
+
+\hrule{}
+
+\NewDocumentCommand{\ttt}{+m}{\texttt{#1}}
+\NewDocumentCommand{\eqtt}{+m}{\enquote{\texttt{#1}}}
+
+\subsection*{Contents}
+\vspace*{-2em}
+
+\renewcommand\contentsname{}
+\setcounter{tocdepth}{2}        % there's too many, so hide subsubsections.
+\tableofcontents
+
+
+
+
+\pagebreak
+\section{Overview}
+
+This compiler implementation conforms to the specified Jlite language. It parses a conforming Jlite source file,
+performs typechecking, generates intermediate representation (IR) in the form of IR3, and then outputs 32-bit ARM
+assembly which can be compiled by \ttt{gcc}.
+
+The full Jlite specification has been implemented, including the following \enquote{bonus} features:
+
+\begin{numberedlist2}
+& string concatenation
+& \ttt{println} and \ttt{readln} for strings, integers, and booleans
+& integer division support (via long division)
+\end{numberedlist2}
+
+Register allocation is done via liveness analysis and graph-colouring, including a \enquote{pre-colouring} phase
+to encode a variable's preferred register. A number of optimisations have also been implemented; these are further
+described below.
+
+The compiler has 3 main phases:
+
+\begin{romanlist2}
+& Lexing and parsing
+& Typechecking and IR generation
+& ARM assembly generation
+\end{romanlist2}
+
+Optimisation steps are interspersed where appropriate. The first two parts are just a more organised re-stating of
+the previous submissions, so feel free to skim/skip them.
+
+There aren't too many \enquote{design decisions} here; the obvious ones are:
+
+\begin{romanlist2}
+& representing IR3 functions with basic blocks
+& using SSA form for temporaries
+\end{romanlist2}
+
+Both were done with the intention of allowing for optimisations to be implemented easily; they appear to have
+achieved their goals. The other implementation choices were just what were natural and/or forced.
+
+This report turned out a lot longer than I expected, sorry about that; the old stuff from the previous submissions
+are at the very end, and the interesting new stuff up front.
+
+
+\section{Code Generation}
+
+Code generation entails turning IR3 into ARM assembly. For some semblance of sanity, the assembly is not represented
+in a purely textual form, but encoded into a simple datastructure. This allows the compiler to abstract certain
+things away (like ensuring the constant operand is always second), and match instructions for optimisation in a less
+hacky way.
+
+One small step is also to fix the layout for classes. All fields are 4 bytes except for booleans, which are 1 byte.
+To preserve alignment, boolean fields are packed at the back of the class. The total size of the class is then
+aligned (upwards) to a multiple of 4 bytes.
+
+\subsection{IR3 Lowering}
+
+Before that though, the compiler \itl{massages} the IR3 into a form that is more palatable to the code generator,
+through a \itl{lowering} step. This step is always performed regardless of optimisations, though it is done \itl{after}
+the IR3 optimisation pass. The following lowering steps are performed:
+
+
+\paragraph{Multiplication by a Constant}
+
+For some reason, the inferior instruction encoding on ARM doesn't let \eqtt{mul} encode a constant operand. For this
+reason, IR3 multiplies with a constant operand will have the constant pulled out:
+
+\begin{minted}{c}
+_t1 = _t2 * 3;      // old
+
+_c0 = 3;
+_t1 = _t2 * _c0;    // new
+\end{minted}
+
+A \enquote{strength reduction} optimisation is possible here (eg. to replace the multiply with a series of adds, shifts,
+and subtracts --- or even the basic one of replacing multiplies by a power-of-two into shifts), but they were not done
+because I didn't want to.
+
+There is apparently an entire research field on the \itl{Single Constant Multiplication} problem, but my brain was not
+creased enough to understand the papers.
+
+
+\paragraph{Strings \& Large Constants}
+
+Next, \enquote{large} constants are also extracted into a temporary, and the assembler is used to load a value from
+memory. The ARM instruction encoding only allows for 8-bit constants and a 4-bit shift. However, I decided
+to just limit the values to $(-256, 256)$ (inclusive). Constants outside that range will be transformed:
+
+\begin{minted}{c}
+_t1 = _t2 * 420;    // old
+
+_c0 = 420;
+_t1 = _t2 * _c0;    // new
+\end{minted}
+
+The reason for pulling this out is to let the register allocator (which will be discussed below) do its job and give
+\eqtt{\_c0} its own register. The code generator will then emit this instruction:
+
+\begin{minted}[style=colorful]{asm}
+ldr a1, =#420
+\end{minted}
+
+(assuming the allocated register was \eqtt{a1}). A similar thing is done for strings, but always, since strings can
+only be loaded in this form (they can't be an immediate).
+
+This is represented not as a normal IR3 statement, but by special \enquote{pseudo-statements}, which you can find in
+\ttt{cgpseudo.py}.
+
+
+
+\paragraph{Dot-op Assignments}
+
+Assignments and dot-op (ie. field) assignments can contain an IR3 expression as their right-side operand. For regular
+assignments this isn't a problem, but for field assignments, I chose to (again) let the register allocator do its
+job by pulling the right side out into a temporary variable so it can get its own register.
+
+This is because, even though the right-side can (almost always) be encoded in one instruction, it cannot also have
+a memory operand, so we would need another register either way.
+
+
+\paragraph{Function Calls}
+
+Surprisingly, function calls also have to be lowered. The problem is when there are too many arguments, exceeding
+the number of allocatable registers. The problem is that all those variables need to be available
+\itl{on the same statement}, which is impossible if they all need to be in registers.
+
+However, only the first \itl{four} need to be in registers; the rest are passed on the stack. The trick, then,
+is to let the existing spilling mechanism handle \enquote{swapping} variables in and out of registers; we simply
+need to split up the function call over multiple statements so the register allocator can work.
+
+Another pseudo-op, \eqtt{StoreFunctionStackArg}, is introduced. The code generation for this statement is responsible
+for storing the variable to the correct stack slot for the upcoming function call. After lowering, a particularly bad
+call might look something like this:
+
+\begin{minted}{c}
+spill a;
+spill this;
+spill c;
+spill b;
+stack_arg(4): d;
+stack_arg(5): e;
+stack_arg(6): f;
+stack_arg(7): g;
+stack_arg(8): h;
+stack_arg(9): i;
+restore j;
+stack_arg(10): j;
+restore k;
+stack_arg(11): k;
+restore b;
+restore c;
+restore this;
+restore a;
+_t0 = _J3Foo_1xiiiiiiiiiiiiE(this, a, b, c, d, e, f, g, h, i, j, k, 12);
+\end{minted}
+
+By splitting the work of the function call across several statements, the allocator is able to insert spills and
+loads between them to make allocation succeed.
+
+Unfortunately, while this is an elegant solution in design, the implementation is a lot... uglier. This bug was
+discovered around 3 hours ago, as I write this report on \itl{Saturday morning}. The problem arises because the
+function call itself is responsible for saving and restoring \ttt{a1-a4}. Some finesse and hackery was needed to
+allow the call to \itl{backpatch} the offsets correctly after it is known.
+
+If this was built-in from the beginning, a better implementation would probably have been found.
+
+
+
+
+\paragraph{Phi Nodes}
+
+Lastly, as mentioned above, the IR3 generator creates phi nodes for the merge block of branches; there is not really
+a machine-instruction for that, so it is lowered simply by rewriting the source assignments to set the merge value
+instead.
+
+As an example, this would be the code before lowering, with the phi node:
+
+\begin{minted}{c}
+L1:
+	_t0 = true;
+	goto merge;
+L2:
+	_t1 = false;
+	goto merge;
+merge:
+	_t2 = phi(_t0, _t1);
+\end{minted}
+
+and after lowering:
+
+\begin{minted}{c}
+L1:
+	_t2 = true;
+	goto merge;
+L2:
+	_t2 = false;
+	goto merge;
+merge:
+\end{minted}
+
+So this lowering step breaks the SSA form, but the optimisations that rely on SSA have already been performed, so it
+is not a problem.
+
+% end subsection (IR3 Lowering)
+
+
+\subsection{Register Allocation}
+
+Next, the heart of the compiler is the register allocator. This is a liveness-analysing, graph-colouring allocator. The
+registers \ttt{a1 - a4, v1 - v5, fp} are made available for use. The frame pointer is not used, so it is used as
+a general-purpose register, which does not break the calling convention for external functions.
+
+
+\subsubsection{Liveness Analysis}
+
+Liveness analysis is performed using a \enquote{backwards may} --- predecessor/union --- dataflow algorithm. It is an
+iterative queuing algorithm that enqueues predecessors if the \ttt{IN} of a statement changes.
+
+Analysis is performed on a statement level instead of a basic-block level for finer granularity in register assignments.
+The generated code is better, and there's less bookkeeping to do anyway. A dummy statement is inserted at the beginning
+of each function that serves as the first definition for all locals and parameters.
+
+To extract the live ranges, the \ttt{IN} of each statement is collected, and the mapping is \enquote{inversed}, so to
+speak --- to get a map of variable names to statement numbers.
+
+% end subsubsection (Liveness Analysis)
+
+
+\subsubsection{Graph Colouring}
+
+To build the interference graph, the live range for every pair of variables is intersected, and non-empty sets indicate
+an interference. The graph itself is represented with an adjacency list, though this is not so important.
+
+Before colouring, the \enquote{preferences} of variables are recorded; incoming parameters will prefer to be in \ttt{a1 - a4}, and
+outgoing arguments (ie. variables used in a call) will also prefer those spots. Since a variable might be used in a call
+more than once (and in different positions), each variable will have a \enquote{ranking} of its preferred registers, ordered
+by the number of times it prefers it.
+
+Next, the graph is coloured using the simplify-select-spill-retry algorithm, except that variables are not immediately spilled
+if they can't be simplified. They are removed anyway, and only when they \itl{actually} can't be coloured, are they spilled.
+
+Colouring is straightforward; if the variable has preferences, they are taken into account, though it is not guaranteed. This
+means that this is, strictly speaking, not a \itl{pre-colouring} method, just a preferred colouring. Otherwise, any free
+register is used.
+
+% end subsubsection (Graph Colouring)
+
+
+\subsubsection{Register Spilling}
+
+To spill registers, we introduce two pseudo-statements, \ttt{SpillVariable} and \ttt{RestoreVariable}. As the names suggest,
+these are responsible for spilling and restoring variables. A spill is treated as a use, and a restore is treated as a define.
+
+Some edge-casing is done so that, on the dummy entry, the 5th parameter onwards is not spilled (since it already lives on the
+stack), and locals are also not spilled (since they have indeterminate values to begin with). This prevents redundant stores
+to stack.
+
+% end subsubsection (Register Spilling)
+
+
+
+
+\subsubsection{Scratch Registers}
+
+In prior iterations of the code generator/register allocator, 2 registers were reserved as \enquote{scratch} registers, for
+the purposes of loading spilled variables from memory, and for dealing with strings and large integers. However, this was
+a pain to deal with, since it introduced a bunch of problems:
+
+\begin{romanlist2}
+& two operands of the same instruction can't use the same scratch register
+& fewer registers were available for use
+& if the destination \itl{and} both operands were spilled, then 3 scratch registers were required
+\end{romanlist2}
+
+In the end, this was not a great solution; I then introduced the \itl{lowering} step to fix this. As mentioned briefly above,
+constants are pulled out to \enquote{let the register allocator do its job}. This essentially means letting that new temporary
+get its own formally-allocated register. Even if it's spilled, the generated spill code means that it \itl{will} get a register
+for the duration of its use (which is very short).
+
+
+This concept also extends to the spill and restore pseudo ops; a register is nicely allocated for them. I think this is the
+intended implementation for a graph-colouring register allocator, but I didn't think of it at first. Sadge.
+
+Either way, this means that no scratch registers are required, and the code generator can be \itl{sure} that, when a value
+is requested at a statement, it will always be available in a register.
+
+% end subsubsection (Scratch Registers)
+% end subsection (Register Allocation)
+
+
+
+\subsection{Assembly Generation}
+
+There isn't really much to discuss here that is unique for this implementation. The generator simply traverses each IR3 statement
+in the function and generates the corresponding ARM assembly.
+
+For each function, a \enquote{god object} is created which holds all the state required for generating that function, namely
+the register assignments, stack spill locations, and list of instructions. Additionally, some global state is also used
+to maintain the class layouts. These are in \ttt{cgstate.py}.
+
+One hiccup is that C compilers will insert an implicit \mintinline{c}{return 0} at the end of \eqtt{main}; I did not want to
+rewrite all the return statements, so the user-defined \eqtt{main} is renamed and wrapped in a real main function that
+simply sets \eqtt{a1} to 0 on exit so a nice exit code is returned.
+
+Argument number 5 and above are passed on the stack; the code generator also follows this convention for obvious reasons. A
+benefit of this is that there is a free space to spill these arguments if needed --- just write to the caller stack frame.
+
+The ARM calling convention (AAPCS) states that the callee is free to write to the caller-owned area for stack-passed
+variables, and we do just that instead of increasing our own frame size.
+
+Some implementation details will be discussed below.
+
+
+
+
+\subsubsection{Instruction Representation}
+
+In the beginning, emitted assembly was simply stored as a list of lines; no backpatching was required (the assembler handles any
+of that), but it was error-prone and not very elegant. To make implementing optimisations easier (as opposed to doing some
+kind of textual string match...), ARM instructions are now encoded as a datastructure.
+
+This allows the use of symbolic constants for registers and instructions:
+
+\begin{minted}{c}
+fs.emit(cgarm.store_multiple(cgarm.SP.post_incr(), [ cgarm.V1, cgarm.PC ]))
+\end{minted}
+
+Furthermore, an interesting feature is that instructions can be \itl{annotated} with comments (which can be disabled with a flag).
+This allowed for an easier time debugging the generated assembly, since the corresponding IR3 statement can be annotated on an
+instruction.
+
+This annotation feature is also used to show the register assignments and spills for each function at its head, again to ease
+debugging. They are just comments, so there is no performance penalty.
+
+% end subsubsection (Instruction Representation)
+
+
+\subsubsection{Println \& Readln}
+
+These are implemented for all the supported types as given in the IR3 specification --- integers, booleans, and strings. Printing
+them is straightforward; the latter two simply use \eqtt{puts}, while the former uses \eqtt{printf}. Conditional moves (stores)
+are used to eliminate branching for printing booleans.
+
+For reading, \eqtt{scanf} is used for integers and booleans. Integers behave how one would expect, but I chose to let the following
+represent a \enquote{true} value for booleans: any string starting with \eqtt{1}, \eqtt{t}, or \eqtt{T} will be considered true
+(regardless of the remaining characters).
+
+For all other inputs, they are considered false. For \eqtt{readln} specifically, each variant (for each type) is implemented as
+a separate function. This way, no special care is needed to handle clobbers across its boundary, just normal function-calling code.
+
+% end subsubsection (Println & Readln)
+
+
+\subsubsection{Integer Division}
+
+Like \eqtt{readln}, this is implemented as a separate routine. It is a very simple algorithm that simply does repeated subtraction
+and returns the count. It handles a zero divisor as well as negative operands correctly, though there might be other edge cases.
+
+The implementation is quite simple:
+
+\begin{minted}{asm}
+__divide_int:
+	@ takes two args: (dividend, divisor) and returns the quotient.
+	stmfd sp!, {{v1, v2, v3, v4, v5, fp, lr}}
+	cmp a2, #0              @ check if we're dividing by 0. if so, just quit.
+	beq .exit
+	movs v4, a1, asr #31    @ sign bit (1 if negative)
+	rsbne a1, a1, #0        @ negate if the sign bit was set (ie. abs)
+	movs v5, a2, asr #31    @ also sign bit
+	rsbne a2, a2, #0        @ negate if the sign bit was set (ie. abs)
+	mov v3, #0              @ store the quotient
+.L1:
+	subs a1, a1, a2         @ check if we're done
+	blt .done
+	add v3, v3, #1
+	b .L1
+.done:
+	mov a1, v3
+	eors v1, v4, v5         @ check if the sign bits are different
+	rsbne a1, a1, #0        @ negate if so
+.exit:
+	ldmfd sp!, {{v1, v2, v3, v4, v5, fp, pc}}
+\end{minted}
+
+% subsubsection (Integer Division)
+
+
+\subsubsection{Strings}
+
+Lastly, strings are implemented as a pointer + length, where the length is stored in the first 4 bytes on the heap,
+before the string data itself. The string data \itl{is} null-terminated, so we can trivially pass it to C functions.
+
+However, having the length allows string concatenation to be performed in a single pass, which is good for efficiency.
+As for strings in the program itself, they are interned, so a given string is only emitted once per program.
+
+I briefly mention this in the typechecking section below, but I extended IR3 to allow string comparisons with \eqtt{==}
+and \eqtt{!=}. Comparison is performed with \eqtt{strcmp}, and null string objects are distinct from empty strings.
+
+% end subsubsection (Strings)
+
+
+
+\subsubsection{Memory Management}
+
+There is none. Classes are allocated with \eqtt{calloc}, which ensures that they are zero-initialised according to the
+Jlite specification. Memory is \itl{not} freed, since it is impossible to determine when an object should be freed
+without implementing some sort of garbage collector.
+
+Memory is never explicitly freed, but the OS will handle that when the program terminates anyway.
+
+% end subsubsection (Memory Management)
+% end subsection (Assembly Generation)
+% end section (Code Generation)
+
+
+
+
+\section{Optimisations}
+
+Quite a number of optimisations were implemented in this compiler. I am \itl{reasonably} sure that all of them are
+correctness-preserving. Probably.
+
+There are two main groups: IR3 optimisations and assembly optimisations. The optimisations described here are turned
+off by default unless the optimisation flags is used.
+
+Note that all other operations described above (lowering, AST constant folding, register allocator etc.) are \itl{always}
+performed, regardless of the optimisation setting.
+
+I don't want to paste a whole bunch of assembly here, so the testcases can be used to see the effectiveness of these
+optimisations.
+
+\subsection{IR3 Optimisations}
+
+Most of the work was done here, since it is at a higher level than raw assembly. They are all implemented in \ttt{iropt.py}.
+At a high level, the optimiser runs each optimisation pass on a function, and, if any of them made a change, the loop
+is repeated.
+
+\begin{minted}{c}
+while(changed)
+{
+	changed = false;
+	changed |= pass1();
+	changed |= pass2();
+	// ...
+}
+\end{minted}
+
+Each group of optimisations will be described below.
+
+
+\subsubsection{Basic Block Pruning}
+
+This group contains 3 optimisations:
+
+\begin{romanlist2}
+&   eliminating double jumps
+&   removing unreachable blocks
+&   removing unreachable statements
+\end{romanlist2}
+
+The first is simple --- when generating branches, there can arise cases where the only statement in a block is an unconditional jump
+to another block; this pass rewrites its predecessors to jump directly to the target. Since the passes are run multiple times, this
+can eliminate an arbitrarily long chain of jumps.
+
+The second builds on the first; after retargeting jumps, the \enquote{middle} block will be unreachable; this pass removes those
+blocks (with care taken to update the predecessor list of its successors as well).
+
+The third is for eliminating this case:
+
+\begin{minted}{c}
+L1:
+	// statements...
+	goto L2;
+	goto L3;
+\end{minted}
+
+which can occur after conditional branches with constant predicates are reduced to unconditional branches. This pass simply removes
+the second branch. Again, this is capable of removing an arbitrary number of unreachable statements since it is run to convergence.
+
+% end subsubsection (Basic Block Pruning)
+
+
+\subsubsection{Temporary Cleanup}
+
+This next group contains two passes:
+
+\begin{romanlist2}
+&   eliminating redundant temporary stores
+&   removing unused variables
+\end{romanlist2}
+
+The first pass is to deal with a quirk of the typechecker/IR3 generator; it will often generate code like this:
+
+\begin{minted}{c}
+_t3 = _t2 + 69;
+x = _t3;
+\end{minted}
+
+If these two statements are in the same block (with any number of statements between, though this is usually 0), then
+it will be rewritten to assign to \eqtt{x} directly. This can be done because temporaries are in SSA form; we know that
+\eqtt{\_t3} will never be assigned again, so it is safe to perform this optimisation.
+
+In the second pass, unused variables are eliminated. A variable is considered unused if it is only assigned to, but is never
+used by any statement. After the first pass above, \eqtt{\_t3} is left as-is, since it will be removed in this pass.
+
+Some care is taken in case the assignment is a function call (ie. the return value is not used); in this situation, the call
+is transformed into a statement, and the variable is discarded.
+
+% end subsubsection (Temporary Cleanup)
+
+
+
+\subsubsection{Dataflow Optimisations}
+
+This next group consists of three passes:
+
+\begin{romanlist2}
+&   (global) common subexpression elimination
+&   constant propagation
+&   copy propagation
+\end{romanlist2}
+
+A generic function was used to abstract the dataflow algorithm for all of these passes, which wasn't that hard since
+all 3 use the \enquote{forward must} variant.
+
+In the first pass, CSE is performed on the entire function, making it a global CSE. Since IR3 statements are at most binary,
+the common subexpression is at most binary. In isolation then, it might not make sense to implement CSE, since the cost of
+1 arithmetic instruction is not high. However, copy propagation allows the simplification to keep going.
+
+The second and third passes perform constant and copy propagation respectively. They are very similar, but perform fundamentally
+different optimisations. I won't go into too much detail since they are covered in class.
+
+
+% end subsubsection (Dataflow Optimisations)
+
+
+\subsubsection{Constant Evaluation}
+
+The last pass is constant evaluation, which, as the name suggests, evaluates constants. After (possibly multiple rounds) of
+the previous passes, including GCSE and constant propagation, there maybe be IR3 expressions all-constant operands. This
+pass simply evalutes them at compile time.
+
+An additional note is that conditional branches are replaced with unconditional ones (or removed) if their condition is constant;
+combined with the block-based optimisations, dead-code elimination is essentially done, implicitly.
+
+% end subsubsection (Constant Evaluation)
+% end subsection (IR3 Optimisations)
+
+
+\subsection{Assembly Optimisations}
+
+Compared to the IR3 optimisations the assembly ones are relatively trivial, and are just meant to counter some of the quirks
+of the code generator. All of them work on a \enquote{sliding window} basis, and just look at a subset of instructions at a time.
+
+One case to note is that labels are present in the instruction stream; this acts as a natural \enquote{barrier} to prevent
+cross-block optimisations.
+
+
+\subsubsection{Redundant Loads \& Stores}
+
+These passes handle the following cases:
+
+\begin{romanlist2}
+&   When there are two consecutive loads or stores from the same address to the same register, one of them can be eliminated
+&   When there is a load followed by a store to/from the same address to/from the same register, the store can be eliminated
+\end{romanlist2}
+
+These mostly arise from preserving caller-saved registers across a function call, and from spilling or restoring variables.
+Note that in both cases, if any operand has a side effect (ie. a post-increment \eqtt{!} --- we don't generate the other form),
+it cannot be eliminated.
+
+% end subsubsection (Redundant Loads & Stores)
+
+
+\subsubsection{Redundant Arithmetic}
+
+To simplify the code generation, the compiler doesn't check whether the source and destination of a \ttt{mov} are identical;
+this optimisation eliminates cases like \ttt{mov a1, a1}, as well as \ttt{add a1, a1, \#0}, among others.
+
+% end subsubsection (Redundant Arithmetic)
+
+
+
+\subsubsection{Branch Optimisation}
+
+The last pass optimises conditional branches. In unoptimised form, a conditional branch takes 5 instructions, due to the
+way the IR3 was lowered:
+
+\begin{minted}{asm}
+cmp v2, v1                  @ _t3 = k == _c20;
+moveq v1, #1
+movne v1, #0
+cmp v1, #0                  @ if (_t3) goto .L1;
+bne ._J3Foo_3fooiiiiiE_L1
+\end{minted}
+
+By applying some pattern-matching on the sliding-window view, we are able to optimise this to eliminate the conditional
+moves and branch directly on the flags register:
+
+\begin{minted}{asm}
+cmp v2, v1
+beq ._J3Foo_3fooiiiiiE_L1
+\end{minted}
+
+
+Lastly, for the following case:
+
+\begin{minted}{asm}
+	b .L1
+.L1:
+	mov a1, a2, #69;
+\end{minted}
+
+The unconditional branch is redundant, and can be eliminated.
+
+% end subsubsection (Branch Optimisation)
+% end subsection (Assembly Optimisations)
+% end section (Optimisations)
+
+
+
+\section{Project Organisation}
+
+This is a brief overview of how the project is laid out.
+
+\subsection{Source Tree}
+
+First, the sources themselves:
+
+\begin{minted}{text}
+test.py                 # test runner
+compile.py              # main driver
+src/                    # main source folder
+	util/               # utility functions (errors, StringView, etc)
+	ast.py              # Jlite AST
+	cgannotate.py       # annotations
+	cgarm.py            # abstraction for ARM assembly
+	cgliveness.py       # liveness analysis (dataflow)
+	cglower.py          # IR3 lowering passes
+	cgopt.py            # assembly optimisations
+	cgpseudo.py         # new pseudo-ops for IR3 (phi, spill/restore, etc.)
+	cgreg.py            # register allocator
+	cgstate.py          # codegen state classes
+	codegen.py          # actual codegen functions
+	ir3.py              # IR3 ast
+	iropt.py            # IR3 optimisations (all the good stuff)
+	lexer.py            # Jlite lexer
+	parser.py           # Jlite parser
+	simp.py             # AST constant folding
+	typecheck.py        # typechecker and IR3 generator
+\end{minted}
+
+% end subsection (Source Tree)
+
+
+\pagebreak
+\subsection{Tests}
+
+To aid testing, a test runner script was written; it calls out to \ttt{compile.py}, GCC, as well as
+the gem5\footnote{\url{https://www.gem5.org}} simulator, to run the tests.
+
+It is capable of capturing stdout (as well as feeding stdin, to test \ttt{readln}) and checking it
+against the expected output, both for optimised and non-optimised runs.
+
+A brief description of the tests:
+
+\begin{numberedlist2}
+& \bld{\ttt{simple}} \\
+	tests various basic functionalities; nothing too interesting
+
+& \bld{\ttt{calls}} \\
+	tests function calls up to 14 arguments
+
+& \bld{\ttt{cse}} \\
+	tests common subexpression elimination, as well as constant and copy propagation
+
+& \bld{\ttt{short\_circuiting}} \\
+	tests short-circuiting behaviour
+
+& \bld{\ttt{recursion}} \\
+	tests recursive calls
+
+& \bld{\ttt{fibonacci}} \\
+	iterative implementation of fibonacci up to (almost) $2^{31}$
+
+& \bld{\ttt{support}} \\
+	tests the division and string comparison routines
+
+& \bld{\ttt{readln}} \\
+	tests \ttt{readln}
+
+\end{numberedlist2}
+
+
+
+% end subsection (Tests)
+% end section (Source Organisation)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+\pagebreak
+\section{Prior Work}
+
+These parts discuss (in a little more detail) the previous work done for assignments 1 and 2. There aren't many changes (but there
+are some), so it isn't critical.
+
+
+\subsection{Lexing \& Parsing}
+
+The discussion here will be somewhat brief.
+
+\subsubsection{Lexing}
+
+Lexing is straightforward, using a greedy, string-matching approach. To avoid copies (which I now realise
+is pointless given the costs of the subsequent steps...), a \eqtt{StringView} is used, which tries to prevent
+copying strings and instead uses indices to perform operations.
+
+During lexing, location information is generated for each token, which is then carried over to AST nodes and IR3 nodes;
+this allows accurate error reporting in all phases of the compilation.
+
+% end subsubsection (Lexing)
+
+
+\subsubsection{Parsing}
+
+The parser uses a recursive-descent, Pratt/precedence climbing parsing algorithm. The Jlite grammar is not unambiguous
+without lookahead, in particular for dotops and method definitions vs. field declarations.
+
+This is solved by the following mechanisms:
+
+\paragraph{Dot-ops}
+
+To correctly parse dotops, the parser uses a token of lookahead to detect a period (\eqtt{.}) after an identifier
+or method call, and recursively parses the \enquote{atom chain} (my terminology). Note that there was a bug in
+the submission for Assignments 1 and 2 which has been fixed in this submission (\ttt{1 + new A().m()} would parse
+incorrectly as \ttt{(1 + new A()).m()}).
+
+\paragraph{Method vs Field}
+
+To disambiguate (for example) \eqtt{Int a;} from \eqtt{Int a(...)}, the parser simply uses a token of lookahead
+and defers constructing the AST node.
+
+\paragraph{Function Calls}
+
+Function (method... same difference) calls can be both statements and expressions, but in Jlite expressions are
+not statements. The AST represents a call as an expression, with a separate \eqtt{ExprStmt} type that wraps an
+expression into a statement.
+
+% end subsubsection (Parsing)
+% end subsection (Lexing & Parsing)
+
+
+\subsection{Typechecking}
+
+As the name implies, this phase performs typechecking on the parsed program AST. IR3 generation actually happens
+concurrently (ie. IR3 is emitted immediately after a statement is typechecked), but it will be discussed separately
+for organisational reasons.
+
+Typechecking is quite straightforward as well, give that Jlite is a very simply-typed language, without subtyping,
+(parametric) polymorphism, or any other funny ideas. The given typechecking rules are followed as specified.
+
+Since there is no (apparent) ordering for each component, the typechecker first visits all classes, and for each class,
+visits all its methods. This ensures that any method can call any other method independent of declaration order.
+
+Each method is then typechecked, which involves typechecking each statement, which involves typechecking their
+constituent expressions... and so on.
+
+
+\subsubsection{Constant Folding}
+
+Before typechecking begins, the AST is traversed to simplify any trivially-simplifiable constant operations,
+namely unary expressions with a constant operand, and binary expressions with both operands being constants.
+
+This is distinct from the constant propagation/folding step in the optimisation pass. It is always performed
+(cannot be disabled), and is very weak, since it does not perform propagation across a statement boundary.
+
+% end subsubsection (Constant Folding)
+
+
+
+\subsubsection{Method Overloading}
+
+With the promise of bonus marks, method overloading (ad-hoc polymorphism) was implemented. Again, with the
+simplicity of Jlite, this was quite simple to implement. A method with a given name can have multiple
+definitions, as long as their signatures are different. Methods can be overloaded on arity, type, or both.
+
+At each callsite, matching methods are searched by comparing the \enquote{virtual signature} of the argument
+types, and the declared signature of the parameter types of each overload. Note that only parameters are
+considered, and not the return type.
+
+If there is not exactly 1 \enquote{solution} (ie. matching function), an error is reported. For ambiguous
+calls, the locations of each matching candidate are helpfully printed as well:
+
+\begin{minted}{text}
+overload_5.j:8:19: error: ambiguous call to function: 2 overloads match
+   |
+ 8 |     new Foo().kekw(null);
+   |               ^
+overload_5.j:14:5: note: here
+    |
+ 14 |     String kekw(String a)
+    |     ^
+overload_5.j:20:5: note: here
+    |
+ 20 |     String kekw(Foo a)
+    |     ^
+\end{minted}
+
+There is a bugfix here --- in part 2, it would always return the first match, even if multiple functions match
+(ie. an ambiguous call). This has been fixed.
+
+Ambiguity arises from \eqtt{null} (as demonstrated above), since it can match any object type. This is the only
+case of ambiguity, which is quite easy to handle.
+
+% end subsubsection (Method Overloading)
+
+
+\subsubsection{Handling Null}
+
+Nulls (ie. the literal \eqtt{null}) are handled by giving them a distinct type, \eqtt{\$NullObject}, which cannot
+be named by the user. This type is \enquote{compatible} with any object type, and so you can assign null to
+strings and objects, as intended.
+
+% end subsubsection (Handling Null)
+
+
+
+\subsubsection{Non-void Returns}
+
+To avoid undefined behaviour (the Jlite specification does not define this, so it is quite literally undefined), the
+typechecker also ensures that non-void functions return a value along all control flow paths.
+
+This is done simply via a recursive traversal of the AST; function bodies must either contain a return statement
+at the top level, or else contain an if statement where both branches (recurisvely) return in all control paths.
+
+% end subsubsection (Non-void Returns)
+
+
+\subsubsection{Shadowing}
+
+The behaviour (ie. whether shadowing is allowed) is also not specified; it is implemented here. Local variables shadow
+class fields and method parameters, and parameters shadow class fields. Since there are only these 3 fixed scopes (variables
+must be declared at the start like it's C in 1989), implementation was not difficult.
+
+% end subsubsection (Shadowing)
+
+
+\subsubsection{Miscellaneous}
+
+It was rather strange that strings could be concatenated but not compared, and booleans could also not be compared. The
+compiler generates a superset of IR3 that allows these to exist; by extension, they need to be typechecked correctly.
+
+These behave as one would expect; currently only \eqtt{==} and \eqtt{!=} are extended to strings and booleans.
+
+% end subsubsection (Miscellaneous)
+% end subsection (Typechecking)
+
+
+\subsection{IR Generation}
+
+As mentioned above, IR3 generation is actually intertwined with typechecking; each statement's checking function returns
+a list of IR3 statements, as well as a list of additional temporary variables to create.
+
+The IR3 program is also organised as a rough kind of AST, except it is a very shallow tree. There is no attempt to generate
+optimised code here, but rather care was taken to \itl{limit} the kinds of IR3 generated.
+
+Notably, RelConds are not placed inside the condition of a conditional branch; instead, conditional branches are only
+predicated on variables; this means that the following is always generated:
+
+\begin{minted}{c}
+_t1 = x > 69;
+if(_t1) goto foo;
+\end{minted}
+
+This was done mostly for convenience; an if-condition from the AST can contain an arbitrarily complex expression, so it is
+easier to always generate a temporary for it.
+
+
+\subsubsection{SSA Form}
+
+One important point is that the compiler actually emits static-single-assignment (SSA) form IR3 for temporaries. That is,
+a temporary variable is only assigned once (this does not hold for named variables).
+
+This was not explicitly done at first, but rather a product of how the IR3 was generated. Later, after it was decided to
+actually make it SSA, phi nodes had to be added due to the logical AND/OR operators.
+
+Phi nodes act as an assignment to a (temporary) variable, with a list of variables from predecessor blocks that it should
+take values from. This ensures that the variable normally used to hold the result of the expression is only assigned
+once, and the final result is a phi over all the possibilities.
+
+The IR3 generated by this compiler will include phi nodes for \eqtt{\&\&} and \eqtt{||} expressions, so its output
+is not strictly conforming IR3.
+
+% end subsubsection (SSA Form)
+
+
+
+\subsubsection{Short Circuit Evaluation}
+
+This behaviour was also not specified; since all prior material seems to assume that short-circuiting is present, it was
+implemented. As noted above, phi nodes are required to generate these correctly in SSA form.
+
+No trickery with backpatching was required; with the power of modern technology, we can hold statements and labels in memory,
+inserting them at arbitrary points to generate correct code.
+
+Short-circuiting is not always performed; if the right side of the expression has no side effects (ie. is not a function
+call), then no short-circuiting is performed, and both operands are always evaluated.
+
+% end subsubsection (Short Circuit Evaluation)
+
+
+
+\subsubsection{Name Mangling}
+
+Since methods can be overloaded, they must be name-mangled. The mangling form is somewhat inspired by the Itanium C++ ABI,
+but there really isn't anything concrete here. IR3 only knows about mangled names.
+
+% end subsubsection (Name Mangling)
+
+
+
+\subsubsection{Basic Block Conversion}
+
+After all IR3 statements are generated each function is converted into basic block form. This is greatly helped by
+the IR3 generator itself --- implicit fallthroughs are never generated, so blocks can easily be delineated by
+a label and a branch instruction.
+
+Since IR3 does not have the classic two-target conditional branch, the generator always inserts an unconditional
+branch immediately after a conditional one, even if the target label is on the next line.
+
+The compiler also generates labels in topological order (just by its nature), so a sorting step was not necessary. The
+predecessors of each block are also computed and stored for later optimisation steps.
+
+An IR3 function is represented internally as a list of basic blocks, where each basic block is a list of statements.
+
+% end subsubsection (Basic Block Conversion)
+
+\subsubsection{IR3 Verification}
+
+Lastly, a small verification step is performed; this simply ensures that all basic blocks have either a return or
+an unconditional branch as their last statement (ie. they do not fallthrough), and that all temporaries are only
+assigned once (SSA-form).
+
+This was mostly for my own sanity.
+
+% end subsubsection (IR3 Verification)
+% end subsection (IR Generation)
+% end section (Prior Work)
+
+\end{document}
