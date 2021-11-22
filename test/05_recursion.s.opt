@@ -6,19 +6,15 @@ main_dummy:
 	@ assigns: '_t0' = a1;  '_t1' = a2
 	stmfd sp!, {lr}
 .main_dummy_entry:
-	mov a1, #1                              @ _t0 = new Foo();
+	sub sp, sp, #4                          @ _t0 = new Foo();; align adjustment (pre)
+	mov a1, #1
 	mov a2, #4
 	bl calloc(PLT)
-	sub sp, sp, #4                          @ _t1 = _J3Foo_4sumsiE(_t0, 100);; align adjustment (pre)
-	stmfd sp!, {a1}                         @ caller-save
 	mov a2, #100
 	bl _J3Foo_4sumsiE
 	mov a2, a1
-	ldmfd sp!, {a1}                         @ caller-restore
-	stmfd sp!, {a2}                         @ caller-save
 	ldr a1, =.string0_raw
 	bl printf(PLT)
-	ldmfd sp!, {a2}                         @ caller-restore
 	add sp, sp, #4                          @ align adjustment (post)
 	b .main_dummy_exit                      @ return;
 .main_dummy_exit:
@@ -32,12 +28,12 @@ _J3Foo_4sumsiE:
 	@ assigns: 'this' = a1;   'num' = a2;   '_t0' = v1
 	stmfd sp!, {v1, lr}
 ._J3Foo_4sumsiE_entry:
-	stmfd sp!, {a1, a2}                     @ _t0 = _J3Foo_4sumsiiE(this, 0, num);; caller-save
+	sub sp, sp, #4                          @ _t0 = _J3Foo_4sumsiiE(this, 0, num);; align adjustment (pre)
 	mov a3, a2
 	mov a2, #0
 	bl _J3Foo_4sumsiiE
 	mov v1, a1
-	ldmfd sp!, {a1, a2}                     @ caller-restore
+	add sp, sp, #4                          @ align adjustment (post)
 	mov a1, v1                              @ return _t0;
 	b ._J3Foo_4sumsiE_exit
 ._J3Foo_4sumsiE_exit:
@@ -55,19 +51,15 @@ _J3Foo_4sumsiiE:
 	cmp a3, #0                              @ _t0 = num == 0;
 	beq ._J3Foo_4sumsiiE_L1
 ._J3Foo_4sumsiiE_L2:
-	sub sp, sp, #4                          @ println(acc);; align adjustment (pre)
-	stmfd sp!, {a1, a2, a3}                 @ caller-save
+	stmfd sp!, {a1, a2, a3}                 @ println(acc);; caller-save
 	ldr a1, =.string0_raw
 	bl printf(PLT)
 	ldmfd sp!, {a1, a2, a3}                 @ caller-restore
-	add sp, sp, #4                          @ align adjustment (post)
 	add a2, a2, a3                          @ _t1 = acc + num;
 	sub a3, a3, #1                          @ _t2 = num - 1;
 	sub sp, sp, #4                          @ _t3 = _J3Foo_4sumsiiE(this, _t1, _t2);; align adjustment (pre)
-	stmfd sp!, {a1, a2, a3}                 @ caller-save
 	bl _J3Foo_4sumsiiE
 	mov v1, a1
-	ldmfd sp!, {a1, a2, a3}                 @ caller-restore
 	add sp, sp, #4                          @ align adjustment (post)
 	mov a1, v1                              @ return _t3;
 	b ._J3Foo_4sumsiiE_exit

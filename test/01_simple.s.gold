@@ -9,38 +9,38 @@ main_dummy:
 .main_dummy_entry:
 	ldr a2, =.string0                       @ _c1 = "hello, world!";
 	sub sp, sp, #4                          @ println(_c1);; align adjustment (pre)
-	stmfd sp!, {a2}                         @ caller-save
 	mov a2, a2
 	add a2, a2, #4
 	ldr a1, =.string1_raw
 	bl printf(PLT)
-	ldmfd sp!, {a2}                         @ caller-restore
 	add sp, sp, #4                          @ align adjustment (post)
-	mov a1, #1                              @ _t0 = new Foo();
+	sub sp, sp, #4                          @ _t0 = new Foo();; align adjustment (pre)
+	mov a1, #1
 	mov a2, #4
 	bl calloc(PLT)
 	mov a1, a1
-	mov a1, a1                              @ _t1 = _J3Foo_3barE(_t0);
+	add sp, sp, #4                          @ align adjustment (post)
+	sub sp, sp, #4                          @ _t1 = _J3Foo_3barE(_t0);; align adjustment (pre)
+	mov a1, a1
 	bl _J3Foo_3barE
 	mov a1, a1
-	mov a1, a1                              @ _t2 = _J3Foo_3barE(_t1);
+	add sp, sp, #4                          @ align adjustment (post)
+	sub sp, sp, #4                          @ _t2 = _J3Foo_3barE(_t1);; align adjustment (pre)
+	mov a1, a1
 	bl _J3Foo_3barE
 	mov a1, a1
+	add sp, sp, #4                          @ align adjustment (post)
 	sub sp, sp, #4                          @ _t3 = _J3Foo_3barE(_t2);; align adjustment (pre)
-	stmfd sp!, {a1}                         @ caller-save
 	mov a1, a1
 	bl _J3Foo_3barE
 	mov v1, a1
-	ldmfd sp!, {a1}                         @ caller-restore
 	add sp, sp, #4                          @ align adjustment (post)
 	mov v1, v1                              @ f = _t3;
 	ldr a2, [v1, #0]                        @ _t4 = f.f1;
 	sub sp, sp, #4                          @ println(_t4);; align adjustment (pre)
-	stmfd sp!, {a2}                         @ caller-save
 	mov a2, a2
 	ldr a1, =.string2_raw
 	bl printf(PLT)
-	ldmfd sp!, {a2}                         @ caller-restore
 	add sp, sp, #4                          @ align adjustment (post)
 	b .main_dummy_exit                      @ return;
 .main_dummy_exit:
@@ -76,12 +76,12 @@ _J3Foo_3barE:
 	b ._J3Foo_3barE_L3                      @ goto .L3;
 ._J3Foo_3barE_L3:
 	ldr a2, =.string3                       @ _c18 = "you should see this 3 times";
-	stmfd sp!, {a1, a2}                     @ println(_c18);; caller-save
+	stmfd sp!, {a1}                         @ println(_c18);; caller-save
 	mov a2, a2
 	add a2, a2, #4
 	ldr a1, =.string1_raw
 	bl printf(PLT)
-	ldmfd sp!, {a1, a2}                     @ caller-restore
+	ldmfd sp!, {a1}                         @ caller-restore
 	mov a1, a1                              @ return this;
 	b ._J3Foo_3barE_exit
 ._J3Foo_3barE_exit:

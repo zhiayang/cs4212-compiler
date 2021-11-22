@@ -9,29 +9,21 @@ main_dummy:
 .main_dummy_entry:
 	ldr a2, =.string0                       @ _c1 = "hello, world!";
 	sub sp, sp, #4                          @ println(_c1);; align adjustment (pre)
-	stmfd sp!, {a2}                         @ caller-save
 	add a2, a2, #4
 	ldr a1, =.string1_raw
 	bl printf(PLT)
-	ldmfd sp!, {a2}                         @ caller-restore
-	add sp, sp, #4                          @ align adjustment (post)
-	mov a1, #1                              @ _t0 = new Foo();
+	mov a1, #1
 	mov a2, #4
 	bl calloc(PLT)
 	bl _J3Foo_3barE
 	bl _J3Foo_3barE
-	sub sp, sp, #4                          @ f = _J3Foo_3barE(_t2);; align adjustment (pre)
-	stmfd sp!, {a1}                         @ caller-save
 	bl _J3Foo_3barE
 	mov v1, a1
-	ldmfd sp!, {a1}                         @ caller-restore
 	add sp, sp, #4                          @ align adjustment (post)
 	ldr a2, [v1, #0]                        @ _t4 = f.f1;
 	sub sp, sp, #4                          @ println(_t4);; align adjustment (pre)
-	stmfd sp!, {a2}                         @ caller-save
 	ldr a1, =.string2_raw
 	bl printf(PLT)
-	ldmfd sp!, {a2}                         @ caller-restore
 	add sp, sp, #4                          @ align adjustment (post)
 	b .main_dummy_exit                      @ return;
 .main_dummy_exit:
@@ -59,11 +51,11 @@ _J3Foo_3barE:
 	str v1, [a1, #0]                        @ storefield: Int, *this.f1 = _g12;
 ._J3Foo_3barE_L3:
 	ldr a2, =.string3                       @ _c15 = "you should see this 3 times";
-	stmfd sp!, {a1, a2}                     @ println(_c15);; caller-save
+	stmfd sp!, {a1}                         @ println(_c15);; caller-save
 	add a2, a2, #4
 	ldr a1, =.string1_raw
 	bl printf(PLT)
-	ldmfd sp!, {a1, a2}                     @ caller-restore
+	ldmfd sp!, {a1}                         @ caller-restore
 	b ._J3Foo_3barE_exit
 ._J3Foo_3barE_exit:
 	ldmfd sp!, {v1, v2, pc}

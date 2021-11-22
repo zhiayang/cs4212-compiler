@@ -5,6 +5,7 @@ from typing import *
 from copy import *
 
 from . import ir3
+from . import iropt
 from . import cgopt
 from . import cgarm
 from . import cgannotate
@@ -261,6 +262,10 @@ class FuncState:
 				if param.name in defined_on_entry:
 					self.restore_variable(param.name)
 
+
+		# er... we need this
+		self.stmt_predecessors = iropt.compute_predecessors(method)
+		self.stmt_successors = iropt.compute_successors(method)
 
 
 

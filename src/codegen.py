@@ -314,7 +314,9 @@ def pre_function_call(cs: CodegenState, fs: FuncState, stmt_id: int,
 	# handle spilling separately.
 	saves: List[cgarm.Register] = []
 	for r in ["a1", "a2", "a3", "a4"]:
-		if fs.is_register_live(r, stmt_id):
+		# we check that the register is live at any of our successors.
+		# if it's not, then even if it's live on this statement, we don't need to save it
+		if any(map(lambda x: fs.is_register_live(r, x), fs.stmt_successors[stmt_id])):
 			saves.append(cgarm.Register(r))
 
 	# ... if the destination of the call is one of these clobbered registers,
@@ -322,7 +324,8 @@ def pre_function_call(cs: CodegenState, fs: FuncState, stmt_id: int,
 	if dest_reg is not None and dest_reg in saves:
 		saves.remove(dest_reg)
 
-	if (fs.current_stack_offset() + 4 * len(saves)) % STACK_ALIGNMENT == 0:
+	# need to align the stack. we always save 'lr', so that's an auto +4 already
+	if (4 + fs.current_stack_offset() + 4 * len(saves)) % STACK_ALIGNMENT == 0:
 		stack_adjust = 0
 
 	else:

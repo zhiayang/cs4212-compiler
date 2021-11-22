@@ -188,6 +188,9 @@ def alloc_function(func: ir3.FuncDefn, prespilled: Set[str] = set()) -> Tuple[Di
 		reg_live_ranges.setdefault(assigns[var], set()).update(live_ranges[var])
 		# reg_live_ranges[assigns[var]] = set(range(0, len(stmts)))
 
+	# if func.name == "main_dummy":
+	# 	print(f"reg ranges = {reg_live_ranges}")
+
 
 	# print(f"assigns = {assigns}")
 	# print(f"spills = {spills}")

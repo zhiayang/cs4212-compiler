@@ -14,12 +14,10 @@ main_dummy:
 	bne .main_dummy_L2
 	b .main_dummy_L3                        @ goto .L3;
 .main_dummy_L2:
-	sub sp, sp, #4                          @ println(a);; align adjustment (pre)
-	stmfd sp!, {a2}                         @ caller-save
+	stmfd sp!, {a2}                         @ println(a);; caller-save
 	ldr a1, =.string0_raw
 	bl printf(PLT)
 	ldmfd sp!, {a2}                         @ caller-restore
-	add sp, sp, #4                          @ align adjustment (post)
 	add v1, a2, v2                          @ c = a + b;
 	mov a2, v2                              @ a = b;
 	mov v2, v1                              @ b = c;
