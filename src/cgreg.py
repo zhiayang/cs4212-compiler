@@ -38,26 +38,8 @@ def alloc_function(func: ir3.FuncDefn, prespilled: Set[str] = set()) -> Tuple[Di
 	# 		print(f"  out = {outs[s.id]}")
 
 	# print("\n\n")
-	"""
-	TODO: do we need to consider OUT for def? the idea here is that, if we have the following:
-	0:  z = 69;
-	1:  ...
-	2:  k = z + 7;
-	3:  ...
-	4:  k = k + 1;
 
-	without considering OUT, we have live(z) = { 1, 2 }, live(k) = { 3, 4 }
-	z and k here would *not* interfere. BUT, they actually don't -- nothing stops us
-	from assigning the same register to `k` and `z`.
-	if, in a subsequent line:
-
-	5:  ...
-	6:  y = z + 1;
-
-	then, live(z) = { 1, 2, 3, 4, 5, 6 }, which would interfere with live(k) = { 3, 4 } --
-	so it seems to suggest that we only need to consider IN.
-	"""
-
+	# live ranges only consider the IN (which makes sense based on their definition i guess)
 	live_ranges: Dict[str, Set[int]] = dict()
 
 	for n, vs in enumerate(ins):
@@ -132,6 +114,14 @@ def alloc_function(func: ir3.FuncDefn, prespilled: Set[str] = set()) -> Tuple[Di
 					preassigned_tmp.setdefault(arg.name, dict()).setdefault(reg_name, 0)
 					preassigned_tmp[arg.name][reg_name] += 1
 
+			# we also want to record preferences for printlns (since they might be quite common)
+			# the codegen always puts the value as the second argument, so we always make it
+			# prefer using 'a2'.
+			elif isinstance(stmt, ir3.PrintLnCall) and isinstance(stmt.value, ir3.VarRef):
+				varname = stmt.value.name
+				preassigned_tmp.setdefault(varname, dict()).setdefault("a2", 0)
+				preassigned_tmp[varname]["a2"] += 1
+
 
 	# make the preassigns but unique the preferences, sorting by count.
 	preassigned: Dict[str, List[str]] = dict()
@@ -141,7 +131,6 @@ def alloc_function(func: ir3.FuncDefn, prespilled: Set[str] = set()) -> Tuple[Di
 		regs: Iterable = sorted(preassigned_tmp[var].items(), key = lambda x: -x[1])
 		regs = map(lambda x: x[0], regs)
 		preassigned[var] = list(regs)
-
 
 	registers = ["v1", "v2", "v3", "v4", "v5", "a1", "a2", "a3", "a4", "fp"]
 
@@ -196,8 +185,8 @@ def alloc_function(func: ir3.FuncDefn, prespilled: Set[str] = set()) -> Tuple[Di
 	# the statements where the register is live. we just compute this from the assignment.
 	reg_live_ranges: Dict[str, Set[int]] = { k: set() for k in registers }
 	for var in assigns:
-		# reg_live_ranges[assigns[var]] = set(range(0, len(stmts)))
 		reg_live_ranges.setdefault(assigns[var], set()).update(live_ranges[var])
+		# reg_live_ranges[assigns[var]] = set(range(0, len(stmts)))
 
 
 	# print(f"assigns = {assigns}")

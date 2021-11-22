@@ -1,8 +1,13 @@
 TODO
 
-11. see if we need (want) to toposort the basic blocks before renumbering/allocating
+1. don't save/restore a1-a4 if they're gonna be yeeted later
+	- i tried my best
+
+
 
 17. register allocation coalescing
+	- too complicated
+
 
 19. see if it's possible to "properly split" the live ranges. right now, even though there might be disjoint parts in a var's
 	live range, the var must still use the same register (or spill) throughout.

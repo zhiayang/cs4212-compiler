@@ -46,6 +46,9 @@ def parse_args(args: List[str]) -> Tuple[str, str]:
 		elif (args[0] == "--dump-ir3-lowered"):
 			options.enable_print_lowered_ir(True)
 
+		elif (args[0] == "--dump-ir3-opt"):
+			options.enable_print_optimised_ir(True)
+
 		elif (args[0] == "-q") or (args[0] == "--quiet"):
 			dont_print_to_stdout = True
 
@@ -68,7 +71,7 @@ def parse_args(args: List[str]) -> Tuple[str, str]:
 			args = args[1:]
 
 		elif args[0].startswith('-'):
-			print(f"error: unknown option '{args}'")
+			print(f"error: unknown option '{args[0]}'")
 			sys.exit(1)
 
 		else:

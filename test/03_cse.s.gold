@@ -3,20 +3,20 @@
 .type main_dummy, %function
 main_dummy:
 	@ spills:  'ee', 'ff', 'xx'
-	@ assigns:  '_t48' = a1;      'e' = a1;      'd' = a2;      'c' = a3;      'b' = a4
-	@              'a' = fp;  '_c182' = v1;    '_t0' = v1;    '_t1' = v1;    '_t2' = v1
-	@            '_t3' = v1;    '_t4' = v1;   '_t47' = v1;    '_t5' = v1;    '_t6' = v1
-	@            '_t7' = v1;    '_t8' = v1;    '_t9' = v1;      'g' = v1;     'yy' = v1
-	@          '_c100' = v2;  '_c102' = v2;  '_c175' = v2;   '_t10' = v2;   '_t11' = v2
-	@           '_t12' = v2;   '_t13' = v2;   '_t14' = v2;   '_t15' = v2;   '_t16' = v2
-	@           '_t17' = v2;   '_t18' = v2;   '_t19' = v2;   '_t20' = v2;   '_t21' = v2
-	@           '_t22' = v2;   '_t23' = v2;   '_t24' = v2;   '_t25' = v2;   '_t26' = v2
-	@           '_t27' = v2;   '_t28' = v2;   '_t29' = v2;   '_t30' = v2;   '_t31' = v2
-	@           '_t32' = v2;   '_t33' = v2;   '_t34' = v2;   '_t35' = v2;   '_t36' = v2
-	@           '_t37' = v2;   '_t38' = v2;   '_t39' = v2;   '_t40' = v2;   '_t41' = v2
-	@           '_t42' = v2;   '_t43' = v2;   '_t44' = v2;   '_t45' = v2;   '_t46' = v2
-	@             'ee' = v2;     'ff' = v2;     'xx' = v2;      'h' = v3;     'gg' = v4
-	@              'f' = v5
+	@ assigns:  '_t48' = a1;      'd' = a1;  '_c182' = a2;      'g' = a2;     'yy' = a2
+	@              'c' = a3;      'b' = a4;      'a' = fp;  '_c100' = v1;  '_c102' = v1
+	@          '_c175' = v1;    '_t0' = v1;    '_t1' = v1;   '_t10' = v1;   '_t11' = v1
+	@           '_t12' = v1;   '_t13' = v1;   '_t14' = v1;   '_t15' = v1;   '_t16' = v1
+	@           '_t17' = v1;   '_t18' = v1;   '_t19' = v1;    '_t2' = v1;   '_t20' = v1
+	@           '_t21' = v1;   '_t22' = v1;   '_t23' = v1;   '_t24' = v1;   '_t25' = v1
+	@           '_t26' = v1;   '_t27' = v1;   '_t28' = v1;   '_t29' = v1;    '_t3' = v1
+	@           '_t30' = v1;   '_t31' = v1;   '_t32' = v1;   '_t33' = v1;   '_t34' = v1
+	@           '_t35' = v1;   '_t36' = v1;   '_t37' = v1;   '_t38' = v1;   '_t39' = v1
+	@            '_t4' = v1;   '_t40' = v1;   '_t41' = v1;   '_t42' = v1;   '_t43' = v1
+	@           '_t44' = v1;   '_t45' = v1;   '_t46' = v1;   '_t47' = v1;    '_t5' = v1
+	@            '_t6' = v1;    '_t7' = v1;    '_t8' = v1;    '_t9' = v1;     'ee' = v1
+	@             'ff' = v1;     'xx' = v1;      'h' = v2;     'gg' = v3;      'f' = v4
+	@              'e' = v5
 	stmfd sp!, {lr}
 	sub sp, sp, #16
 	stmfd sp!, {v1, v2, v3, v4, v5, fp}
@@ -27,153 +27,171 @@ main_dummy:
 	add v1, a4, #3                          @ _t1 = b + 3;
 	mov a3, v1                              @ c = _t1;
 	add v1, a3, #4                          @ _t2 = c + 4;
-	mov a2, v1                              @ d = _t2;
-	add v1, a2, #5                          @ _t3 = d + 5;
-	mov a1, v1                              @ e = _t3;
-	add v1, a1, #6                          @ _t4 = e + 6;
-	mov v5, v1                              @ f = _t4;
+	mov a1, v1                              @ d = _t2;
+	add v1, a1, #5                          @ _t3 = d + 5;
+	mov v5, v1                              @ e = _t3;
+	add v1, v5, #6                          @ _t4 = e + 6;
+	mov v4, v1                              @ f = _t4;
 	add v1, fp, a4                          @ _t5 = a + b;
 	add v1, v1, a3                          @ _t6 = _t5 + c;
-	add v1, v1, a2                          @ _t7 = _t6 + d;
-	add v1, v1, a1                          @ _t8 = _t7 + e;
-	add v1, v1, v5                          @ _t9 = _t8 + f;
-	mov v1, v1                              @ g = _t9;
-	mov v3, #100                            @ h = 100;
-	add v2, fp, a4                          @ _t10 = a + b;
-	add v2, v2, a3                          @ _t11 = _t10 + c;
-	add v2, v2, a2                          @ _t12 = _t11 + d;
-	add v2, v2, a1                          @ _t13 = _t12 + e;
-	add v2, v2, v5                          @ _t14 = _t13 + f;
-	add v2, v2, v1                          @ _t15 = _t14 + g;
-	add v2, v2, v3                          @ _t16 = _t15 + h;
-	mov v2, v2                              @ ee = _t16;
-	str v2, [sp, #12]                       @ spill ee;
-	mov v3, #101                            @ h = 101;
-	add v2, fp, a4                          @ _t17 = a + b;
-	add v2, v2, a3                          @ _t18 = _t17 + c;
-	add v2, v2, a2                          @ _t19 = _t18 + d;
-	add v2, v2, a1                          @ _t20 = _t19 + e;
-	add v2, v2, v5                          @ _t21 = _t20 + f;
-	add v2, v2, v1                          @ _t22 = _t21 + g;
-	add v2, v2, v3                          @ _t23 = _t22 + h;
-	mov v2, v2                              @ ff = _t23;
-	str v2, [sp, #8]                        @ spill ff;
-	cmp v3, #69                             @ _t24 = 69 < h;
-	movge v2, #1
-	movlt v2, #0
-	cmp v2, #0                              @ if (_t24) goto .L1;
+	add v1, v1, a1                          @ _t7 = _t6 + d;
+	add v1, v1, v5                          @ _t8 = _t7 + e;
+	add v1, v1, v4                          @ _t9 = _t8 + f;
+	mov a2, v1                              @ g = _t9;
+	mov v2, #100                            @ h = 100;
+	add v1, fp, a4                          @ _t10 = a + b;
+	add v1, v1, a3                          @ _t11 = _t10 + c;
+	add v1, v1, a1                          @ _t12 = _t11 + d;
+	add v1, v1, v5                          @ _t13 = _t12 + e;
+	add v1, v1, v4                          @ _t14 = _t13 + f;
+	add v1, v1, a2                          @ _t15 = _t14 + g;
+	add v1, v1, v2                          @ _t16 = _t15 + h;
+	mov v1, v1                              @ ee = _t16;
+	str v1, [sp, #12]                       @ spill ee;
+	mov v2, #101                            @ h = 101;
+	add v1, fp, a4                          @ _t17 = a + b;
+	add v1, v1, a3                          @ _t18 = _t17 + c;
+	add v1, v1, a1                          @ _t19 = _t18 + d;
+	add v1, v1, v5                          @ _t20 = _t19 + e;
+	add v1, v1, v4                          @ _t21 = _t20 + f;
+	add v1, v1, a2                          @ _t22 = _t21 + g;
+	add v1, v1, v2                          @ _t23 = _t22 + h;
+	mov v1, v1                              @ ff = _t23;
+	str v1, [sp, #8]                        @ spill ff;
+	cmp v2, #69                             @ _t24 = 69 < h;
+	movge v1, #1
+	movlt v1, #0
+	cmp v1, #0                              @ if (_t24) goto .L1;
 	bne .main_dummy_L1
 	b .main_dummy_L2                        @ goto .L2;
 .main_dummy_L2:
-	ldr v2, =#300                           @ _c100 = 300;
-	mov v3, v2                              @ h = _c100;
-	ldr v2, =.string0                       @ _c102 = "you should not see this";
+	ldr v1, =#300                           @ _c100 = 300;
+	mov v2, v1                              @ h = _c100;
+	ldr v1, =.string0                       @ _c102 = "you should not see this";
 	stmfd sp!, {a1, a2, a3, a4}             @ println(_c102);; caller-save
-	mov a1, v2
-	add a1, a1, #4
-	bl puts(PLT)
+	mov a2, v1
+	add a2, a2, #4
+	ldr a1, =.string1_raw
+	bl printf(PLT)
 	ldmfd sp!, {a1, a2, a3, a4}             @ caller-restore
 	b .main_dummy_L3                        @ goto .L3;
 .main_dummy_L1:
-	mov v3, #200                            @ h = 200;
+	mov v2, #200                            @ h = 200;
 	b .main_dummy_L3                        @ goto .L3;
 .main_dummy_L3:
-	add v2, fp, a4                          @ _t25 = a + b;
-	add v2, v2, a3                          @ _t26 = _t25 + c;
-	add v2, v2, a2                          @ _t27 = _t26 + d;
-	add v2, v2, a1                          @ _t28 = _t27 + e;
-	add v2, v2, v5                          @ _t29 = _t28 + f;
-	add v2, v2, v1                          @ _t30 = _t29 + g;
-	add v2, v2, v3                          @ _t31 = _t30 + h;
-	mov v4, v2                              @ gg = _t31;
-	add v2, fp, a4                          @ _t32 = a + b;
-	add v2, v2, a3                          @ _t33 = _t32 + c;
-	add v2, v2, a2                          @ _t34 = _t33 + d;
-	add v2, v2, a1                          @ _t35 = _t34 + e;
-	add v2, v2, v5                          @ _t36 = _t35 + f;
-	add v2, v2, v1                          @ _t37 = _t36 + g;
-	mov v2, v2                              @ xx = _t37;
-	str v2, [sp, #4]                        @ spill xx;
+	add v1, fp, a4                          @ _t25 = a + b;
+	add v1, v1, a3                          @ _t26 = _t25 + c;
+	add v1, v1, a1                          @ _t27 = _t26 + d;
+	add v1, v1, v5                          @ _t28 = _t27 + e;
+	add v1, v1, v4                          @ _t29 = _t28 + f;
+	add v1, v1, a2                          @ _t30 = _t29 + g;
+	add v1, v1, v2                          @ _t31 = _t30 + h;
+	mov v3, v1                              @ gg = _t31;
+	add v1, fp, a4                          @ _t32 = a + b;
+	add v1, v1, a3                          @ _t33 = _t32 + c;
+	add v1, v1, a1                          @ _t34 = _t33 + d;
+	add v1, v1, v5                          @ _t35 = _t34 + e;
+	add v1, v1, v4                          @ _t36 = _t35 + f;
+	add v1, v1, a2                          @ _t37 = _t36 + g;
+	mov v1, v1                              @ xx = _t37;
+	str v1, [sp, #4]                        @ spill xx;
 	stmfd sp!, {a1, a2, a3, a4}             @ println(f);; caller-save
-	mov a2, v5
-	ldr a1, =.string1_raw
+	mov a2, v4
+	ldr a1, =.string2_raw
 	bl printf(PLT)
 	ldmfd sp!, {a1, a2, a3, a4}             @ caller-restore
 	stmfd sp!, {a1, a2, a3, a4}             @ println(g);; caller-save
-	mov a2, v1
-	ldr a1, =.string1_raw
+	mov a2, a2
+	ldr a1, =.string2_raw
 	bl printf(PLT)
 	ldmfd sp!, {a1, a2, a3, a4}             @ caller-restore
-	ldr v2, [sp, #12]                       @ restore ee;
+	ldr v1, [sp, #12]                       @ restore ee;
 	stmfd sp!, {a1, a2, a3, a4}             @ println(ee);; caller-save
-	mov a2, v2
-	ldr a1, =.string1_raw
+	mov a2, v1
+	ldr a1, =.string2_raw
 	bl printf(PLT)
 	ldmfd sp!, {a1, a2, a3, a4}             @ caller-restore
-	ldr v2, [sp, #8]                        @ restore ff;
+	ldr v1, [sp, #8]                        @ restore ff;
 	stmfd sp!, {a1, a2, a3, a4}             @ println(ff);; caller-save
-	mov a2, v2
-	ldr a1, =.string1_raw
+	mov a2, v1
+	ldr a1, =.string2_raw
 	bl printf(PLT)
 	ldmfd sp!, {a1, a2, a3, a4}             @ caller-restore
 	stmfd sp!, {a1, a2, a3, a4}             @ println(gg);; caller-save
-	mov a2, v4
-	ldr a1, =.string1_raw
+	mov a2, v3
+	ldr a1, =.string2_raw
 	bl printf(PLT)
 	ldmfd sp!, {a1, a2, a3, a4}             @ caller-restore
 	b .main_dummy_L4                        @ goto .L4;
 .main_dummy_L4:
-	cmp v3, #100                            @ _t38 = h > 100;
-	movgt v2, #1
-	movle v2, #0
-	cmp v2, #0                              @ if (_t38) goto .L5;
+	cmp v2, #100                            @ _t38 = h > 100;
+	movgt v1, #1
+	movle v1, #0
+	cmp v1, #0                              @ if (_t38) goto .L5;
 	bne .main_dummy_L5
 	b .main_dummy_L6                        @ goto .L6;
 .main_dummy_L5:
-	sub v2, v3, #50                         @ _t39 = h - 50;
-	mov v3, v2                              @ h = _t39;
+	sub v1, v2, #50                         @ _t39 = h - 50;
+	mov v2, v1                              @ h = _t39;
 	b .main_dummy_L4                        @ goto .L4;
 .main_dummy_L6:
 	b .main_dummy_L7                        @ goto .L7;
 .main_dummy_L7:
-	ldr v2, =#10000                         @ _c175 = 10000;
-	add v2, v1, v2                          @ _t40 = g + _c175;
-	cmp v2, v1                              @ _t41 = _t40 < g;
-	movlt v2, #1
-	movge v2, #0
-	cmp v2, #0                              @ if (_t41) goto .L8;
+	ldr v1, =#10000                         @ _c175 = 10000;
+	add v1, a2, v1                          @ _t40 = g + _c175;
+	cmp v1, a2                              @ _t41 = _t40 < g;
+	movlt v1, #1
+	movge v1, #0
+	cmp v1, #0                              @ if (_t41) goto .L8;
 	bne .main_dummy_L8
 	b .main_dummy_L9                        @ goto .L9;
 .main_dummy_L8:
-	ldr v1, =.string2                       @ _c182 = "this should not happen";
+	ldr a2, =.string3                       @ _c182 = "this should not happen";
 	stmfd sp!, {a1, a2, a3, a4}             @ println(_c182);; caller-save
-	mov a1, v1
-	add a1, a1, #4
-	bl puts(PLT)
+	mov a2, a2
+	add a2, a2, #4
+	ldr a1, =.string1_raw
+	bl printf(PLT)
 	ldmfd sp!, {a1, a2, a3, a4}             @ caller-restore
-	mov v1, #100                            @ g = 100;
+	mov a2, #100                            @ g = 100;
 	b .main_dummy_L7                        @ goto .L7;
 .main_dummy_L9:
-	add v2, fp, a4                          @ _t42 = a + b;
-	add v2, v2, a3                          @ _t43 = _t42 + c;
-	add v2, v2, a2                          @ _t44 = _t43 + d;
-	add v2, v2, a1                          @ _t45 = _t44 + e;
-	add v2, v2, v5                          @ _t46 = _t45 + f;
-	add v1, v2, v1                          @ _t47 = _t46 + g;
-	mov v1, v1                              @ yy = _t47;
-	mov a2, v3                              @ println(h);
-	ldr a1, =.string1_raw
+	add v1, fp, a4                          @ _t42 = a + b;
+	add v1, v1, a3                          @ _t43 = _t42 + c;
+	add v1, v1, a1                          @ _t44 = _t43 + d;
+	add v1, v1, v5                          @ _t45 = _t44 + e;
+	add v1, v1, v4                          @ _t46 = _t45 + f;
+	add v1, v1, a2                          @ _t47 = _t46 + g;
+	mov a2, v1                              @ yy = _t47;
+	sub sp, sp, #4                          @ println(h);; align adjustment (pre)
+	stmfd sp!, {a2}                         @ caller-save
+	mov a2, v2
+	ldr a1, =.string2_raw
 	bl printf(PLT)
-	mov a2, v4                              @ println(gg);
-	ldr a1, =.string1_raw
+	ldmfd sp!, {a2}                         @ caller-restore
+	add sp, sp, #4                          @ align adjustment (post)
+	sub sp, sp, #4                          @ println(gg);; align adjustment (pre)
+	stmfd sp!, {a2}                         @ caller-save
+	mov a2, v3
+	ldr a1, =.string2_raw
 	bl printf(PLT)
-	ldr v2, [sp, #4]                        @ restore xx;
-	mov a2, v2                              @ println(xx);
-	ldr a1, =.string1_raw
+	ldmfd sp!, {a2}                         @ caller-restore
+	add sp, sp, #4                          @ align adjustment (post)
+	ldr v1, [sp, #4]                        @ restore xx;
+	sub sp, sp, #4                          @ println(xx);; align adjustment (pre)
+	stmfd sp!, {a2}                         @ caller-save
+	mov a2, v1
+	ldr a1, =.string2_raw
 	bl printf(PLT)
-	mov a2, v1                              @ println(yy);
-	ldr a1, =.string1_raw
+	ldmfd sp!, {a2}                         @ caller-restore
+	add sp, sp, #4                          @ align adjustment (post)
+	sub sp, sp, #4                          @ println(yy);; align adjustment (pre)
+	stmfd sp!, {a2}                         @ caller-save
+	mov a2, a2
+	ldr a1, =.string2_raw
 	bl printf(PLT)
+	ldmfd sp!, {a2}                         @ caller-restore
+	add sp, sp, #4                          @ align adjustment (post)
 	mov a1, #1                              @ _t48 = new Foo();
 	mov a2, #4
 	bl calloc(PLT)
@@ -192,13 +210,18 @@ main_dummy:
 .type _J3Foo_7effect1E, %function
 _J3Foo_7effect1E:
 	@ spills:  <none>
-	@ assigns: '_c1' = v1;  '_c3' = v1
+	@ assigns: '_c1' = a2;  '_c3' = v1
 	stmfd sp!, {v1, lr}
 ._J3Foo_7effect1E_entry:
-	ldr v1, =.string3                       @ _c1 = "you should see this once";
-	mov a1, v1                              @ println(_c1);
-	add a1, a1, #4
-	bl puts(PLT)
+	ldr a2, =.string4                       @ _c1 = "you should see this once";
+	sub sp, sp, #4                          @ println(_c1);; align adjustment (pre)
+	stmfd sp!, {a2}                         @ caller-save
+	mov a2, a2
+	add a2, a2, #4
+	ldr a1, =.string1_raw
+	bl printf(PLT)
+	ldmfd sp!, {a2}                         @ caller-restore
+	add sp, sp, #4                          @ align adjustment (post)
 	ldr v1, =#420                           @ _c3 = 420;
 	mov a1, v1                              @ return _c3;
 	b ._J3Foo_7effect1E_exit
@@ -210,34 +233,39 @@ _J3Foo_7effect1E:
 .type _J3Foo_7effect2E, %function
 _J3Foo_7effect2E:
 	@ spills:  <none>
-	@ assigns: '_c1' = v1
-	stmfd sp!, {v1, lr}
+	@ assigns: '_c1' = a2
+	stmfd sp!, {lr}
 ._J3Foo_7effect2E_entry:
-	ldr v1, =.string4                       @ _c1 = "you should see this twice";
-	mov a1, v1                              @ println(_c1);
-	add a1, a1, #4
-	bl puts(PLT)
+	ldr a2, =.string5                       @ _c1 = "you should see this twice";
+	sub sp, sp, #4                          @ println(_c1);; align adjustment (pre)
+	stmfd sp!, {a2}                         @ caller-save
+	mov a2, a2
+	add a2, a2, #4
+	ldr a1, =.string1_raw
+	bl printf(PLT)
+	ldmfd sp!, {a2}                         @ caller-restore
+	add sp, sp, #4                          @ align adjustment (post)
 	mov a1, #69                             @ return 69;
 	b ._J3Foo_7effect2E_exit
 ._J3Foo_7effect2E_exit:
-	ldmfd sp!, {v1, pc}
+	ldmfd sp!, {pc}
 
 
 .global _J3Foo_12test_effectsE
 .type _J3Foo_12test_effectsE, %function
 _J3Foo_12test_effectsE:
 	@ spills:  'aa', 'h'
-	@ assigns: 'this' = a1;  '_t14' = a2;  '_t21' = a2;  '_t31' = a2;    'aa' = a2
-	@            'cc' = a2;     'c' = a3;     'b' = a4;     'a' = fp;   '_t0' = v1
-	@           '_t1' = v1;  '_t10' = v1;  '_t11' = v1;  '_t12' = v1;  '_t13' = v1
-	@          '_t15' = v1;  '_t16' = v1;  '_t17' = v1;  '_t18' = v1;  '_t19' = v1
-	@           '_t2' = v1;  '_t20' = v1;  '_t22' = v1;  '_t23' = v1;  '_t24' = v1
-	@          '_t25' = v1;  '_t26' = v1;  '_t27' = v1;  '_t28' = v1;  '_t29' = v1
-	@           '_t3' = v1;  '_t30' = v1;  '_t32' = v1;  '_t33' = v1;  '_t34' = v1
-	@          '_t35' = v1;  '_t36' = v1;  '_t37' = v1;  '_t38' = v1;  '_t39' = v1
-	@           '_t4' = v1;  '_t41' = v1;   '_t5' = v1;   '_t6' = v1;   '_t7' = v1
-	@           '_t8' = v1;   '_t9' = v1;    'bb' = v1;    'dd' = v1;     'h' = v1
-	@          '_t40' = v2;     'g' = v2;     'f' = v3;     'e' = v4;     'd' = v5
+	@ assigns: '_t33' = a1;  '_t34' = a1;  '_t35' = a1;  '_t36' = a1;  'this' = a1
+	@          '_t14' = a2;  '_t21' = a2;    'bb' = a2;    'dd' = a2;     'h' = a2
+	@             'c' = a3;     'b' = a4;     'a' = fp;   '_t0' = v1;   '_t1' = v1
+	@          '_t10' = v1;  '_t11' = v1;  '_t12' = v1;  '_t13' = v1;  '_t15' = v1
+	@          '_t16' = v1;  '_t17' = v1;  '_t18' = v1;  '_t19' = v1;   '_t2' = v1
+	@          '_t20' = v1;  '_t22' = v1;  '_t23' = v1;  '_t24' = v1;  '_t25' = v1
+	@          '_t26' = v1;  '_t27' = v1;  '_t28' = v1;  '_t29' = v1;   '_t3' = v1
+	@          '_t30' = v1;  '_t31' = v1;  '_t32' = v1;   '_t4' = v1;   '_t5' = v1
+	@           '_t6' = v1;   '_t7' = v1;   '_t8' = v1;   '_t9' = v1;    'aa' = v1
+	@            'cc' = v1;  '_t40' = v2;  '_t41' = v2;     'g' = v2;  '_t39' = v3
+	@             'f' = v3;  '_t38' = v4;     'e' = v4;  '_t37' = v5;     'd' = v5
 	stmfd sp!, {lr}
 	sub sp, sp, #8
 	stmfd sp!, {v1, v2, v3, v4, v5, fp}
@@ -260,8 +288,8 @@ _J3Foo_12test_effectsE:
 	add v1, v1, v4                          @ _t8 = _t7 + e;
 	add v1, v1, v3                          @ _t9 = _t8 + f;
 	mov v2, v1                              @ g = _t9;
-	mov v1, #100                            @ h = 100;
-	str v1, [sp, #4]                        @ spill h;
+	mov a2, #100                            @ h = 100;
+	str a2, [sp, #4]                        @ spill h;
 	add v1, a4, a3                          @ _t10 = b + c;
 	add v1, v1, v5                          @ _t11 = _t10 + d;
 	add v1, v1, v4                          @ _t12 = _t11 + e;
@@ -273,8 +301,8 @@ _J3Foo_12test_effectsE:
 	mov v1, a1
 	ldmfd sp!, {a1, a2, a3, a4}             @ caller-restore
 	add v1, a2, v1                          @ _t16 = _t14 + _t15;
-	mov a2, v1                              @ aa = _t16;
-	str a2, [sp, #0]                        @ spill aa;
+	mov v1, v1                              @ aa = _t16;
+	str v1, [sp, #0]                        @ spill aa;
 	add v1, a4, a3                          @ _t17 = b + c;
 	add v1, v1, v5                          @ _t18 = _t17 + d;
 	add v1, v1, v4                          @ _t19 = _t18 + e;
@@ -286,62 +314,64 @@ _J3Foo_12test_effectsE:
 	mov v1, a1
 	ldmfd sp!, {a1, a2, a3, a4}             @ caller-restore
 	add v1, a2, v1                          @ _t23 = _t21 + _t22;
-	mov v1, v1                              @ bb = _t23;
-	ldr a2, [sp, #0]                        @ restore aa;
+	mov a2, v1                              @ bb = _t23;
+	ldr v1, [sp, #0]                        @ restore aa;
 	stmfd sp!, {a1, a2, a3, a4}             @ println(aa);; caller-save
-	mov a2, a2
-	ldr a1, =.string1_raw
+	mov a2, v1
+	ldr a1, =.string2_raw
 	bl printf(PLT)
 	ldmfd sp!, {a1, a2, a3, a4}             @ caller-restore
-	sub sp, sp, #4                          @ println(bb);; align adjustment
-	stmfd sp!, {a1, a3, a4}                 @ caller-save
-	mov a2, v1
-	ldr a1, =.string1_raw
+	stmfd sp!, {a1, a2, a3, a4}             @ println(bb);; caller-save
+	mov a2, a2
+	ldr a1, =.string2_raw
 	bl printf(PLT)
-	ldmfd sp!, {a1, a3, a4}                 @ caller-restore
-	add sp, sp, #4                          @ align adjustment
-	sub sp, sp, #4                          @ _t24 = _J3Foo_7effect2E(this);; align adjustment
+	ldmfd sp!, {a1, a2, a3, a4}             @ caller-restore
+	sub sp, sp, #4                          @ _t24 = _J3Foo_7effect2E(this);; align adjustment (pre)
 	stmfd sp!, {a1, a3, a4}                 @ caller-save
 	mov a1, a1
 	bl _J3Foo_7effect2E
 	mov v1, a1
 	ldmfd sp!, {a1, a3, a4}                 @ caller-restore
-	add sp, sp, #4                          @ align adjustment
+	add sp, sp, #4                          @ align adjustment (post)
 	add v1, v1, fp                          @ _t25 = _t24 + a;
 	add v1, v1, a4                          @ _t26 = _t25 + b;
 	add v1, v1, a3                          @ _t27 = _t26 + c;
 	add v1, v1, v5                          @ _t28 = _t27 + d;
 	add v1, v1, v4                          @ _t29 = _t28 + e;
 	add v1, v1, v3                          @ _t30 = _t29 + f;
-	add a2, v1, v2                          @ _t31 = _t30 + g;
-	ldr v1, [sp, #4]                        @ restore h;
-	add v1, a2, v1                          @ _t32 = _t31 + h;
-	mov a2, v1                              @ cc = _t32;
-	stmfd sp!, {a1, a2, a3, a4}             @ _t33 = _J3Foo_7effect2E(this);; caller-save
+	add v1, v1, v2                          @ _t31 = _t30 + g;
+	ldr a2, [sp, #4]                        @ restore h;
+	add v1, v1, a2                          @ _t32 = _t31 + h;
+	mov v1, v1                              @ cc = _t32;
+	stmfd sp!, {a3, a4}                     @ _t33 = _J3Foo_7effect2E(this);; caller-save
 	mov a1, a1
 	bl _J3Foo_7effect2E
-	mov v1, a1
-	ldmfd sp!, {a1, a2, a3, a4}             @ caller-restore
-	add v1, v1, fp                          @ _t34 = _t33 + a;
-	add v1, v1, a4                          @ _t35 = _t34 + b;
-	add v1, v1, a3                          @ _t36 = _t35 + c;
-	add v1, v1, v5                          @ _t37 = _t36 + d;
-	add v1, v1, v4                          @ _t38 = _t37 + e;
-	add v1, v1, v3                          @ _t39 = _t38 + f;
-	add v2, v1, v2                          @ _t40 = _t39 + g;
-	ldr v1, [sp, #4]                        @ restore h;
-	add v1, v2, v1                          @ _t41 = _t40 + h;
-	mov v1, v1                              @ dd = _t41;
-	sub sp, sp, #4                          @ println(cc);; align adjustment
+	mov a1, a1
+	ldmfd sp!, {a3, a4}                     @ caller-restore
+	add a1, a1, fp                          @ _t34 = _t33 + a;
+	add a1, a1, a4                          @ _t35 = _t34 + b;
+	add a1, a1, a3                          @ _t36 = _t35 + c;
+	add v5, a1, v5                          @ _t37 = _t36 + d;
+	add v4, v5, v4                          @ _t38 = _t37 + e;
+	add v3, v4, v3                          @ _t39 = _t38 + f;
+	add v2, v3, v2                          @ _t40 = _t39 + g;
+	ldr a2, [sp, #4]                        @ restore h;
+	add v2, v2, a2                          @ _t41 = _t40 + h;
+	mov a2, v2                              @ dd = _t41;
+	sub sp, sp, #4                          @ println(cc);; align adjustment (pre)
 	stmfd sp!, {a2}                         @ caller-save
-	mov a2, a2
-	ldr a1, =.string1_raw
+	mov a2, v1
+	ldr a1, =.string2_raw
 	bl printf(PLT)
 	ldmfd sp!, {a2}                         @ caller-restore
-	add sp, sp, #4                          @ align adjustment
-	mov a2, v1                              @ println(dd);
-	ldr a1, =.string1_raw
+	add sp, sp, #4                          @ align adjustment (post)
+	sub sp, sp, #4                          @ println(dd);; align adjustment (pre)
+	stmfd sp!, {a2}                         @ caller-save
+	mov a2, a2
+	ldr a1, =.string2_raw
 	bl printf(PLT)
+	ldmfd sp!, {a2}                         @ caller-restore
+	add sp, sp, #4                          @ align adjustment (post)
 	b ._J3Foo_12test_effectsE_exit          @ return;
 ._J3Foo_12test_effectsE_exit:
 	ldmfd sp!, {v1, v2, v3, v4, v5, fp}
@@ -378,23 +408,29 @@ main:
 .string1:
     .word 3
 .string1_raw:
-    .asciz "%d\n"
+    .asciz "%s\n"
 
 .align 4
 .string2:
-    .word 22
+    .word 3
 .string2_raw:
-    .asciz "this should not happen"
+    .asciz "%d\n"
 
 .align 4
 .string3:
-    .word 24
+    .word 22
 .string3_raw:
-    .asciz "you should see this once"
+    .asciz "this should not happen"
 
 .align 4
 .string4:
-    .word 25
+    .word 24
 .string4_raw:
+    .asciz "you should see this once"
+
+.align 4
+.string5:
+    .word 25
+.string5_raw:
     .asciz "you should see this twice"
 

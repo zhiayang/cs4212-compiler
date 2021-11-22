@@ -3,29 +3,36 @@
 .type main_dummy, %function
 main_dummy:
 	@ spills:  <none>
-	@ assigns: '_t0' = a1;  '_t1' = a1;  '_t2' = a1;  '_c1' = v1;  '_t4' = v1
+	@ assigns: '_t0' = a1;  '_t1' = a1;  '_t2' = a1;  '_c1' = a2;  '_t4' = a2
 	@            'f' = v1
 	stmfd sp!, {v1, lr}
 .main_dummy_entry:
-	ldr v1, =.string0                       @ _c1 = "hello, world!";
-	mov a1, v1                              @ println(_c1);
-	add a1, a1, #4
-	bl puts(PLT)
+	ldr a2, =.string0                       @ _c1 = "hello, world!";
+	sub sp, sp, #4                          @ println(_c1);; align adjustment (pre)
+	stmfd sp!, {a2}                         @ caller-save
+	add a2, a2, #4
+	ldr a1, =.string1_raw
+	bl printf(PLT)
+	ldmfd sp!, {a2}                         @ caller-restore
+	add sp, sp, #4                          @ align adjustment (post)
 	mov a1, #1                              @ _t0 = new Foo();
 	mov a2, #4
 	bl calloc(PLT)
 	bl _J3Foo_3barE
 	bl _J3Foo_3barE
-	sub sp, sp, #4                          @ f = _J3Foo_3barE(_t2);; align adjustment
+	sub sp, sp, #4                          @ f = _J3Foo_3barE(_t2);; align adjustment (pre)
 	stmfd sp!, {a1}                         @ caller-save
 	bl _J3Foo_3barE
 	mov v1, a1
 	ldmfd sp!, {a1}                         @ caller-restore
-	add sp, sp, #4                          @ align adjustment
-	ldr v1, [v1, #0]                        @ _t4 = f.f1;
-	mov a2, v1                              @ println(_t4);
-	ldr a1, =.string1_raw
+	add sp, sp, #4                          @ align adjustment (post)
+	ldr a2, [v1, #0]                        @ _t4 = f.f1;
+	sub sp, sp, #4                          @ println(_t4);; align adjustment (pre)
+	stmfd sp!, {a2}                         @ caller-save
+	ldr a1, =.string2_raw
 	bl printf(PLT)
+	ldmfd sp!, {a2}                         @ caller-restore
+	add sp, sp, #4                          @ align adjustment (post)
 	b .main_dummy_exit                      @ return;
 .main_dummy_exit:
 	ldmfd sp!, {v1, pc}
@@ -35,7 +42,7 @@ main_dummy:
 .type _J3Foo_3barE, %function
 _J3Foo_3barE:
 	@ spills:  <none>
-	@ assigns: 'this' = a1;  '_c15' = v1;   '_c7' = v1;  '_g12' = v1;   '_g8' = v1
+	@ assigns: 'this' = a1;  '_c15' = a2;   '_c7' = v1;  '_g12' = v1;   '_g8' = v1
 	@           '_t1' = v1;   '_t0' = v2
 	stmfd sp!, {v1, v2, lr}
 ._J3Foo_3barE_entry:
@@ -51,14 +58,12 @@ _J3Foo_3barE:
 	mov v1, #1                              @ _g12 = 1;
 	str v1, [a1, #0]                        @ storefield: Int, *this.f1 = _g12;
 ._J3Foo_3barE_L3:
-	ldr v1, =.string2                       @ _c15 = "you should see this 3 times";
-	sub sp, sp, #4                          @ println(_c15);; align adjustment
-	stmfd sp!, {a1}                         @ caller-save
-	mov a1, v1
-	add a1, a1, #4
-	bl puts(PLT)
-	ldmfd sp!, {a1}                         @ caller-restore
-	add sp, sp, #4                          @ align adjustment
+	ldr a2, =.string3                       @ _c15 = "you should see this 3 times";
+	stmfd sp!, {a1, a2}                     @ println(_c15);; caller-save
+	add a2, a2, #4
+	ldr a1, =.string1_raw
+	bl printf(PLT)
+	ldmfd sp!, {a1, a2}                     @ caller-restore
 	b ._J3Foo_3barE_exit
 ._J3Foo_3barE_exit:
 	ldmfd sp!, {v1, v2, pc}
@@ -93,11 +98,17 @@ main:
 .string1:
     .word 3
 .string1_raw:
-    .asciz "%d\n"
+    .asciz "%s\n"
 
 .align 4
 .string2:
-    .word 27
+    .word 3
 .string2_raw:
+    .asciz "%d\n"
+
+.align 4
+.string3:
+    .word 27
+.string3_raw:
     .asciz "you should see this 3 times"
 

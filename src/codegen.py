@@ -267,11 +267,15 @@ def codegen_println(cs: CodegenState, fs: FuncState, stmt: ir3.PrintLnCall):
 
 	# strings are always in registers
 	if ty == "String":
-		fs.emit(cgarm.mov(cgarm.A1, value))
+		fs.emit(cgarm.mov(cgarm.A2, value))
 
 		# for strings specifically, increment by 4 to skip the length. the value is a pointer anyway.
-		fs.emit(cgarm.add(cgarm.A1, cgarm.A1, cgarm.Constant(4)))
-		fs.emit(cgarm.call("puts(PLT)"))
+		fs.emit(cgarm.add(cgarm.A2, cgarm.A2, cgarm.Constant(4)))
+
+		# yes, we can use puts, but for consistency with always putting the argument
+		# in 'a2', we use printf.
+		fs.emit(cgarm.load_label(cgarm.A1, cs.add_string("%s\n") + "_raw"))
+		fs.emit(cgarm.call("printf(PLT)"))
 
 	elif ty == "Int":
 		# if value is in a1, we want to move it to a2 before we clobber it
@@ -281,15 +285,19 @@ def codegen_println(cs: CodegenState, fs: FuncState, stmt: ir3.PrintLnCall):
 
 	elif ty == "Bool":
 		# update the condition flags here, so that we can elide an additional 'cmp a1, #0'
-		fs.emit(cgarm.mov_s(cgarm.A1, value))
+		fs.emit(cgarm.mov_s(cgarm.A2, value))
 
-		fs.emit(cgarm.load_label(cgarm.A1, cs.add_string("false") + "_raw").conditional(cgarm.Cond.EQ))
-		fs.emit(cgarm.load_label(cgarm.A1, cs.add_string("true") + "_raw").conditional(cgarm.Cond.NE))
-		fs.emit(cgarm.call("puts(PLT)"))
+		fs.emit(cgarm.load_label(cgarm.A2, cs.add_string("false") + "_raw").conditional(cgarm.Cond.EQ))
+		fs.emit(cgarm.load_label(cgarm.A2, cs.add_string("true") + "_raw").conditional(cgarm.Cond.NE))
+
+		fs.emit(cgarm.load_label(cgarm.A1, cs.add_string("%s\n") + "_raw"))
+		fs.emit(cgarm.call("printf(PLT)"))
 
 	elif ty == "$NullObject":
-		fs.emit(cgarm.load_label(cgarm.A1, cs.add_string("null") + "_raw"))
-		fs.emit(cgarm.call("puts(PLT)"))
+		fs.emit(cgarm.load_label(cgarm.A2, cs.add_string("null") + "_raw"))
+		fs.emit(cgarm.load_label(cgarm.A1, cs.add_string("%s\n") + "_raw"))
+
+		fs.emit(cgarm.call("printf(PLT)"))
 
 	else:
 		raise CGException(f"argument to println has invalid type '{ty}'")
@@ -318,7 +326,7 @@ def pre_function_call(cs: CodegenState, fs: FuncState, stmt_id: int,
 		stack_adjust = 0
 
 	else:
-		fs.stack_push_32n(1).annotate("align adjustment")
+		fs.stack_push_32n(1).annotate("align adjustment (pre)")
 		stack_adjust = 1
 
 
@@ -337,7 +345,7 @@ def post_function_call(cs: CodegenState, fs: FuncState, saves: List[cgarm.Regist
 		fs.stack_extra_32n(-1 * len(saves))
 
 	if stack_adjust > 0:
-		fs.stack_pop_32n(stack_adjust).annotate("align adjustment")
+		fs.stack_pop_32n(stack_adjust).annotate("align adjustment (post)")
 
 
 

@@ -3,24 +3,25 @@
 .type main_dummy, %function
 main_dummy:
 	@ spills:  <none>
-	@ assigns: '_t0' = a1;  '_t1' = v1
-	stmfd sp!, {v1, lr}
+	@ assigns: '_t0' = a1;  '_t1' = a2
+	stmfd sp!, {lr}
 .main_dummy_entry:
 	mov a1, #1                              @ _t0 = new Foo();
 	mov a2, #4
 	bl calloc(PLT)
-	sub sp, sp, #4                          @ _t1 = _J3Foo_1xE(_t0);; align adjustment
+	sub sp, sp, #4                          @ _t1 = _J3Foo_1xE(_t0);; align adjustment (pre)
 	stmfd sp!, {a1}                         @ caller-save
 	bl _J3Foo_1xE
-	mov v1, a1
+	mov a2, a1
 	ldmfd sp!, {a1}                         @ caller-restore
-	add sp, sp, #4                          @ align adjustment
-	mov a2, v1                              @ println(_t1);
+	stmfd sp!, {a2}                         @ caller-save
 	ldr a1, =.string0_raw
 	bl printf(PLT)
+	ldmfd sp!, {a2}                         @ caller-restore
+	add sp, sp, #4                          @ align adjustment (post)
 	b .main_dummy_exit                      @ return;
 .main_dummy_exit:
-	ldmfd sp!, {v1, pc}
+	ldmfd sp!, {pc}
 
 
 .global _J3Foo_1xE
@@ -30,13 +31,13 @@ _J3Foo_1xE:
 	@ assigns: 'this' = a1;   '_t0' = v1
 	stmfd sp!, {v1, lr}
 ._J3Foo_1xE_entry:
-	sub sp, sp, #4                          @ _t0 = _J3Foo_1xiE(this, 1);; align adjustment
+	sub sp, sp, #4                          @ _t0 = _J3Foo_1xiE(this, 1);; align adjustment (pre)
 	stmfd sp!, {a1}                         @ caller-save
 	mov a2, #1
 	bl _J3Foo_1xiE
 	mov v1, a1
 	ldmfd sp!, {a1}                         @ caller-restore
-	add sp, sp, #4                          @ align adjustment
+	add sp, sp, #4                          @ align adjustment (post)
 	mov a1, v1                              @ return _t0;
 	b ._J3Foo_1xE_exit
 ._J3Foo_1xE_exit:
@@ -68,13 +69,13 @@ _J3Foo_1xiiE:
 	@ assigns: 'this' = a1;     'a' = a2;     'b' = a3;   '_t0' = v1
 	stmfd sp!, {v1, lr}
 ._J3Foo_1xiiE_entry:
-	sub sp, sp, #4                          @ _t0 = _J3Foo_1xiiiE(this, a, b, 3);; align adjustment
+	sub sp, sp, #4                          @ _t0 = _J3Foo_1xiiiE(this, a, b, 3);; align adjustment (pre)
 	stmfd sp!, {a1, a2, a3}                 @ caller-save
 	mov a4, #3
 	bl _J3Foo_1xiiiE
 	mov v1, a1
 	ldmfd sp!, {a1, a2, a3}                 @ caller-restore
-	add sp, sp, #4                          @ align adjustment
+	add sp, sp, #4                          @ align adjustment (post)
 	mov a1, v1                              @ return _t0;
 	b ._J3Foo_1xiiE_exit
 ._J3Foo_1xiiE_exit:
@@ -111,7 +112,7 @@ _J3Foo_1xiiiiE:
 	stmfd sp!, {v1, lr}
 	ldr v1, [sp, #8]
 ._J3Foo_1xiiiiE_entry:
-	str v1, [sp, #-20]                      @ stack_arg 4: d
+	str v1, [sp, #-20]                      @ stack_arg 4: d;
 	stmfd sp!, {a1, a2, a3, a4}             @ _t0 = _J3Foo_1xiiiiiE(this, a, b, c, d, 5);; caller-save
 	sub sp, sp, #8
 	mov a1, #5
@@ -136,8 +137,8 @@ _J3Foo_1xiiiiiE:
 	ldr v1, [sp, #12]
 	ldr v2, [sp, #16]
 ._J3Foo_1xiiiiiE_entry:
-	str v2, [sp, #-20]                      @ stack_arg 4: d
-	str v1, [sp, #-24]                      @ stack_arg 5: e
+	str v2, [sp, #-20]                      @ stack_arg 4: d;
+	str v1, [sp, #-24]                      @ stack_arg 5: e;
 	stmfd sp!, {a1, a2, a3, a4}             @ _t0 = _J3Foo_1xiiiiiiE(this, a, b, c, d, e, 6);; caller-save
 	sub sp, sp, #12
 	mov a1, #6
@@ -163,9 +164,9 @@ _J3Foo_1xiiiiiiE:
 	ldr v2, [sp, #20]
 	ldr v3, [sp, #24]
 ._J3Foo_1xiiiiiiE_entry:
-	str v3, [sp, #-20]                      @ stack_arg 4: d
-	str v2, [sp, #-24]                      @ stack_arg 5: e
-	str v1, [sp, #-28]                      @ stack_arg 6: f
+	str v3, [sp, #-20]                      @ stack_arg 4: d;
+	str v2, [sp, #-24]                      @ stack_arg 5: e;
+	str v1, [sp, #-28]                      @ stack_arg 6: f;
 	stmfd sp!, {a1, a2, a3, a4}             @ _t0 = _J3Foo_1xiiiiiiiE(this, a, b, c, d, e, f, 7);; caller-save
 	sub sp, sp, #16
 	mov a1, #7
@@ -192,10 +193,10 @@ _J3Foo_1xiiiiiiiE:
 	ldr v3, [sp, #28]
 	ldr v4, [sp, #32]
 ._J3Foo_1xiiiiiiiE_entry:
-	str v4, [sp, #-20]                      @ stack_arg 4: d
-	str v3, [sp, #-24]                      @ stack_arg 5: e
-	str v2, [sp, #-28]                      @ stack_arg 6: f
-	str v1, [sp, #-32]                      @ stack_arg 7: g
+	str v4, [sp, #-20]                      @ stack_arg 4: d;
+	str v3, [sp, #-24]                      @ stack_arg 5: e;
+	str v2, [sp, #-28]                      @ stack_arg 6: f;
+	str v1, [sp, #-32]                      @ stack_arg 7: g;
 	stmfd sp!, {a1, a2, a3, a4}             @ _t0 = _J3Foo_1xiiiiiiiiE(this, a, b, c, d, e, f, g, 8);; caller-save
 	sub sp, sp, #20
 	mov a1, #8
@@ -223,11 +224,11 @@ _J3Foo_1xiiiiiiiiE:
 	ldr v4, [sp, #36]
 	ldr v5, [sp, #40]
 ._J3Foo_1xiiiiiiiiE_entry:
-	str v5, [sp, #-20]                      @ stack_arg 4: d
-	str v4, [sp, #-24]                      @ stack_arg 5: e
-	str v3, [sp, #-28]                      @ stack_arg 6: f
-	str v2, [sp, #-32]                      @ stack_arg 7: g
-	str v1, [sp, #-36]                      @ stack_arg 8: h
+	str v5, [sp, #-20]                      @ stack_arg 4: d;
+	str v4, [sp, #-24]                      @ stack_arg 5: e;
+	str v3, [sp, #-28]                      @ stack_arg 6: f;
+	str v2, [sp, #-32]                      @ stack_arg 7: g;
+	str v1, [sp, #-36]                      @ stack_arg 8: h;
 	stmfd sp!, {a1, a2, a3, a4}             @ _t0 = _J3Foo_1xiiiiiiiiiE(this, a, b, c, d, e, f, g, h, 9);; caller-save
 	sub sp, sp, #24
 	mov a1, #9
@@ -257,12 +258,12 @@ _J3Foo_1xiiiiiiiiiE:
 	ldr v5, [sp, #44]
 	ldr fp, [sp, #48]
 ._J3Foo_1xiiiiiiiiiE_entry:
-	str fp, [sp, #-20]                      @ stack_arg 4: d
-	str v5, [sp, #-24]                      @ stack_arg 5: e
-	str v4, [sp, #-28]                      @ stack_arg 6: f
-	str v3, [sp, #-32]                      @ stack_arg 7: g
-	str v2, [sp, #-36]                      @ stack_arg 8: h
-	str v1, [sp, #-40]                      @ stack_arg 9: i
+	str fp, [sp, #-20]                      @ stack_arg 4: d;
+	str v5, [sp, #-24]                      @ stack_arg 5: e;
+	str v4, [sp, #-28]                      @ stack_arg 6: f;
+	str v3, [sp, #-32]                      @ stack_arg 7: g;
+	str v2, [sp, #-36]                      @ stack_arg 8: h;
+	str v1, [sp, #-40]                      @ stack_arg 9: i;
 	stmfd sp!, {a1, a2, a3, a4}             @ _t0 = _J3Foo_1xiiiiiiiiiiE(this, a, b, c, d, e, f, g, h, i, 10);; caller-save
 	sub sp, sp, #28
 	mov a1, #10
@@ -298,14 +299,14 @@ _J3Foo_1xiiiiiiiiiiE:
 	str a4, [sp, #0]                        @ spill c;
 	str a3, [sp, #4]                        @ spill b;
 	str a2, [sp, #8]                        @ spill a;
-	str fp, [sp, #-20]                      @ stack_arg 4: d
-	str v5, [sp, #-24]                      @ stack_arg 5: e
-	str v4, [sp, #-28]                      @ stack_arg 6: f
-	str v3, [sp, #-32]                      @ stack_arg 7: g
-	str v2, [sp, #-36]                      @ stack_arg 8: h
-	str v1, [sp, #-40]                      @ stack_arg 9: i
+	str fp, [sp, #-20]                      @ stack_arg 4: d;
+	str v5, [sp, #-24]                      @ stack_arg 5: e;
+	str v4, [sp, #-28]                      @ stack_arg 6: f;
+	str v3, [sp, #-32]                      @ stack_arg 7: g;
+	str v2, [sp, #-36]                      @ stack_arg 8: h;
+	str v1, [sp, #-40]                      @ stack_arg 9: i;
 	ldr v1, [sp, #44]                       @ restore j;
-	str v1, [sp, #-44]                      @ stack_arg 10: j
+	str v1, [sp, #-44]                      @ stack_arg 10: j;
 	ldr a2, [sp, #8]                        @ restore a;
 	ldr a3, [sp, #4]                        @ restore b;
 	ldr a4, [sp, #0]                        @ restore c;
@@ -347,16 +348,16 @@ _J3Foo_1xiiiiiiiiiiiE:
 	str a1, [sp, #12]                       @ spill this;
 	str a4, [sp, #0]                        @ spill c;
 	str a3, [sp, #4]                        @ spill b;
-	str fp, [sp, #-20]                      @ stack_arg 4: d
-	str v5, [sp, #-24]                      @ stack_arg 5: e
-	str v4, [sp, #-28]                      @ stack_arg 6: f
-	str v3, [sp, #-32]                      @ stack_arg 7: g
-	str v2, [sp, #-36]                      @ stack_arg 8: h
-	str v1, [sp, #-40]                      @ stack_arg 9: i
+	str fp, [sp, #-20]                      @ stack_arg 4: d;
+	str v5, [sp, #-24]                      @ stack_arg 5: e;
+	str v4, [sp, #-28]                      @ stack_arg 6: f;
+	str v3, [sp, #-32]                      @ stack_arg 7: g;
+	str v2, [sp, #-36]                      @ stack_arg 8: h;
+	str v1, [sp, #-40]                      @ stack_arg 9: i;
 	ldr v1, [sp, #48]                       @ restore j;
-	str v1, [sp, #-44]                      @ stack_arg 10: j
+	str v1, [sp, #-44]                      @ stack_arg 10: j;
 	ldr v1, [sp, #44]                       @ restore k;
-	str v1, [sp, #-48]                      @ stack_arg 11: k
+	str v1, [sp, #-48]                      @ stack_arg 11: k;
 	ldr a3, [sp, #4]                        @ restore b;
 	ldr a4, [sp, #0]                        @ restore c;
 	ldr a1, [sp, #12]                       @ restore this;
@@ -398,18 +399,18 @@ _J3Foo_1xiiiiiiiiiiiiE:
 	str a3, [sp, #4]                        @ spill b;
 	str a1, [sp, #12]                       @ spill this;
 	str a4, [sp, #0]                        @ spill c;
-	str fp, [sp, #-20]                      @ stack_arg 4: d
-	str v5, [sp, #-24]                      @ stack_arg 5: e
-	str v4, [sp, #-28]                      @ stack_arg 6: f
-	str v3, [sp, #-32]                      @ stack_arg 7: g
-	str v2, [sp, #-36]                      @ stack_arg 8: h
-	str v1, [sp, #-40]                      @ stack_arg 9: i
+	str fp, [sp, #-20]                      @ stack_arg 4: d;
+	str v5, [sp, #-24]                      @ stack_arg 5: e;
+	str v4, [sp, #-28]                      @ stack_arg 6: f;
+	str v3, [sp, #-32]                      @ stack_arg 7: g;
+	str v2, [sp, #-36]                      @ stack_arg 8: h;
+	str v1, [sp, #-40]                      @ stack_arg 9: i;
 	ldr v1, [sp, #52]                       @ restore j;
-	str v1, [sp, #-44]                      @ stack_arg 10: j
+	str v1, [sp, #-44]                      @ stack_arg 10: j;
 	ldr v1, [sp, #48]                       @ restore k;
-	str v1, [sp, #-48]                      @ stack_arg 11: k
+	str v1, [sp, #-48]                      @ stack_arg 11: k;
 	ldr v1, [sp, #44]                       @ restore l;
-	str v1, [sp, #-52]                      @ stack_arg 12: l
+	str v1, [sp, #-52]                      @ stack_arg 12: l;
 	ldr a4, [sp, #0]                        @ restore c;
 	ldr a1, [sp, #12]                       @ restore this;
 	ldr a3, [sp, #4]                        @ restore b;
@@ -434,103 +435,96 @@ _J3Foo_1xiiiiiiiiiiiiE:
 .type _J3Foo_1xiiiiiiiiiiiiiE, %function
 _J3Foo_1xiiiiiiiiiiiiiE:
 	@ spills:  'a', 'b', 'c', 'd', 'e', 'f'
-	@ assigns: 'h' = a1;  'a' = a2;  'b' = a3;  'c' = a4;  'g' = fp;  'd' = v1
-	@          'e' = v1;  'f' = v1;  'm' = v1;  'l' = v2;  'k' = v3;  'j' = v4
-	@          'i' = v5
+	@ assigns: 'g' = a1;  'd' = a2;  'e' = a2;  'f' = a2;  'm' = a2;  'b' = a3
+	@          'c' = a4;  'a' = fp;  'l' = v1;  'k' = v2;  'j' = v3;  'i' = v4
+	@          'h' = v5
 	stmfd sp!, {lr}
 	sub sp, sp, #16
 	stmfd sp!, {v1, v2, v3, v4, v5, fp}
-	ldr v1, [sp, #44]
-	ldr v2, [sp, #48]
-	ldr v3, [sp, #52]
-	ldr v4, [sp, #56]
-	ldr v5, [sp, #60]
-	ldr a1, [sp, #64]
-	ldr fp, [sp, #68]
+	mov fp, a2
+	ldr a2, [sp, #44]
+	ldr v1, [sp, #48]
+	ldr v2, [sp, #52]
+	ldr v3, [sp, #56]
+	ldr v4, [sp, #60]
+	ldr v5, [sp, #64]
+	ldr a1, [sp, #68]
 ._J3Foo_1xiiiiiiiiiiiiiE_entry:
-	str a2, [sp, #12]                       @ spill a;
+	str fp, [sp, #12]                       @ spill a;
 	str a3, [sp, #8]                        @ spill b;
 	str a4, [sp, #4]                        @ spill c;
-	sub sp, sp, #4                          @ println(m);; align adjustment
+	stmfd sp!, {a1, a2}                     @ println(m);; caller-save
+	ldr a1, =.string0_raw
+	bl printf(PLT)
+	ldmfd sp!, {a1, a2}                     @ caller-restore
+	sub sp, sp, #4                          @ println(l);; align adjustment (pre)
 	stmfd sp!, {a1}                         @ caller-save
 	mov a2, v1
 	ldr a1, =.string0_raw
 	bl printf(PLT)
-	ldmfd sp!, {a1}                         @ caller-restore
-	add sp, sp, #4                          @ align adjustment
-	sub sp, sp, #4                          @ println(l);; align adjustment
-	stmfd sp!, {a1}                         @ caller-save
+	ldmfd sp, {a1}                          @ caller-restore
 	mov a2, v2
 	ldr a1, =.string0_raw
 	bl printf(PLT)
-	ldmfd sp!, {a1}                         @ caller-restore
-	add sp, sp, #4                          @ align adjustment
-	sub sp, sp, #4                          @ println(k);; align adjustment
-	stmfd sp!, {a1}                         @ caller-save
+	ldmfd sp, {a1}                          @ caller-restore
 	mov a2, v3
 	ldr a1, =.string0_raw
 	bl printf(PLT)
-	ldmfd sp!, {a1}                         @ caller-restore
-	add sp, sp, #4                          @ align adjustment
-	sub sp, sp, #4                          @ println(j);; align adjustment
-	stmfd sp!, {a1}                         @ caller-save
+	ldmfd sp, {a1}                          @ caller-restore
 	mov a2, v4
 	ldr a1, =.string0_raw
 	bl printf(PLT)
-	ldmfd sp!, {a1}                         @ caller-restore
-	add sp, sp, #4                          @ align adjustment
-	sub sp, sp, #4                          @ println(i);; align adjustment
-	stmfd sp!, {a1}                         @ caller-save
+	ldmfd sp, {a1}                          @ caller-restore
 	mov a2, v5
 	ldr a1, =.string0_raw
 	bl printf(PLT)
-	ldmfd sp!, {a1}                         @ caller-restore
-	add sp, sp, #4                          @ align adjustment
-	sub sp, sp, #4                          @ println(h);; align adjustment
-	stmfd sp!, {a1}                         @ caller-save
+	ldmfd sp, {a1}                          @ caller-restore
 	mov a2, a1
 	ldr a1, =.string0_raw
 	bl printf(PLT)
 	ldmfd sp!, {a1}                         @ caller-restore
-	add sp, sp, #4                          @ align adjustment
-	mov a2, fp                              @ println(g);
+	add sp, sp, #4                          @ align adjustment (post)
+	ldr a2, [sp, #72]                       @ restore f;
+	sub sp, sp, #4                          @ println(f);; align adjustment (pre)
+	stmfd sp!, {a2}                         @ caller-save
 	ldr a1, =.string0_raw
 	bl printf(PLT)
-	ldr v1, [sp, #72]                       @ restore f;
-	mov a2, v1                              @ println(f);
+	ldmfd sp!, {a2}                         @ caller-restore
+	add sp, sp, #4                          @ align adjustment (post)
+	ldr a2, [sp, #76]                       @ restore e;
+	sub sp, sp, #4                          @ println(e);; align adjustment (pre)
+	stmfd sp!, {a2}                         @ caller-save
 	ldr a1, =.string0_raw
 	bl printf(PLT)
-	ldr v1, [sp, #76]                       @ restore e;
-	mov a2, v1                              @ println(e);
+	ldmfd sp!, {a2}                         @ caller-restore
+	add sp, sp, #4                          @ align adjustment (post)
+	ldr a2, [sp, #80]                       @ restore d;
+	sub sp, sp, #4                          @ println(d);; align adjustment (pre)
+	stmfd sp!, {a2}                         @ caller-save
 	ldr a1, =.string0_raw
 	bl printf(PLT)
-	ldr v1, [sp, #80]                       @ restore d;
-	mov a2, v1                              @ println(d);
-	ldr a1, =.string0_raw
-	bl printf(PLT)
+	ldmfd sp!, {a2}                         @ caller-restore
+	add sp, sp, #4                          @ align adjustment (post)
 	ldr a4, [sp, #4]                        @ restore c;
-	sub sp, sp, #4                          @ println(c);; align adjustment
+	sub sp, sp, #4                          @ println(c);; align adjustment (pre)
 	stmfd sp!, {a4}                         @ caller-save
 	mov a2, a4
 	ldr a1, =.string0_raw
 	bl printf(PLT)
 	ldmfd sp!, {a4}                         @ caller-restore
-	add sp, sp, #4                          @ align adjustment
+	add sp, sp, #4                          @ align adjustment (post)
 	ldr a3, [sp, #8]                        @ restore b;
-	sub sp, sp, #4                          @ println(b);; align adjustment
+	sub sp, sp, #4                          @ println(b);; align adjustment (pre)
 	stmfd sp!, {a3}                         @ caller-save
 	mov a2, a3
 	ldr a1, =.string0_raw
 	bl printf(PLT)
 	ldmfd sp!, {a3}                         @ caller-restore
-	add sp, sp, #4                          @ align adjustment
-	ldr a2, [sp, #12]                       @ restore a;
-	sub sp, sp, #4                          @ println(a);; align adjustment
-	stmfd sp!, {a2}                         @ caller-save
+	add sp, sp, #4                          @ align adjustment (post)
+	ldr fp, [sp, #12]                       @ restore a;
+	mov a2, fp                              @ println(a);
 	ldr a1, =.string0_raw
 	bl printf(PLT)
-	ldmfd sp!, {a2}                         @ caller-restore
-	add sp, sp, #4                          @ align adjustment
 	mov a1, #0                              @ return 0;
 	b ._J3Foo_1xiiiiiiiiiiiiiE_exit
 ._J3Foo_1xiiiiiiiiiiiiiE_exit:

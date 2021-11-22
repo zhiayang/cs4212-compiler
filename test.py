@@ -240,7 +240,7 @@ def main():
 	total = 0
 	passed = 0
 
-	for name_ in reversed(sorted(os.listdir(tests_folder))):
+	for name_ in sorted(os.listdir(tests_folder)):
 		name = os.path.join(tests_folder, name_)
 		if os.path.isfile(name) and name.endswith(".j"):
 			if (res := run_one(compiler_bin, gcc_bin, gem5, name)) != 0:

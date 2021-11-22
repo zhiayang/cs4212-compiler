@@ -3,42 +3,76 @@
 .type main_dummy, %function
 main_dummy:
 	@ spills:  <none>
-	@ assigns:    '_t0' = a1;    '_c16' = v1;  'string' = v1;    '_c12' = v2
-	@             '_c8' = v2;     'int' = v2;    'bool' = v3;     '_c4' = v4
-	stmfd sp!, {v1, v2, v3, v4, lr}
+	@ assigns:    '_t0' = a1;    '_c16' = a2;  'string' = a2;    '_c12' = v1
+	@             '_c8' = v1;     'int' = v1;    'bool' = v2;     '_c4' = v3
+	stmfd sp!, {v1, v2, v3, lr}
 .main_dummy_entry:
 	bl __readln_int                         @ readln(int);
-	mov v2, a1
-	bl __readln_bool                        @ readln(bool);
-	mov v3, a1
-	bl __readln_string                      @ readln(string);
 	mov v1, a1
-	ldr v4, =.string0                       @ _c4 = "your integer was:";
-	mov a1, v4                              @ println(_c4);
-	add a1, a1, #4
-	bl puts(PLT)
-	mov a2, v2                              @ println(int);
+	bl __readln_bool                        @ readln(bool);
+	mov v2, a1
+	bl __readln_string                      @ readln(string);
+	mov a2, a1
+	ldr v3, =.string0                       @ _c4 = "your integer was:";
+	sub sp, sp, #4                          @ println(_c4);; align adjustment (pre)
+	stmfd sp!, {a2}                         @ caller-save
+	mov a2, v3
+	add a2, a2, #4
 	ldr a1, =.string1_raw
 	bl printf(PLT)
-	ldr v2, =.string2                       @ _c8 = "your boolean was:";
-	mov a1, v2                              @ println(_c8);
-	add a1, a1, #4
-	bl puts(PLT)
-	movs a1, v3                             @ println(bool);
-	ldreq a1, =.string3_raw
-	ldrne a1, =.string4_raw
-	bl puts(PLT)
-	ldr v2, =.string5                       @ _c12 = "your string was:";
-	mov a1, v2                              @ println(_c12);
-	add a1, a1, #4
-	bl puts(PLT)
-	mov a1, v1                              @ println(string);
-	add a1, a1, #4
-	bl puts(PLT)
-	ldr v1, =.string6                       @ _c16 = "done";
-	mov a1, v1                              @ println(_c16);
-	add a1, a1, #4
-	bl puts(PLT)
+	ldmfd sp!, {a2}                         @ caller-restore
+	add sp, sp, #4                          @ align adjustment (post)
+	sub sp, sp, #4                          @ println(int);; align adjustment (pre)
+	stmfd sp!, {a2}                         @ caller-save
+	mov a2, v1
+	ldr a1, =.string2_raw
+	bl printf(PLT)
+	ldmfd sp!, {a2}                         @ caller-restore
+	add sp, sp, #4                          @ align adjustment (post)
+	ldr v1, =.string3                       @ _c8 = "your boolean was:";
+	sub sp, sp, #4                          @ println(_c8);; align adjustment (pre)
+	stmfd sp!, {a2}                         @ caller-save
+	mov a2, v1
+	add a2, a2, #4
+	ldr a1, =.string1_raw
+	bl printf(PLT)
+	ldmfd sp!, {a2}                         @ caller-restore
+	add sp, sp, #4                          @ align adjustment (post)
+	sub sp, sp, #4                          @ println(bool);; align adjustment (pre)
+	stmfd sp!, {a2}                         @ caller-save
+	movs a2, v2
+	ldreq a2, =.string4_raw
+	ldrne a2, =.string5_raw
+	ldr a1, =.string1_raw
+	bl printf(PLT)
+	ldmfd sp!, {a2}                         @ caller-restore
+	add sp, sp, #4                          @ align adjustment (post)
+	ldr v1, =.string6                       @ _c12 = "your string was:";
+	sub sp, sp, #4                          @ println(_c12);; align adjustment (pre)
+	stmfd sp!, {a2}                         @ caller-save
+	mov a2, v1
+	add a2, a2, #4
+	ldr a1, =.string1_raw
+	bl printf(PLT)
+	ldmfd sp!, {a2}                         @ caller-restore
+	add sp, sp, #4                          @ align adjustment (post)
+	sub sp, sp, #4                          @ println(string);; align adjustment (pre)
+	stmfd sp!, {a2}                         @ caller-save
+	mov a2, a2
+	add a2, a2, #4
+	ldr a1, =.string1_raw
+	bl printf(PLT)
+	ldmfd sp!, {a2}                         @ caller-restore
+	add sp, sp, #4                          @ align adjustment (post)
+	ldr a2, =.string7                       @ _c16 = "done";
+	sub sp, sp, #4                          @ println(_c16);; align adjustment (pre)
+	stmfd sp!, {a2}                         @ caller-save
+	mov a2, a2
+	add a2, a2, #4
+	ldr a1, =.string1_raw
+	bl printf(PLT)
+	ldmfd sp!, {a2}                         @ caller-restore
+	add sp, sp, #4                          @ align adjustment (post)
 	mov a1, #1                              @ _t0 = new Foo();
 	mov a2, #4
 	bl calloc(PLT)
@@ -49,93 +83,105 @@ main_dummy:
 	mov a1, a1
 	b .main_dummy_exit                      @ return;
 .main_dummy_exit:
-	ldmfd sp!, {v1, v2, v3, v4, pc}
+	ldmfd sp!, {v1, v2, v3, pc}
 
 
 .global _J3Foo_5guessiE
 .type _J3Foo_5guessiE, %function
 _J3Foo_5guessiE:
 	@ spills:  <none>
-	@ assigns:   'num' = a2;   '_c38' = v1;    '_t0' = v1;      'x' = v1;    '_t3' = v2
-	@          'tries' = v2;   '_c22' = v3;   '_c25' = v3;   '_c29' = v3;    '_t1' = v3
-	@            '_t2' = v3
+	@ assigns: 'tries' = a2;   '_c38' = v1;    'num' = v1;   '_c22' = v2;   '_c25' = v2
+	@           '_c29' = v2;    '_t0' = v2;    '_t1' = v2;    '_t2' = v2;    '_t3' = v2
+	@              'x' = v3
 	stmfd sp!, {v1, v2, v3, lr}
-	mov a2, a2
+	mov v1, a2
 ._J3Foo_5guessiE_entry:
-	mov v1, #0                              @ x = 0;
-	mov v2, #0                              @ tries = 0;
+	mov v3, #0                              @ x = 0;
+	mov a2, #0                              @ tries = 0;
 	b ._J3Foo_5guessiE_L1                   @ goto .L1;
 ._J3Foo_5guessiE_L1:
-	cmp v1, a2                              @ _t0 = x != num;
-	movne v1, #1
-	moveq v1, #0
-	cmp v1, #0                              @ if (_t0) goto .L8;
+	cmp v3, v1                              @ _t0 = x != num;
+	movne v2, #1
+	moveq v2, #0
+	cmp v2, #0                              @ if (_t0) goto .L8;
 	bne ._J3Foo_5guessiE_L8
 	b ._J3Foo_5guessiE_L9                   @ goto .L9;
 ._J3Foo_5guessiE_L8:
-	sub sp, sp, #4                          @ readln(x);; align adjustment
+	sub sp, sp, #4                          @ readln(x);; align adjustment (pre)
 	stmfd sp!, {a2}                         @ caller-save
 	bl __readln_int
-	mov v1, a1
+	mov v3, a1
 	ldmfd sp!, {a2}                         @ caller-restore
-	add sp, sp, #4                          @ align adjustment
-	cmp v1, a2                              @ _t1 = x == num;
-	moveq v3, #1
-	movne v3, #0
-	cmp v3, #0                              @ if (_t1) goto .L5;
+	add sp, sp, #4                          @ align adjustment (post)
+	cmp v3, v1                              @ _t1 = x == num;
+	moveq v2, #1
+	movne v2, #0
+	cmp v2, #0                              @ if (_t1) goto .L5;
 	bne ._J3Foo_5guessiE_L5
 	b ._J3Foo_5guessiE_L6                   @ goto .L6;
 ._J3Foo_5guessiE_L6:
-	cmp v1, a2                              @ _t2 = x < num;
-	movlt v3, #1
-	movge v3, #0
-	cmp v3, #0                              @ if (_t2) goto .L2;
+	cmp v3, v1                              @ _t2 = x < num;
+	movlt v2, #1
+	movge v2, #0
+	cmp v2, #0                              @ if (_t2) goto .L2;
 	bne ._J3Foo_5guessiE_L2
 	b ._J3Foo_5guessiE_L3                   @ goto .L3;
 ._J3Foo_5guessiE_L3:
-	ldr v3, =.string7                       @ _c22 = "lower";
-	sub sp, sp, #4                          @ println(_c22);; align adjustment
+	ldr v2, =.string8                       @ _c22 = "lower";
+	sub sp, sp, #4                          @ println(_c22);; align adjustment (pre)
 	stmfd sp!, {a2}                         @ caller-save
-	mov a1, v3
-	add a1, a1, #4
-	bl puts(PLT)
+	mov a2, v2
+	add a2, a2, #4
+	ldr a1, =.string1_raw
+	bl printf(PLT)
 	ldmfd sp!, {a2}                         @ caller-restore
-	add sp, sp, #4                          @ align adjustment
+	add sp, sp, #4                          @ align adjustment (post)
 	b ._J3Foo_5guessiE_L4                   @ goto .L4;
 ._J3Foo_5guessiE_L2:
-	ldr v3, =.string8                       @ _c25 = "higher";
-	sub sp, sp, #4                          @ println(_c25);; align adjustment
+	ldr v2, =.string9                       @ _c25 = "higher";
+	sub sp, sp, #4                          @ println(_c25);; align adjustment (pre)
 	stmfd sp!, {a2}                         @ caller-save
-	mov a1, v3
-	add a1, a1, #4
-	bl puts(PLT)
+	mov a2, v2
+	add a2, a2, #4
+	ldr a1, =.string1_raw
+	bl printf(PLT)
 	ldmfd sp!, {a2}                         @ caller-restore
-	add sp, sp, #4                          @ align adjustment
+	add sp, sp, #4                          @ align adjustment (post)
 	b ._J3Foo_5guessiE_L4                   @ goto .L4;
 ._J3Foo_5guessiE_L4:
 	b ._J3Foo_5guessiE_L7                   @ goto .L7;
 ._J3Foo_5guessiE_L5:
-	ldr v3, =.string9                       @ _c29 = "uwu";
-	sub sp, sp, #4                          @ println(_c29);; align adjustment
+	ldr v2, =.string10                      @ _c29 = "uwu";
+	sub sp, sp, #4                          @ println(_c29);; align adjustment (pre)
 	stmfd sp!, {a2}                         @ caller-save
-	mov a1, v3
-	add a1, a1, #4
-	bl puts(PLT)
-	ldmfd sp!, {a2}                         @ caller-restore
-	add sp, sp, #4                          @ align adjustment
-	b ._J3Foo_5guessiE_L7                   @ goto .L7;
-._J3Foo_5guessiE_L7:
-	add v2, v2, #1                          @ _t3 = tries + 1;
-	mov v2, v2                              @ tries = _t3;
-	b ._J3Foo_5guessiE_L1                   @ goto .L1;
-._J3Foo_5guessiE_L9:
-	ldr v1, =.string10                      @ _c38 = "tries:";
-	mov a1, v1                              @ println(_c38);
-	add a1, a1, #4
-	bl puts(PLT)
-	mov a2, v2                              @ println(tries);
+	mov a2, v2
+	add a2, a2, #4
 	ldr a1, =.string1_raw
 	bl printf(PLT)
+	ldmfd sp!, {a2}                         @ caller-restore
+	add sp, sp, #4                          @ align adjustment (post)
+	b ._J3Foo_5guessiE_L7                   @ goto .L7;
+._J3Foo_5guessiE_L7:
+	add v2, a2, #1                          @ _t3 = tries + 1;
+	mov a2, v2                              @ tries = _t3;
+	b ._J3Foo_5guessiE_L1                   @ goto .L1;
+._J3Foo_5guessiE_L9:
+	ldr v1, =.string11                      @ _c38 = "tries:";
+	sub sp, sp, #4                          @ println(_c38);; align adjustment (pre)
+	stmfd sp!, {a2}                         @ caller-save
+	mov a2, v1
+	add a2, a2, #4
+	ldr a1, =.string1_raw
+	bl printf(PLT)
+	ldmfd sp!, {a2}                         @ caller-restore
+	add sp, sp, #4                          @ align adjustment (post)
+	sub sp, sp, #4                          @ println(tries);; align adjustment (pre)
+	stmfd sp!, {a2}                         @ caller-save
+	mov a2, a2
+	ldr a1, =.string2_raw
+	bl printf(PLT)
+	ldmfd sp!, {a2}                         @ caller-restore
+	add sp, sp, #4                          @ align adjustment (post)
 	b ._J3Foo_5guessiE_exit                 @ return;
 ._J3Foo_5guessiE_exit:
 	ldmfd sp!, {v1, v2, v3, pc}
@@ -166,7 +212,7 @@ __readln_int:
 	stmfd sp!, {lr}
 	sub sp, sp, #4          @ save some stack space (scanf wants a pointer)
 	mov a2, sp              @ a2 is the pointer argument
-	ldr a1, =.string11_raw
+	ldr a1, =.string12_raw
 	bl scanf(PLT)
 	cmp a1, #1              @ if scanf returned < 1...
 	bge .__readln_int_ok
@@ -188,7 +234,7 @@ __readln_bool:
 	stmfd sp!, {lr}
 	sub sp, sp, #12          @ space for the buffer
 	mov a2, sp
-	ldr a1, =.string12_raw
+	ldr a1, =.string13_raw
 	bl scanf(PLT)
 	cmp a1, #1              @ if scanf returned < 1, then it's probably eof?
 	blt .__readln_bool_false
@@ -259,71 +305,77 @@ __readln_string:
 .string1:
     .word 3
 .string1_raw:
-    .asciz "%d\n"
+    .asciz "%s\n"
 
 .align 4
 .string2:
-    .word 17
+    .word 3
 .string2_raw:
-    .asciz "your boolean was:"
+    .asciz "%d\n"
 
 .align 4
 .string3:
-    .word 5
+    .word 17
 .string3_raw:
-    .asciz "false"
+    .asciz "your boolean was:"
 
 .align 4
 .string4:
-    .word 4
+    .word 5
 .string4_raw:
-    .asciz "true"
+    .asciz "false"
 
 .align 4
 .string5:
-    .word 16
+    .word 4
 .string5_raw:
-    .asciz "your string was:"
+    .asciz "true"
 
 .align 4
 .string6:
-    .word 4
+    .word 16
 .string6_raw:
-    .asciz "done"
+    .asciz "your string was:"
 
 .align 4
 .string7:
-    .word 5
+    .word 4
 .string7_raw:
-    .asciz "lower"
+    .asciz "done"
 
 .align 4
 .string8:
-    .word 6
+    .word 5
 .string8_raw:
-    .asciz "higher"
+    .asciz "lower"
 
 .align 4
 .string9:
-    .word 3
+    .word 6
 .string9_raw:
-    .asciz "uwu"
+    .asciz "higher"
 
 .align 4
 .string10:
-    .word 6
+    .word 3
 .string10_raw:
-    .asciz "tries:"
+    .asciz "uwu"
 
 .align 4
 .string11:
-    .word 4
+    .word 6
 .string11_raw:
-    .asciz " %d "
+    .asciz "tries:"
 
 .align 4
 .string12:
-    .word 5
+    .word 4
 .string12_raw:
+    .asciz " %d "
+
+.align 4
+.string13:
+    .word 5
+.string13_raw:
     .asciz " %7s "
 

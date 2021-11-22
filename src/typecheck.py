@@ -988,6 +988,9 @@ def typecheck_method(ts: TypecheckState, meth: ast.MethodDefn) -> ir3.FuncDefn:
 	if options.optimisations_enabled():
 		iropt.optimise(func)
 
+	if options.should_print_optimised_ir():
+		print(func)
+
 	return func
 
 

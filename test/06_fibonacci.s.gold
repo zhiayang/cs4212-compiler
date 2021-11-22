@@ -3,34 +3,38 @@
 .type main_dummy, %function
 main_dummy:
 	@ spills:  <none>
-	@ assigns: '_c7' = v1;  '_t0' = v1;  '_t1' = v1;    'c' = v1;    'b' = v2
-	@            'a' = v3
-	stmfd sp!, {v1, v2, v3, lr}
+	@ assigns:   'a' = a2;  '_c7' = v1;  '_t0' = v1;  '_t1' = v1;    'c' = v1
+	@            'b' = v2
+	stmfd sp!, {v1, v2, lr}
 .main_dummy_entry:
-	mov v3, #0                              @ a = 0;
+	mov a2, #0                              @ a = 0;
 	mov v2, #1                              @ b = 1;
 	b .main_dummy_L1                        @ goto .L1;
 .main_dummy_L1:
 	ldr v1, =#1836311903                    @ _c7 = 1836311903;
-	cmp v3, v1                              @ _t0 = a != _c7;
+	cmp a2, v1                              @ _t0 = a != _c7;
 	movne v1, #1
 	moveq v1, #0
 	cmp v1, #0                              @ if (_t0) goto .L2;
 	bne .main_dummy_L2
 	b .main_dummy_L3                        @ goto .L3;
 .main_dummy_L2:
-	mov a2, v3                              @ println(a);
+	sub sp, sp, #4                          @ println(a);; align adjustment (pre)
+	stmfd sp!, {a2}                         @ caller-save
+	mov a2, a2
 	ldr a1, =.string0_raw
 	bl printf(PLT)
-	add v1, v3, v2                          @ _t1 = a + b;
+	ldmfd sp!, {a2}                         @ caller-restore
+	add sp, sp, #4                          @ align adjustment (post)
+	add v1, a2, v2                          @ _t1 = a + b;
 	mov v1, v1                              @ c = _t1;
-	mov v3, v2                              @ a = b;
+	mov a2, v2                              @ a = b;
 	mov v2, v1                              @ b = c;
 	b .main_dummy_L1                        @ goto .L1;
 .main_dummy_L3:
 	b .main_dummy_exit                      @ return;
 .main_dummy_exit:
-	ldmfd sp!, {v1, v2, v3, pc}
+	ldmfd sp!, {v1, v2, pc}
 
 
 

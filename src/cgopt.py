@@ -52,24 +52,35 @@ def remove_redundant_branches(fs: FuncState) -> bool:
 def remove_redundant_consecutive_loads_stores(fs: FuncState) -> bool:
 	# note: labels appear in the instruction stream, so they will interrupt this
 	# optimisation if the loads/stores are not in the same basic block.
-	for i, instr in enumerate(fs.instructions):
-		if i + 1 == len(fs.instructions):
+
+	num_removed = 0
+
+	i = 0
+	while i < len(fs.instructions) - 1:
+		if i + 1 >= len(fs.instructions):
 			break
 
-		in1 = instr
+		in1 = fs.instructions[i]
 		in2 = fs.instructions[i + 1]
 
 		if (in1.instr == "str" or in1.instr == "ldr") and in1 == in2:
 
 			# can't do this; they have side effects.
-			if cast(cgarm.Memory, in1.operands[1]).post_incr or cast(cgarm.Memory, in2.operands[1]).post_incr:
+			if not cast(cgarm.Memory, in1.operands[1]).post_incr and not cast(cgarm.Memory, in2.operands[1]).post_incr:
+				# remove one of them.
+				fs.instructions.pop(i)
+				num_removed += 1
 				continue
 
-			# remove one of them.
+		# consecutive 'mov's to the same register are also redundant (we can remove the first one)
+		elif in1.instr == "mov" and in2.instr == "mov" and in1.operands[0] == in2.operands[0]:
 			fs.instructions.pop(i)
-			return True
+			num_removed += 1
+			continue
 
-	return False
+		i += 1
+
+	return num_removed > 0
 
 
 def remove_redundant_load_store(fs: FuncState) -> bool:
@@ -146,6 +157,27 @@ def remove_redundant_arithmetic(fs: FuncState) -> bool:
 				if cast(cgarm.Constant, instr.operands[2]).value == 0:
 					fs.instructions.remove(instr)
 					num_removed += 1
+
+	# add a, a, <const>, followed by
+	# sub a, a, <const>
+
+	# also the reverse (ie. sub + add), even though we don't generate that case
+	idx = 0
+	while idx < len(fs.instructions) - 1:
+		if idx + 1 >= len(fs.instructions):
+			break
+
+		i1 = fs.instructions[idx]
+		i2 = fs.instructions[idx + 1]
+		if ((i1.instr == "sub" and i2.instr == "add") or (i1.instr == "add" and i2.instr == "sub")) and i1.operands == i2.operands:
+			# yeet them both
+			fs.instructions.pop(idx)
+			fs.instructions.pop(idx)  # not a typo
+			num_removed += 1
+
+			# if we removed anything, idx stays the same
+		else:
+			idx += 1
 
 	return num_removed > 0
 

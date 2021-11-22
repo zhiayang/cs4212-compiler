@@ -11,3 +11,4 @@ m5out/
 *.toc
 *.log
 _minted*
+*.actual
