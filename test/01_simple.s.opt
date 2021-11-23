@@ -7,7 +7,7 @@ main_dummy:
 	@            'f' = v1
 	stmfd sp!, {v1, lr}
 .main_dummy_entry:
-	ldr a2, =.string0                       @ _c1 = "hello, world!";
+	ldr a2, =.string0                       @ _c1 = "hello, \"world\"!";
 	sub sp, sp, #4                          @ println(_c1);; align adjustment (pre)
 	add a2, a2, #4
 	ldr a1, =.string1_raw
@@ -82,9 +82,9 @@ main:
 .global stdin
 .align 4
 .string0:
-    .word 13
+    .word 15
 .string0_raw:
-    .asciz "hello, world!"
+    .asciz "hello, \"world\"!"
 
 .align 4
 .string1:

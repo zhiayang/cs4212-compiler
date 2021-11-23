@@ -85,6 +85,8 @@ def read_string_literal(stream: StringView, loc: Location) -> Tuple[str, StringV
 				value += "\t"
 			elif next == "r":
 				value += "\r"
+			elif next == "\"":
+				value += "\""
 
 			elif next.isdigit():
 				for i in range(0, 3):

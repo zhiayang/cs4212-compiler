@@ -15,14 +15,16 @@ def read_entire_file(filename: str) -> str:
 def escape_string(s: str) -> str:
 	out: str = ""
 	for c in s:
-		if 32 <= ord(c) <= 126:
-			out += c
-		elif c == '\n':
+		if c == '\n':
 			out += "\\n"
 		elif c == '\r':
 			out += "\\r"
 		elif c == '\t':
 			out += "\\t"
+		elif c == '"':
+			out += '\\\"'
+		elif 32 <= ord(c) <= 126:
+			out += c
 		else:
 			out += ("\\x%02x" % ord(c))
 
