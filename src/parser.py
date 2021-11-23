@@ -263,10 +263,8 @@ def parse_while_loop(ps: ParserState) -> ast.WhileLoop:
 
 	ps.expect("RParen", lambda t: f"expected ')' after while condition, found '{t.text}' instead")
 
+	# while loops can have an empty body... for some reason.
 	body = parse_block(ps)
-	if len(body.stmts) == 0:
-		raise ParseException(ps.loc, "while loop must contain at least one statement")
-
 	return ast.WhileLoop(loc, condition, body)
 
 

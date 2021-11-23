@@ -157,17 +157,9 @@ class Instruction():
 
 
 class Condition:
-	inversion_map = {
-		"eq": "ne", "ne": "eq", "le": "gt",
-		"ge": "lt", "lt": "ge", "gt": "le"
-	}
-
 	def __init__(self, cond: str) -> None:
-		assert cond in Condition.inversion_map
+		assert cond in [ "eq", "ne", "le", "lt", "ge", "gt" ]
 		self.cond = cond
-
-	def invert(self) -> Condition:
-		return Condition(Condition.inversion_map[self.cond])
 
 	def __str__(self) -> str:
 		return self.cond

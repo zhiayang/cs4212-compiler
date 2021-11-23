@@ -624,28 +624,45 @@ def typecheck_if(ts: TypecheckState, stmt: ast.IfStmt) -> List[ir3.Stmt]:
 def typecheck_while(ts: TypecheckState, stmt: ast.WhileLoop) -> List[ir3.Stmt]:
 
 	cond_label = ir3.Label(stmt.loc, ts.get_new_label())
-	stmts, cv = typecheck_cond(ts, stmt.condition)
+	cond_stmts, cv = typecheck_cond(ts, stmt.condition)
 
 	if (cvt := ts.get_value_type(cv)) != "Bool":
 		raise TCException(cv.loc, f"while-loop condition must be a 'Bool', found '{cvt}' instead")
 
-	# note that we need an explicit branch from the preceeding block to the current block,
-	# to have some semblance of basic-block structure. the redundant jump will be removed
-	# in a later optimisation pass... hopefully.
-	stmts = [ ir3.Branch(stmt.loc, cond_label.name), cond_label ] + stmts
 
 	body_stmts = typecheck_block(ts, stmt.body)
 
 	body_label = ir3.Label(stmt.loc, ts.get_new_label())
 	merge_label = ir3.Label(stmt.loc, ts.get_new_label())
 
-	# there's no break or continue, so there's no need to keep track of any of that.
-	return stmts + [
+	# to facilitate constant folding of the loop condition, we check the loop condition before
+	# even entering the loop, by pulling out the first-iteration-check "outside" of the loop. if
+	# this pass succeeds, then we go to the loop body (ie. don't check the condition twice); else
+	# we go straight to the merge block. this means if constant folding detects that the condition
+	# is always false **on the first iteration**, it will never enter the loop, and we can DCE the
+	# entire body. otherwise, if the body modifies the induction variable, we would not be able to
+	# eliminate the body.
+
+	# we can't just make a normal copy, since we need fresh variable names. calling it twice
+	# assumes that typechecking (individual exprs) is not stateful, which it shouldn't be.
+	cond_stmts2, cv2 = typecheck_cond(ts, stmt.condition)
+	return [
+		# first, generate the outer condition:
+		*cond_stmts2,
+		ir3.CondBranch(stmt.condition.loc, cv2, body_label.name),   # if it succeeds, go to the body
+		ir3.Branch(stmt.loc, merge_label.name),                     # else, go to the merge.
+
+		# the loop body jumps here directly, skipping the initial bits.
+		cond_label,
+		*cond_stmts,
+
 		ir3.CondBranch(stmt.condition.loc, cv, body_label.name),
 		ir3.Branch(body_stmts[0].loc, merge_label.name),
-		body_label
-	] + body_stmts + [
+
+		body_label,
+		*body_stmts,
 		ir3.Branch(body_stmts[-1].loc, cond_label.name),
+
 		merge_label
 	]
 
@@ -849,8 +866,11 @@ def convert_to_basic_blocks(ts: TypecheckState, retty: str, stmts: List[ir3.Stmt
 			# assume that there is an implicit jump, just by setting the parent of both true and false
 			# cases to this block.
 
-			true_blk = ir3.BasicBlock(stmt.loc, stmt.label, [], set([current]))
-			block_names[true_blk.name] = true_blk
+			if stmt.label not in block_names:
+				true_blk = ir3.BasicBlock(stmt.loc, stmt.label, [], set([current]))
+				block_names[true_blk.name] = true_blk
+			else:
+				block_names[stmt.label].predecessors.add(current)
 
 			exited_block = False
 			did_warn = False
@@ -983,13 +1003,13 @@ def typecheck_method(ts: TypecheckState, meth: ast.MethodDefn) -> ir3.FuncDefn:
 	ensure_temporaries_are_ssa(func)
 
 	if options.should_print_ir():
-		print(func)
+		iropt.print_with_stmt_nums(func)
 
 	if options.optimisations_enabled():
 		iropt.optimise(func)
 
 	if options.should_print_optimised_ir():
-		print(func)
+		iropt.print_with_stmt_nums(func)
 
 	return func
 

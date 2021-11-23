@@ -457,7 +457,63 @@ __divide_int:
 	ldmfd sp!, {{v1, v2, v3, v4, v5, fp, pc}}
 \end{minted}
 
-% subsubsection (Integer Division)
+% end subsubsection (Integer Division)
+
+
+\subsubsection{Function Calls}
+
+Function calls needed a little special consideration, apart from the mess with passing parameters on the stack. As
+the calling convention dictates, \ttt{a1 - a4} are clobbered on a call boundary, so they need to be saved, but clearly it
+would be suboptimal to always save and restore 4 registers on every call boundary.
+
+The solution here was to invert the variable live ranges, and map it with the assignments; this gets us a
+\enquote{register live range}, or ranges (statements) where each \itl{register} is live. Then, in deciding whether or not
+one of the \eqtt{a} registers should be saved, we check if it is live in any of the \itl{successors} to the call statement.
+
+This greatly reduces the amount of unnecessary stack traffic, which is good. This \enquote{optimisation} is always
+performed, since it is technically part of the register allocation machinery.
+
+However, I have yet to counter the situation where (for example, \eqtt{a1}) is not spilled, and it is used before
+and after a series of function calls; this results in the following (simplified) code:
+
+\begin{minted}{asm}
+stmfd sp!, {a1}          @ caller-save
+bl printf(PLT)
+ldmfd sp!, {a1}          @ caller-restore
+stmfd sp!, {a1}          @ caller-save
+bl printf(PLT)
+ldmfd sp!, {a1}          @ caller-restore
+stmfd sp!, {a1}          @ caller-save
+bl printf(PLT)
+ldmfd sp!, {a1}          @ caller-restore
+@ finally somewhere here, a1 is used
+mov v1, a1
+\end{minted}
+
+An assembly optimisation pass (discussed below) can reduce it a little to this:
+
+
+\begin{minted}{asm}
+stmfd sp!, {a1}
+bl printf(PLT)
+ldmfd sp, {a1}
+bl printf(PLT)
+ldmfd sp, {a1}
+bl printf(PLT)
+ldmfd sp!, {a1}
+mov v1, a1
+\end{minted}
+
+However, there are still a lot of unnecessary stack loads which cannot be eliminated by a simple analysis like this.
+I think mitigating this would require dataflow at the \itl{register} level (instead of variable-level), which
+I am not keen to do.
+
+
+
+% end subsubsection (Function Calls)
+
+
+
 
 
 \subsubsection{Strings}

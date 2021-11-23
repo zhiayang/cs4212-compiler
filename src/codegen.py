@@ -80,9 +80,6 @@ def codegen_binop(cs: CodegenState, fs: FuncState, expr: ir3.BinaryOp, dest_reg:
 		fs.emit(cgarm.mul(dest_reg, lhs, rhs))
 
 	elif expr.op in ["==", "!=", "<=", ">=", "<", ">"]:
-		instr_map   = {"==": "eq", "!=": "ne", "<=": "le", ">=": "ge", "<": "lt", ">": "gt"}
-		flipped_map = {"eq": "ne", "ne": "eq", "le": "gt", "ge": "lt", "lt": "ge", "gt": "le"}
-
 		lty = get_value_type(cs, fs, expr.lhs)
 		rty = get_value_type(cs, fs, expr.lhs)
 
@@ -103,14 +100,19 @@ def codegen_binop(cs: CodegenState, fs: FuncState, expr: ir3.BinaryOp, dest_reg:
 			post_function_call(cs, fs, spills, stack_adjust)
 
 		else:
+			# the "flip" here is not an exact flip! eg. `x == y` <-> `y == x`,
+			# `x >= y` <-> `y <= x`
+			inverse = {"eq": "ne", "ne": "eq", "le": "gt", "ge": "lt", "lt": "ge", "gt": "le" }
+			commutate = {"eq": "eq", "ne": "ne", "le": "ge", "ge": "le", "lt": "gt", "gt": "lt"}
+
 			cond = cgarm.Cond.from_operator(expr.op)
 			if lhs.is_constant():
-				cond = cond.invert()
+				cond = cgarm.Condition(commutate[cond.cond])
 				lhs, rhs = rhs, lhs
 
 			fs.emit(cgarm.cmp(lhs, rhs))
 			fs.emit(cgarm.mov_cond(dest_reg, cgarm.Constant(1), cond))
-			fs.emit(cgarm.mov_cond(dest_reg, cgarm.Constant(0), cond.invert()))
+			fs.emit(cgarm.mov_cond(dest_reg, cgarm.Constant(0), cgarm.Condition(inverse[cond.cond])))
 
 	elif expr.op == "&&":
 		fs.emit(cgarm.bit_and(dest_reg, lhs, rhs))
@@ -534,7 +536,7 @@ def codegen_method(cs: CodegenState, method: ir3.FuncDefn):
 	assigns, spills, reg_live_ranges, defined_on_entry = cgreg.allocate_registers(method)
 
 	if options.should_print_lowered_ir():
-		print(f"{method}")
+		iropt.print_with_stmt_nums(method)
 
 	# setup the function state
 	fs = FuncState(cs, method, assigns, spills, reg_live_ranges, defined_on_entry)

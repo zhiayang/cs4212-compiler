@@ -21,7 +21,7 @@ class Main
 		println("your string was:");
 		println(string);
 
-		println("done");
+		println("---");
 
 		new Foo().guess(69);
 	}

@@ -910,6 +910,21 @@ def get_statement_uses(stmt: ir3.Stmt) -> Set[str]:
 		return set()
 
 
+
+
+def recompute_block_predecessors(func: ir3.FuncDefn) -> None:
+	block_names: Dict[str, ir3.BasicBlock] = dict()
+	for b in func.blocks:
+		block_names[b.name] = b
+		b.predecessors.clear()
+
+	for b in func.blocks:
+		for s in b.stmts:
+			if isinstance(s, ir3.Branch) or isinstance(s, ir3.CondBranch):
+				block_names[s.label].predecessors.add(b)
+
+
+
 def renumber_statements(func: ir3.FuncDefn) -> List[ir3.Stmt]:
 	counter = 0
 	all_stmts: List[ir3.Stmt] = []
@@ -920,7 +935,12 @@ def renumber_statements(func: ir3.FuncDefn) -> List[ir3.Stmt]:
 			counter += 1
 			all_stmts.append(s)
 
+	recompute_block_predecessors(func)
 	return all_stmts
+
+
+
+
 
 
 def renumber_expressions(all_stmts: List[ir3.Stmt]) -> List[ir3.Expr]:
@@ -978,3 +998,16 @@ def get_side_effects(expr: ir3.Expr) -> Optional[ir3.Stmt]:
 
 def is_var_used_in_stmt(stmt: ir3.Stmt, var: str) -> bool:
 	return var in get_statement_uses(stmt)
+
+
+def print_with_stmt_nums(func: ir3.FuncDefn) -> None:
+	print(f"function {func.name}:")
+	for blk in func.blocks:
+		print(f"  Label {blk.name}:")
+		for s in blk.stmts:
+			print(f"   {s.id:2}:  {s}")
+	print("")
+
+
+
+
