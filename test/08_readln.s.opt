@@ -51,7 +51,7 @@ main_dummy:
 	ldr a1, =.string1_raw
 	bl printf(PLT)
 	add sp, sp, #4                          @ align adjustment (post)
-	ldr a2, =.string7                       @ _c16 = "done";
+	ldr a2, =.string7                       @ _c16 = "---";
 	sub sp, sp, #4                          @ println(_c16);; align adjustment (pre)
 	add a2, a2, #4
 	ldr a1, =.string1_raw
@@ -71,13 +71,17 @@ main_dummy:
 .type _J3Foo_5guessiE, %function
 _J3Foo_5guessiE:
 	@ spills:  <none>
-	@ assigns: 'tries' = a2;   '_c35' = v1;    'num' = v1;   '_c22' = v2;   '_c25' = v2
-	@           '_c28' = v2;    '_t0' = v2;    '_t1' = v2;    '_t2' = v2;      'x' = v3
+	@ assigns: 'tries' = a2;   '_c39' = v1;    'num' = v1;   '_c26' = v2;   '_c29' = v2
+	@           '_c32' = v2;    '_t0' = v2;    '_t1' = v2;    '_t2' = v2;    '_t4' = v2
+	@              'x' = v3
 	stmfd sp!, {v1, v2, v3, lr}
 	mov v1, a2
 ._J3Foo_5guessiE_entry:
 	mov v3, #0                              @ x = 0;
 	mov a2, #0                              @ tries = 0;
+	cmp v1, #0                              @ _t4 = 0 != num;
+	bne ._J3Foo_5guessiE_L8
+	b ._J3Foo_5guessiE_L9                   @ goto .L9;
 ._J3Foo_5guessiE_L1:
 	cmp v3, v1                              @ _t0 = x != num;
 	bne ._J3Foo_5guessiE_L8
@@ -93,8 +97,8 @@ _J3Foo_5guessiE:
 	cmp v3, v1                              @ _t2 = x < num;
 	blt ._J3Foo_5guessiE_L2
 ._J3Foo_5guessiE_L3:
-	ldr v2, =.string8                       @ _c22 = "lower";
-	stmfd sp!, {a2}                         @ println(_c22);; caller-save
+	ldr v2, =.string8                       @ _c26 = "lower";
+	stmfd sp!, {a2}                         @ println(_c26);; caller-save
 	mov a2, v2
 	add a2, a2, #4
 	ldr a1, =.string1_raw
@@ -102,8 +106,8 @@ _J3Foo_5guessiE:
 	ldmfd sp!, {a2}                         @ caller-restore
 	b ._J3Foo_5guessiE_L7                   @ goto .L7;
 ._J3Foo_5guessiE_L2:
-	ldr v2, =.string9                       @ _c25 = "higher";
-	stmfd sp!, {a2}                         @ println(_c25);; caller-save
+	ldr v2, =.string9                       @ _c29 = "higher";
+	stmfd sp!, {a2}                         @ println(_c29);; caller-save
 	mov a2, v2
 	add a2, a2, #4
 	ldr a1, =.string1_raw
@@ -111,8 +115,8 @@ _J3Foo_5guessiE:
 	ldmfd sp!, {a2}                         @ caller-restore
 	b ._J3Foo_5guessiE_L7                   @ goto .L7;
 ._J3Foo_5guessiE_L5:
-	ldr v2, =.string10                      @ _c28 = "uwu";
-	stmfd sp!, {a2}                         @ println(_c28);; caller-save
+	ldr v2, =.string10                      @ _c32 = "uwu";
+	stmfd sp!, {a2}                         @ println(_c32);; caller-save
 	mov a2, v2
 	add a2, a2, #4
 	ldr a1, =.string1_raw
@@ -122,8 +126,8 @@ _J3Foo_5guessiE:
 	add a2, a2, #1                          @ tries = tries + 1;
 	b ._J3Foo_5guessiE_L1                   @ goto .L1;
 ._J3Foo_5guessiE_L9:
-	ldr v1, =.string11                      @ _c35 = "tries:";
-	stmfd sp!, {a2}                         @ println(_c35);; caller-save
+	ldr v1, =.string11                      @ _c39 = "tries:";
+	stmfd sp!, {a2}                         @ println(_c39);; caller-save
 	mov a2, v1
 	add a2, a2, #4
 	ldr a1, =.string1_raw
@@ -290,9 +294,9 @@ __readln_string:
 
 .align 4
 .string7:
-    .word 4
+    .word 3
 .string7_raw:
-    .asciz "done"
+    .asciz "---"
 
 .align 4
 .string8:

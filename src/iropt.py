@@ -408,6 +408,7 @@ def propagate_constants(func: ir3.FuncDefn, all_stmts: List[ir3.Stmt]) -> bool:
 	def gen_func(stmt: ir3.Stmt, _: List[Any]) -> Set[tuple]:
 		if isinstance(stmt, ir3.AssignOp) and isinstance(stmt.rhs, ir3.ValueExpr):
 			if is_constant_value(stmt.rhs.value):
+				# print(f"{stmt.lhs} is a constant ({stmt.rhs.value}) at {stmt.id}")
 				return set([ (stmt.lhs, stmt.rhs.value) ])
 
 		return set()
@@ -418,6 +419,7 @@ def propagate_constants(func: ir3.FuncDefn, all_stmts: List[ir3.Stmt]) -> bool:
 			# this kills all.
 			killed: Set[tuple] = set()
 			if stmt.lhs in constants:
+				# print(f"kill {stmt.lhs} at {stmt.id}")
 				for vals in constants[stmt.lhs]:
 					killed.add((stmt.lhs, vals))
 
@@ -656,9 +658,23 @@ def forward_dataflow(func: ir3.FuncDefn, all_stmts: List[ir3.Stmt], set_types: T
 			ins[n] = reduce((set.union if union else set.intersection), map(lambda p: outs[p], predecessors[n]))
 
 		outs[n] = gens[n].union(ins[n] - kills[n])
+		# print(f"ins({n}):   {ins[n]}")
+		# print(f"outs({n}):  {outs[n]}")
+		# print(f"gens({n}):  {gens[n]}")
+		# print(f"kills({n}): {kills[n]}")
+		# print(f"preds({n}): {predecessors[n]}")
+		# print(f"succs({n}): {successors[n]}\n")
 
 		if old_out != outs[n] and n in successors:
 			queue.extend(successors[n])
+
+	# print(f"func: {func.name}")
+	# for blk in func.blocks:
+	# 	print(f">> {blk.name}")
+	# 	for s in blk.stmts:
+	# 		print(f"{s.id:02}  {s}     -- {predecessors[s.id]}")
+	# 		print(f"  in =  {ins[s.id]}")
+	# 		print(f"  out = {outs[s.id]}")
 
 	return ins, outs, gens, kills
 

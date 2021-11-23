@@ -3,16 +3,22 @@
 .type main_dummy, %function
 main_dummy:
 	@ spills:  <none>
-	@ assigns:   'a' = a2;  '_c7' = v1;  '_t0' = v1;  '_t1' = v1;    'c' = v1
-	@            'b' = v2
+	@ assigns:    'a' = a2;  '_c11' = v1;   '_c6' = v1;   '_t0' = v1;   '_t1' = v1
+	@           '_t2' = v1;     'c' = v1;     'b' = v2
 	stmfd sp!, {v1, v2, lr}
 .main_dummy_entry:
 	mov a2, #0                              @ a = 0;
 	mov v2, #1                              @ b = 1;
-	b .main_dummy_L1                        @ goto .L1;
+	ldr v1, =#1836311903                    @ _c6 = 1836311903;
+	cmp a2, v1                              @ _t2 = a != _c6;
+	movne v1, #1
+	moveq v1, #0
+	cmp v1, #0                              @ if (_t2) goto .L2;
+	bne .main_dummy_L2
+	b .main_dummy_L3                        @ goto .L3;
 .main_dummy_L1:
-	ldr v1, =#1836311903                    @ _c7 = 1836311903;
-	cmp a2, v1                              @ _t0 = a != _c7;
+	ldr v1, =#1836311903                    @ _c11 = 1836311903;
+	cmp a2, v1                              @ _t0 = a != _c11;
 	movne v1, #1
 	moveq v1, #0
 	cmp v1, #0                              @ if (_t0) goto .L2;

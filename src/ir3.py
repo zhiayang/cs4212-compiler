@@ -44,7 +44,7 @@ class ConstantString(Value):
 		self.value: str = value
 
 	def __str__(self) -> str:
-		return f"\"{self.value}\""
+		return f"\"{escape_string(self.value)}\""
 
 	def __eq__(self, other: object) -> bool:
 		return isinstance(other, ConstantString) and other.value == self.value

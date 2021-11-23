@@ -256,8 +256,18 @@ def typecheck_binaryop(ts: TypecheckState, bi: ast.BinaryOp) -> Tuple[List[ir3.S
 	if bi.op not in ["+", "-", "*", "/", "&&", "||", "==", "!=", ">", "<", ">=", "<="]:
 		raise TCException(bi.loc, f"unknown unary operator '{bi.op}'")
 
+	# special case: if we have string + null or null + string, then just return the string.
+	if t1 == "String" and t2 == "$NullObject":
+		return [*s1, *s2], v1
+
+	elif t1 == "$NullObject" and t2 == "String":
+		return [*s1, *s2], v2
+
 	if t1 != t2:
 		raise TCException(bi.loc, f"incompatible types '{t1}' and '{t2}' for operator '{bi.op}'")
+
+	elif t1 == "$NullObject" and t2 == "$NullObject":
+		raise TCException(bi.loc, f"ambiguous operator '+' on two 'null's")
 
 	allowables = {
 		"Int": ["+", "-", "*", "/", "==", "!=", ">", "<", ">=", "<="],

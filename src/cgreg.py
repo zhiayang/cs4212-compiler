@@ -188,13 +188,13 @@ def alloc_function(func: ir3.FuncDefn, prespilled: Set[str] = set()) -> Tuple[Di
 		reg_live_ranges.setdefault(assigns[var], set()).update(live_ranges[var])
 		# reg_live_ranges[assigns[var]] = set(range(0, len(stmts)))
 
-	if func.name == "main_dummy":
+	# if func.name == "main_dummy":
 		# print(f"var ranges = {live_ranges}")
 		# print(f"reg ranges = {reg_live_ranges}")
 
 		# print(f"preds: {preds}")
-		for bb in func.blocks:
-			print(f"{bb.name} preds = {list(map(lambda x: x.name, bb.predecessors))}")
+		# for bb in func.blocks:
+			# print(f"{bb.name} preds = {list(map(lambda x: x.name, bb.predecessors))}")
 
 
 	# print(f"assigns = {assigns}")

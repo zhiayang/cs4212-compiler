@@ -6,7 +6,7 @@ class Main
 	{
 		Foo f;
 
-		println("hello, world!");
+		println("hello, world!" + null);
 		f = new Foo().bar().bar().bar();
 
 		println(f.f1);

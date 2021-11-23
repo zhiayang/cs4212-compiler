@@ -112,4 +112,3 @@ class Foo
 		println(dd);
 	}
 }
-

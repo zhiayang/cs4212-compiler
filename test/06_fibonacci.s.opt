@@ -8,6 +8,7 @@ main_dummy:
 .main_dummy_entry:
 	mov a2, #0                              @ a = 0;
 	mov v2, #1                              @ b = 1;
+	b .main_dummy_L2                        @ goto .L2;
 .main_dummy_L1:
 	ldr v1, =#1836311903                    @ _c7 = 1836311903;
 	cmp a2, v1                              @ _t0 = a != _c7;

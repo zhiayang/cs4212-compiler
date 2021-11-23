@@ -3,11 +3,11 @@
 .type main_dummy, %function
 main_dummy:
 	@ spills:  'a'
-	@ assigns: '_t44' = a1;  '_t48' = a1;     'd' = a1;  '_c35' = a2;  '_c48' = a2
-	@          '_c55' = a2;  '_t38' = a2;  '_t40' = a2;  '_t41' = a2;  '_t42' = a2
-	@          '_t43' = a2;     'a' = a2;    'yy' = a2;     'c' = a3;     'b' = a4
+	@ assigns: '_t47' = a1;  '_t51' = a1;     'd' = a1;  '_c35' = a2;  '_c48' = a2
+	@          '_c55' = a2;  '_t38' = a2;  '_t43' = a2;  '_t44' = a2;  '_t45' = a2
+	@          '_t46' = a2;     'a' = a2;    'yy' = a2;     'c' = a3;     'b' = a4
 	@             'g' = fp;  '_c23' = v1;    'xx' = v1;     'h' = v2;    'gg' = v3
-	@          '_t46' = v4;     'f' = v4;  '_t45' = v5;     'e' = v5
+	@          '_t49' = v4;     'f' = v4;  '_t48' = v5;     'e' = v5
 	stmfd sp!, {lr}
 	sub sp, sp, #8
 	stmfd sp!, {v1, v2, v3, v4, v5, fp}
@@ -49,17 +49,18 @@ main_dummy:
 	ldr a1, =.string0_raw
 	bl printf(PLT)
 	ldmfd sp!, {a1, a3, a4}                 @ caller-restore
+	b .main_dummy_L5                        @ goto .L5;
 .main_dummy_L4:
 	cmp v2, #100                            @ _t38 = h > 100;
 	bgt .main_dummy_L5
-	b .main_dummy_L7                        @ goto .L7;
+	b .main_dummy_L6                        @ goto .L6;
 .main_dummy_L5:
 	sub v2, v2, #50                         @ h = h - 50;
 	b .main_dummy_L4                        @ goto .L4;
-.main_dummy_L7:
+.main_dummy_L6:
 	ldr a2, =#10000                         @ _c48 = 10000;
-	add a2, fp, a2                          @ _t40 = g + _c48;
-	cmp a2, fp                              @ _t41 = _t40 < g;
+	add a2, fp, a2                          @ _t43 = g + _c48;
+	cmp a2, fp                              @ _t44 = _t43 < g;
 	blt .main_dummy_L8
 	b .main_dummy_L9                        @ goto .L9;
 .main_dummy_L8:
@@ -70,15 +71,14 @@ main_dummy:
 	bl printf(PLT)
 	ldmfd sp!, {a1, a3, a4}                 @ caller-restore
 	mov fp, #100                            @ g = 100;
-	b .main_dummy_L7                        @ goto .L7;
 .main_dummy_L9:
 	ldr a2, [sp, #4]                        @ restore a;
-	add a2, a2, a4                          @ _t42 = a + b;
-	add a2, a2, a3                          @ _t43 = _t42 + c;
-	add a1, a2, a1                          @ _t44 = _t43 + d;
-	add v5, a1, v5                          @ _t45 = _t44 + e;
-	add v4, v5, v4                          @ _t46 = _t45 + f;
-	add a2, v4, fp                          @ yy = _t46 + g;
+	add a2, a2, a4                          @ _t45 = a + b;
+	add a2, a2, a3                          @ _t46 = _t45 + c;
+	add a1, a2, a1                          @ _t47 = _t46 + d;
+	add v5, a1, v5                          @ _t48 = _t47 + e;
+	add v4, v5, v4                          @ _t49 = _t48 + f;
+	add a2, v4, fp                          @ yy = _t49 + g;
 	stmfd sp!, {a2}                         @ println(h);; caller-save
 	mov a2, v2
 	ldr a1, =.string0_raw
