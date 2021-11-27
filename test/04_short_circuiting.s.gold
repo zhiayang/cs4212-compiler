@@ -14,19 +14,19 @@ main_dummy:
 	add sp, sp, #4                          @ align adjustment (post)
 	ldr a3, =#420                           @ _c4 = 420;
 	sub sp, sp, #4                          @ _t1 = _J3Foo_4testiiE(_t0, 10, _c4);; align adjustment (pre)
-	mov a1, a1
-	mov a2, #10
-	mov a3, a3
-	bl _J3Foo_4testiiE
+	mov a1, a1                              @ arg 4
+	mov a2, #10                             @ arg 5
+	mov a3, a3                              @ arg 6
+	bl _J3Foo_4testiiE                      @ _J3Foo_4testiiE(_t0, 10, _c4)
 	mov a2, a1
 	add sp, sp, #4                          @ align adjustment (post)
-	sub sp, sp, #4                          @ println(_t1);; align adjustment (pre)
+	sub sp, sp, #4                          @ align adjustment (pre)
 	mov a2, a2
 	add a2, a2, #4
 	ldr a1, =.string0_raw
-	bl printf(PLT)
+	bl printf(PLT)                          @ println(_t1);
 	add sp, sp, #4                          @ align adjustment (post)
-	b .main_dummy_exit                      @ return;
+	b .main_dummy_exit
 .main_dummy_exit:
 	ldmfd sp!, {pc}
 
@@ -55,24 +55,24 @@ _J3Foo_4testiiE:
 ._J3Foo_4testiiE_entry:
 	sub sp, sp, #4                          @ _t0 = _J3Foo_7effect1E(this);; align adjustment (pre)
 	stmfd sp!, {a1, a2}                     @ caller-save
-	mov a1, a1
-	bl _J3Foo_7effect1E
+	mov a1, a1                              @ arg 4
+	bl _J3Foo_7effect1E                     @ _J3Foo_7effect1E(this)
 	mov v1, a1
 	ldmfd sp!, {a1, a2}                     @ caller-restore
 	add sp, sp, #4                          @ align adjustment (post)
-	cmp v1, #0                              @ if (_t0) goto .L1;
-	bne ._J3Foo_4testiiE_L1
+	cmp v1, #0
+	bne ._J3Foo_4testiiE_L1                 @ if (_t0) goto .L1;
 	b ._J3Foo_4testiiE_L2                   @ goto .L2;
 ._J3Foo_4testiiE_L2:
 	sub sp, sp, #4                          @ _t1 = _J3Foo_7effect2E(this);; align adjustment (pre)
 	stmfd sp!, {a1, a2}                     @ caller-save
-	mov a1, a1
-	bl _J3Foo_7effect2E
+	mov a1, a1                              @ arg 4
+	bl _J3Foo_7effect2E                     @ _J3Foo_7effect2E(this)
 	mov v1, a1
 	ldmfd sp!, {a1, a2}                     @ caller-restore
 	add sp, sp, #4                          @ align adjustment (post)
-	cmp v1, #0                              @ if (_t1) goto .L1;
-	bne ._J3Foo_4testiiE_L1
+	cmp v1, #0
+	bne ._J3Foo_4testiiE_L1                 @ if (_t1) goto .L1;
 	b ._J3Foo_4testiiE_L3                   @ goto .L3;
 ._J3Foo_4testiiE_L3:
 	mov v1, #0                              @ _t4 = false;
@@ -81,28 +81,28 @@ _J3Foo_4testiiE:
 	mov v1, #1                              @ _t4 = true;
 	b ._J3Foo_4testiiE_L4                   @ goto .L4;
 ._J3Foo_4testiiE_L4:
-	cmp v1, #0                              @ if (_t4) goto .L5;
-	bne ._J3Foo_4testiiE_L5
+	cmp v1, #0
+	bne ._J3Foo_4testiiE_L5                 @ if (_t4) goto .L5;
 	b ._J3Foo_4testiiE_L6                   @ goto .L6;
 ._J3Foo_4testiiE_L6:
 	ldr v1, =.string1                       @ _c18 = "??????????";
-	sub sp, sp, #4                          @ println(_c18);; align adjustment (pre)
+	sub sp, sp, #4                          @ align adjustment (pre)
 	stmfd sp!, {a1, a2}                     @ caller-save
 	mov a2, v1
 	add a2, a2, #4
 	ldr a1, =.string0_raw
-	bl printf(PLT)
+	bl printf(PLT)                          @ println(_c18);
 	ldmfd sp!, {a1, a2}                     @ caller-restore
 	add sp, sp, #4                          @ align adjustment (post)
 	b ._J3Foo_4testiiE_L7                   @ goto .L7;
 ._J3Foo_4testiiE_L5:
 	ldr v1, =.string2                       @ _c21 = "uwu";
-	sub sp, sp, #4                          @ println(_c21);; align adjustment (pre)
+	sub sp, sp, #4                          @ align adjustment (pre)
 	stmfd sp!, {a1, a2}                     @ caller-save
 	mov a2, v1
 	add a2, a2, #4
 	ldr a1, =.string0_raw
-	bl printf(PLT)
+	bl printf(PLT)                          @ println(_c21);
 	ldmfd sp!, {a1, a2}                     @ caller-restore
 	add sp, sp, #4                          @ align adjustment (post)
 	b ._J3Foo_4testiiE_L7                   @ goto .L7;
@@ -114,20 +114,20 @@ _J3Foo_4testiiE:
 	movlt v1, #1
 	movge v1, #0
 	and v1, v2, v1                          @ _t19 = _t15 && _t16;
-	cmp v1, #0                              @ if (_t19) goto .L15;
-	bne ._J3Foo_4testiiE_L15
+	cmp v1, #0
+	bne ._J3Foo_4testiiE_L15                @ if (_t19) goto .L15;
 	b ._J3Foo_4testiiE_L16                  @ goto .L16;
 ._J3Foo_4testiiE_L16:
 	sub sp, sp, #4                          @ _t20 = _J3Foo_7effect3iE(this, x);; align adjustment (pre)
 	stmfd sp!, {a1, a2}                     @ caller-save
-	mov a1, a1
-	mov a2, a2
-	bl _J3Foo_7effect3iE
+	mov a1, a1                              @ arg 4
+	mov a2, a2                              @ arg 5
+	bl _J3Foo_7effect3iE                    @ _J3Foo_7effect3iE(this, x)
 	mov v1, a1
 	ldmfd sp!, {a1, a2}                     @ caller-restore
 	add sp, sp, #4                          @ align adjustment (post)
-	cmp v1, #0                              @ if (_t20) goto .L15;
-	bne ._J3Foo_4testiiE_L15
+	cmp v1, #0
+	bne ._J3Foo_4testiiE_L15                @ if (_t20) goto .L15;
 	b ._J3Foo_4testiiE_L17                  @ goto .L17;
 ._J3Foo_4testiiE_L17:
 	mov v1, #0                              @ _t23 = false;
@@ -136,8 +136,8 @@ _J3Foo_4testiiE:
 	mov v1, #1                              @ _t23 = true;
 	b ._J3Foo_4testiiE_L18                  @ goto .L18;
 ._J3Foo_4testiiE_L18:
-	cmp v1, #0                              @ if (_t23) goto .L13;
-	bne ._J3Foo_4testiiE_L13
+	cmp v1, #0
+	bne ._J3Foo_4testiiE_L13                @ if (_t23) goto .L13;
 	b ._J3Foo_4testiiE_L14                  @ goto .L14;
 ._J3Foo_4testiiE_L8:
 	cmp a2, #0                              @ _t5 = x >= 0;
@@ -147,20 +147,20 @@ _J3Foo_4testiiE:
 	movlt v1, #1
 	movge v1, #0
 	and v1, v2, v1                          @ _t9 = _t5 && _t6;
-	cmp v1, #0                              @ if (_t9) goto .L9;
-	bne ._J3Foo_4testiiE_L9
+	cmp v1, #0
+	bne ._J3Foo_4testiiE_L9                 @ if (_t9) goto .L9;
 	b ._J3Foo_4testiiE_L10                  @ goto .L10;
 ._J3Foo_4testiiE_L10:
 	sub sp, sp, #4                          @ _t10 = _J3Foo_7effect3iE(this, x);; align adjustment (pre)
 	stmfd sp!, {a1, a2}                     @ caller-save
-	mov a1, a1
-	mov a2, a2
-	bl _J3Foo_7effect3iE
+	mov a1, a1                              @ arg 4
+	mov a2, a2                              @ arg 5
+	bl _J3Foo_7effect3iE                    @ _J3Foo_7effect3iE(this, x)
 	mov v1, a1
 	ldmfd sp!, {a1, a2}                     @ caller-restore
 	add sp, sp, #4                          @ align adjustment (post)
-	cmp v1, #0                              @ if (_t10) goto .L9;
-	bne ._J3Foo_4testiiE_L9
+	cmp v1, #0
+	bne ._J3Foo_4testiiE_L9                 @ if (_t10) goto .L9;
 	b ._J3Foo_4testiiE_L11                  @ goto .L11;
 ._J3Foo_4testiiE_L11:
 	mov v1, #0                              @ _t13 = false;
@@ -169,17 +169,17 @@ _J3Foo_4testiiE:
 	mov v1, #1                              @ _t13 = true;
 	b ._J3Foo_4testiiE_L12                  @ goto .L12;
 ._J3Foo_4testiiE_L12:
-	cmp v1, #0                              @ if (_t13) goto .L13;
-	bne ._J3Foo_4testiiE_L13
+	cmp v1, #0
+	bne ._J3Foo_4testiiE_L13                @ if (_t13) goto .L13;
 	b ._J3Foo_4testiiE_L14                  @ goto .L14;
 ._J3Foo_4testiiE_L13:
 	ldr v1, =.string3                       @ _c74 = "owo";
-	sub sp, sp, #4                          @ println(_c74);; align adjustment (pre)
+	sub sp, sp, #4                          @ align adjustment (pre)
 	stmfd sp!, {a1, a2}                     @ caller-save
 	mov a2, v1
 	add a2, a2, #4
 	ldr a1, =.string0_raw
-	bl printf(PLT)
+	bl printf(PLT)                          @ println(_c74);
 	ldmfd sp!, {a1, a2}                     @ caller-restore
 	add sp, sp, #4                          @ align adjustment (post)
 	sub v1, a2, #1                          @ _t14 = x - 1;
@@ -187,25 +187,25 @@ _J3Foo_4testiiE:
 	b ._J3Foo_4testiiE_L8                   @ goto .L8;
 ._J3Foo_4testiiE_L14:
 	stmfd sp!, {a1}                         @ _t24 = _J3Foo_7effect2E(this);; caller-save
-	mov a1, a1
-	bl _J3Foo_7effect2E
+	mov a1, a1                              @ arg 4
+	bl _J3Foo_7effect2E                     @ _J3Foo_7effect2E(this)
 	mov v1, a1
 	ldmfd sp!, {a1}                         @ caller-restore
-	cmp v1, #0                              @ if (_t24) goto .L19;
-	bne ._J3Foo_4testiiE_L19
+	cmp v1, #0
+	bne ._J3Foo_4testiiE_L19                @ if (_t24) goto .L19;
 	b ._J3Foo_4testiiE_L20                  @ goto .L20;
 ._J3Foo_4testiiE_L20:
 	mov v1, #0                              @ _t28 = false;
 	b ._J3Foo_4testiiE_L23                  @ goto .L23;
 ._J3Foo_4testiiE_L19:
 	stmfd sp!, {a1}                         @ _t25 = _J3Foo_7effect3iE(this, 69);; caller-save
-	mov a1, a1
-	mov a2, #69
-	bl _J3Foo_7effect3iE
+	mov a1, a1                              @ arg 4
+	mov a2, #69                             @ arg 5
+	bl _J3Foo_7effect3iE                    @ _J3Foo_7effect3iE(this, 69)
 	mov v1, a1
 	ldmfd sp!, {a1}                         @ caller-restore
-	cmp v1, #0                              @ if (_t25) goto .L21;
-	bne ._J3Foo_4testiiE_L21
+	cmp v1, #0
+	bne ._J3Foo_4testiiE_L21                @ if (_t25) goto .L21;
 	b ._J3Foo_4testiiE_L22                  @ goto .L22;
 ._J3Foo_4testiiE_L22:
 	mov v1, #0                              @ _t28 = false;
@@ -214,49 +214,49 @@ _J3Foo_4testiiE:
 	mov v1, #1                              @ _t28 = true;
 	b ._J3Foo_4testiiE_L23                  @ goto .L23;
 ._J3Foo_4testiiE_L23:
-	cmp v1, #0                              @ if (_t28) goto .L24;
-	bne ._J3Foo_4testiiE_L24
+	cmp v1, #0
+	bne ._J3Foo_4testiiE_L24                @ if (_t28) goto .L24;
 	b ._J3Foo_4testiiE_L25                  @ goto .L25;
 ._J3Foo_4testiiE_L25:
 	ldr a2, =.string4                       @ _c103 = "asdf";
-	stmfd sp!, {a1}                         @ println(_c103);; caller-save
+	stmfd sp!, {a1}                         @ caller-save
 	mov a2, a2
 	add a2, a2, #4
 	ldr a1, =.string0_raw
-	bl printf(PLT)
+	bl printf(PLT)                          @ println(_c103);
 	ldmfd sp!, {a1}                         @ caller-restore
 	b ._J3Foo_4testiiE_L26                  @ goto .L26;
 ._J3Foo_4testiiE_L24:
 	ldr a2, =.string5                       @ _c106 = "oh no";
-	stmfd sp!, {a1}                         @ println(_c106);; caller-save
+	stmfd sp!, {a1}                         @ caller-save
 	mov a2, a2
 	add a2, a2, #4
 	ldr a1, =.string0_raw
-	bl printf(PLT)
+	bl printf(PLT)                          @ println(_c106);
 	ldmfd sp!, {a1}                         @ caller-restore
 	b ._J3Foo_4testiiE_L26                  @ goto .L26;
 ._J3Foo_4testiiE_L26:
 	stmfd sp!, {a1}                         @ _t30 = _J3Foo_7effect2E(this);; caller-save
-	mov a1, a1
-	bl _J3Foo_7effect2E
+	mov a1, a1                              @ arg 4
+	bl _J3Foo_7effect2E                     @ _J3Foo_7effect2E(this)
 	mov v1, a1
 	ldmfd sp!, {a1}                         @ caller-restore
 	rsb v1, v1, #1                          @ _t31 = !_t30;
-	cmp v1, #0                              @ if (_t31) goto .L27;
-	bne ._J3Foo_4testiiE_L27
+	cmp v1, #0
+	bne ._J3Foo_4testiiE_L27                @ if (_t31) goto .L27;
 	b ._J3Foo_4testiiE_L28                  @ goto .L28;
 ._J3Foo_4testiiE_L28:
 	mov v1, #0                              @ _t35 = false;
 	b ._J3Foo_4testiiE_L31                  @ goto .L31;
 ._J3Foo_4testiiE_L27:
 	stmfd sp!, {a1}                         @ _t32 = _J3Foo_7effect3iE(this, 4);; caller-save
-	mov a1, a1
-	mov a2, #4
-	bl _J3Foo_7effect3iE
+	mov a1, a1                              @ arg 4
+	mov a2, #4                              @ arg 5
+	bl _J3Foo_7effect3iE                    @ _J3Foo_7effect3iE(this, 4)
 	mov v1, a1
 	ldmfd sp!, {a1}                         @ caller-restore
-	cmp v1, #0                              @ if (_t32) goto .L29;
-	bne ._J3Foo_4testiiE_L29
+	cmp v1, #0
+	bne ._J3Foo_4testiiE_L29                @ if (_t32) goto .L29;
 	b ._J3Foo_4testiiE_L30                  @ goto .L30;
 ._J3Foo_4testiiE_L30:
 	mov v1, #0                              @ _t35 = false;
@@ -265,44 +265,44 @@ _J3Foo_4testiiE:
 	mov v1, #1                              @ _t35 = true;
 	b ._J3Foo_4testiiE_L31                  @ goto .L31;
 ._J3Foo_4testiiE_L31:
-	cmp v1, #0                              @ if (_t35) goto .L32;
-	bne ._J3Foo_4testiiE_L32
+	cmp v1, #0
+	bne ._J3Foo_4testiiE_L32                @ if (_t35) goto .L32;
 	b ._J3Foo_4testiiE_L33                  @ goto .L33;
 ._J3Foo_4testiiE_L33:
 	ldr a2, =.string6                       @ _c132 = "bsdf";
-	stmfd sp!, {a1}                         @ println(_c132);; caller-save
+	stmfd sp!, {a1}                         @ caller-save
 	mov a2, a2
 	add a2, a2, #4
 	ldr a1, =.string0_raw
-	bl printf(PLT)
+	bl printf(PLT)                          @ println(_c132);
 	ldmfd sp!, {a1}                         @ caller-restore
 	b ._J3Foo_4testiiE_L34                  @ goto .L34;
 ._J3Foo_4testiiE_L32:
 	ldr a2, =.string5                       @ _c135 = "oh no";
-	stmfd sp!, {a1}                         @ println(_c135);; caller-save
+	stmfd sp!, {a1}                         @ caller-save
 	mov a2, a2
 	add a2, a2, #4
 	ldr a1, =.string0_raw
-	bl printf(PLT)
+	bl printf(PLT)                          @ println(_c135);
 	ldmfd sp!, {a1}                         @ caller-restore
 	b ._J3Foo_4testiiE_L34                  @ goto .L34;
 ._J3Foo_4testiiE_L34:
 	stmfd sp!, {a1}                         @ _t37 = _J3Foo_7effect2E(this);; caller-save
-	mov a1, a1
-	bl _J3Foo_7effect2E
+	mov a1, a1                              @ arg 4
+	bl _J3Foo_7effect2E                     @ _J3Foo_7effect2E(this)
 	mov v1, a1
 	ldmfd sp!, {a1}                         @ caller-restore
-	cmp v1, #0                              @ if (_t37) goto .L35;
-	bne ._J3Foo_4testiiE_L35
+	cmp v1, #0
+	bne ._J3Foo_4testiiE_L35                @ if (_t37) goto .L35;
 	b ._J3Foo_4testiiE_L36                  @ goto .L36;
 ._J3Foo_4testiiE_L36:
 	stmfd sp!, {a1}                         @ _t38 = _J3Foo_7effect2E(this);; caller-save
-	mov a1, a1
-	bl _J3Foo_7effect2E
+	mov a1, a1                              @ arg 4
+	bl _J3Foo_7effect2E                     @ _J3Foo_7effect2E(this)
 	mov v1, a1
 	ldmfd sp!, {a1}                         @ caller-restore
-	cmp v1, #0                              @ if (_t38) goto .L35;
-	bne ._J3Foo_4testiiE_L35
+	cmp v1, #0
+	bne ._J3Foo_4testiiE_L35                @ if (_t38) goto .L35;
 	b ._J3Foo_4testiiE_L37                  @ goto .L37;
 ._J3Foo_4testiiE_L37:
 	mov v1, #0                              @ _t41 = false;
@@ -311,17 +311,17 @@ _J3Foo_4testiiE:
 	mov v1, #1                              @ _t41 = true;
 	b ._J3Foo_4testiiE_L38                  @ goto .L38;
 ._J3Foo_4testiiE_L38:
-	cmp v1, #0                              @ if (_t41) goto .L39;
-	bne ._J3Foo_4testiiE_L39
+	cmp v1, #0
+	bne ._J3Foo_4testiiE_L39                @ if (_t41) goto .L39;
 	b ._J3Foo_4testiiE_L40                  @ goto .L40;
 ._J3Foo_4testiiE_L40:
 	stmfd sp!, {a1}                         @ _t42 = _J3Foo_7effect2E(this);; caller-save
-	mov a1, a1
-	bl _J3Foo_7effect2E
+	mov a1, a1                              @ arg 4
+	bl _J3Foo_7effect2E                     @ _J3Foo_7effect2E(this)
 	mov v1, a1
 	ldmfd sp!, {a1}                         @ caller-restore
-	cmp v1, #0                              @ if (_t42) goto .L39;
-	bne ._J3Foo_4testiiE_L39
+	cmp v1, #0
+	bne ._J3Foo_4testiiE_L39                @ if (_t42) goto .L39;
 	b ._J3Foo_4testiiE_L41                  @ goto .L41;
 ._J3Foo_4testiiE_L41:
 	mov v1, #0                              @ _t45 = false;
@@ -330,17 +330,17 @@ _J3Foo_4testiiE:
 	mov v1, #1                              @ _t45 = true;
 	b ._J3Foo_4testiiE_L42                  @ goto .L42;
 ._J3Foo_4testiiE_L42:
-	cmp v1, #0                              @ if (_t45) goto .L43;
-	bne ._J3Foo_4testiiE_L43
+	cmp v1, #0
+	bne ._J3Foo_4testiiE_L43                @ if (_t45) goto .L43;
 	b ._J3Foo_4testiiE_L44                  @ goto .L44;
 ._J3Foo_4testiiE_L44:
 	stmfd sp!, {a1}                         @ _t46 = _J3Foo_7effect2E(this);; caller-save
-	mov a1, a1
-	bl _J3Foo_7effect2E
+	mov a1, a1                              @ arg 4
+	bl _J3Foo_7effect2E                     @ _J3Foo_7effect2E(this)
 	mov v1, a1
 	ldmfd sp!, {a1}                         @ caller-restore
-	cmp v1, #0                              @ if (_t46) goto .L43;
-	bne ._J3Foo_4testiiE_L43
+	cmp v1, #0
+	bne ._J3Foo_4testiiE_L43                @ if (_t46) goto .L43;
 	b ._J3Foo_4testiiE_L45                  @ goto .L45;
 ._J3Foo_4testiiE_L45:
 	mov v1, #0                              @ _t49 = false;
@@ -349,17 +349,17 @@ _J3Foo_4testiiE:
 	mov v1, #1                              @ _t49 = true;
 	b ._J3Foo_4testiiE_L46                  @ goto .L46;
 ._J3Foo_4testiiE_L46:
-	cmp v1, #0                              @ if (_t49) goto .L47;
-	bne ._J3Foo_4testiiE_L47
+	cmp v1, #0
+	bne ._J3Foo_4testiiE_L47                @ if (_t49) goto .L47;
 	b ._J3Foo_4testiiE_L48                  @ goto .L48;
 ._J3Foo_4testiiE_L48:
 	stmfd sp!, {a1}                         @ _t50 = _J3Foo_7effect2E(this);; caller-save
-	mov a1, a1
-	bl _J3Foo_7effect2E
+	mov a1, a1                              @ arg 4
+	bl _J3Foo_7effect2E                     @ _J3Foo_7effect2E(this)
 	mov v1, a1
 	ldmfd sp!, {a1}                         @ caller-restore
-	cmp v1, #0                              @ if (_t50) goto .L47;
-	bne ._J3Foo_4testiiE_L47
+	cmp v1, #0
+	bne ._J3Foo_4testiiE_L47                @ if (_t50) goto .L47;
 	b ._J3Foo_4testiiE_L49                  @ goto .L49;
 ._J3Foo_4testiiE_L49:
 	mov v1, #0                              @ _t53 = false;
@@ -368,17 +368,17 @@ _J3Foo_4testiiE:
 	mov v1, #1                              @ _t53 = true;
 	b ._J3Foo_4testiiE_L50                  @ goto .L50;
 ._J3Foo_4testiiE_L50:
-	cmp v1, #0                              @ if (_t53) goto .L51;
-	bne ._J3Foo_4testiiE_L51
+	cmp v1, #0
+	bne ._J3Foo_4testiiE_L51                @ if (_t53) goto .L51;
 	b ._J3Foo_4testiiE_L52                  @ goto .L52;
 ._J3Foo_4testiiE_L52:
 	stmfd sp!, {a1}                         @ _t54 = _J3Foo_7effect1E(this);; caller-save
-	mov a1, a1
-	bl _J3Foo_7effect1E
+	mov a1, a1                              @ arg 4
+	bl _J3Foo_7effect1E                     @ _J3Foo_7effect1E(this)
 	mov v1, a1
 	ldmfd sp!, {a1}                         @ caller-restore
-	cmp v1, #0                              @ if (_t54) goto .L51;
-	bne ._J3Foo_4testiiE_L51
+	cmp v1, #0
+	bne ._J3Foo_4testiiE_L51                @ if (_t54) goto .L51;
 	b ._J3Foo_4testiiE_L53                  @ goto .L53;
 ._J3Foo_4testiiE_L53:
 	mov v1, #0                              @ _t57 = false;
@@ -387,47 +387,47 @@ _J3Foo_4testiiE:
 	mov v1, #1                              @ _t57 = true;
 	b ._J3Foo_4testiiE_L54                  @ goto .L54;
 ._J3Foo_4testiiE_L54:
-	cmp v1, #0                              @ if (_t57) goto .L55;
-	bne ._J3Foo_4testiiE_L55
+	cmp v1, #0
+	bne ._J3Foo_4testiiE_L55                @ if (_t57) goto .L55;
 	b ._J3Foo_4testiiE_L56                  @ goto .L56;
 ._J3Foo_4testiiE_L56:
 	ldr a2, =.string5                       @ _c207 = "oh no";
-	stmfd sp!, {a1}                         @ println(_c207);; caller-save
+	stmfd sp!, {a1}                         @ caller-save
 	mov a2, a2
 	add a2, a2, #4
 	ldr a1, =.string0_raw
-	bl printf(PLT)
+	bl printf(PLT)                          @ println(_c207);
 	ldmfd sp!, {a1}                         @ caller-restore
 	b ._J3Foo_4testiiE_L57                  @ goto .L57;
 ._J3Foo_4testiiE_L55:
 	ldr a2, =.string7                       @ _c210 = "ok";
-	stmfd sp!, {a1}                         @ println(_c210);; caller-save
+	stmfd sp!, {a1}                         @ caller-save
 	mov a2, a2
 	add a2, a2, #4
 	ldr a1, =.string0_raw
-	bl printf(PLT)
+	bl printf(PLT)                          @ println(_c210);
 	ldmfd sp!, {a1}                         @ caller-restore
 	b ._J3Foo_4testiiE_L57                  @ goto .L57;
 ._J3Foo_4testiiE_L57:
 	stmfd sp!, {a1}                         @ _t58 = _J3Foo_7effect1E(this);; caller-save
-	mov a1, a1
-	bl _J3Foo_7effect1E
+	mov a1, a1                              @ arg 4
+	bl _J3Foo_7effect1E                     @ _J3Foo_7effect1E(this)
 	mov v1, a1
 	ldmfd sp!, {a1}                         @ caller-restore
-	cmp v1, #0                              @ if (_t58) goto .L58;
-	bne ._J3Foo_4testiiE_L58
+	cmp v1, #0
+	bne ._J3Foo_4testiiE_L58                @ if (_t58) goto .L58;
 	b ._J3Foo_4testiiE_L59                  @ goto .L59;
 ._J3Foo_4testiiE_L59:
 	mov v1, #0                              @ _t62 = false;
 	b ._J3Foo_4testiiE_L62                  @ goto .L62;
 ._J3Foo_4testiiE_L58:
 	stmfd sp!, {a1}                         @ _t59 = _J3Foo_7effect1E(this);; caller-save
-	mov a1, a1
-	bl _J3Foo_7effect1E
+	mov a1, a1                              @ arg 4
+	bl _J3Foo_7effect1E                     @ _J3Foo_7effect1E(this)
 	mov v1, a1
 	ldmfd sp!, {a1}                         @ caller-restore
-	cmp v1, #0                              @ if (_t59) goto .L60;
-	bne ._J3Foo_4testiiE_L60
+	cmp v1, #0
+	bne ._J3Foo_4testiiE_L60                @ if (_t59) goto .L60;
 	b ._J3Foo_4testiiE_L61                  @ goto .L61;
 ._J3Foo_4testiiE_L61:
 	mov v1, #0                              @ _t62 = false;
@@ -436,20 +436,20 @@ _J3Foo_4testiiE:
 	mov v1, #1                              @ _t62 = true;
 	b ._J3Foo_4testiiE_L62                  @ goto .L62;
 ._J3Foo_4testiiE_L62:
-	cmp v1, #0                              @ if (_t62) goto .L63;
-	bne ._J3Foo_4testiiE_L63
+	cmp v1, #0
+	bne ._J3Foo_4testiiE_L63                @ if (_t62) goto .L63;
 	b ._J3Foo_4testiiE_L64                  @ goto .L64;
 ._J3Foo_4testiiE_L64:
 	mov v1, #0                              @ _t67 = false;
 	b ._J3Foo_4testiiE_L67                  @ goto .L67;
 ._J3Foo_4testiiE_L63:
 	stmfd sp!, {a1}                         @ _t64 = _J3Foo_7effect1E(this);; caller-save
-	mov a1, a1
-	bl _J3Foo_7effect1E
+	mov a1, a1                              @ arg 4
+	bl _J3Foo_7effect1E                     @ _J3Foo_7effect1E(this)
 	mov v1, a1
 	ldmfd sp!, {a1}                         @ caller-restore
-	cmp v1, #0                              @ if (_t64) goto .L65;
-	bne ._J3Foo_4testiiE_L65
+	cmp v1, #0
+	bne ._J3Foo_4testiiE_L65                @ if (_t64) goto .L65;
 	b ._J3Foo_4testiiE_L66                  @ goto .L66;
 ._J3Foo_4testiiE_L66:
 	mov v1, #0                              @ _t67 = false;
@@ -458,20 +458,20 @@ _J3Foo_4testiiE:
 	mov v1, #1                              @ _t67 = true;
 	b ._J3Foo_4testiiE_L67                  @ goto .L67;
 ._J3Foo_4testiiE_L67:
-	cmp v1, #0                              @ if (_t67) goto .L68;
-	bne ._J3Foo_4testiiE_L68
+	cmp v1, #0
+	bne ._J3Foo_4testiiE_L68                @ if (_t67) goto .L68;
 	b ._J3Foo_4testiiE_L69                  @ goto .L69;
 ._J3Foo_4testiiE_L69:
 	mov v1, #0                              @ _t72 = false;
 	b ._J3Foo_4testiiE_L72                  @ goto .L72;
 ._J3Foo_4testiiE_L68:
 	stmfd sp!, {a1}                         @ _t69 = _J3Foo_7effect1E(this);; caller-save
-	mov a1, a1
-	bl _J3Foo_7effect1E
+	mov a1, a1                              @ arg 4
+	bl _J3Foo_7effect1E                     @ _J3Foo_7effect1E(this)
 	mov v1, a1
 	ldmfd sp!, {a1}                         @ caller-restore
-	cmp v1, #0                              @ if (_t69) goto .L70;
-	bne ._J3Foo_4testiiE_L70
+	cmp v1, #0
+	bne ._J3Foo_4testiiE_L70                @ if (_t69) goto .L70;
 	b ._J3Foo_4testiiE_L71                  @ goto .L71;
 ._J3Foo_4testiiE_L71:
 	mov v1, #0                              @ _t72 = false;
@@ -480,20 +480,20 @@ _J3Foo_4testiiE:
 	mov v1, #1                              @ _t72 = true;
 	b ._J3Foo_4testiiE_L72                  @ goto .L72;
 ._J3Foo_4testiiE_L72:
-	cmp v1, #0                              @ if (_t72) goto .L73;
-	bne ._J3Foo_4testiiE_L73
+	cmp v1, #0
+	bne ._J3Foo_4testiiE_L73                @ if (_t72) goto .L73;
 	b ._J3Foo_4testiiE_L74                  @ goto .L74;
 ._J3Foo_4testiiE_L74:
 	mov v1, #0                              @ _t77 = false;
 	b ._J3Foo_4testiiE_L77                  @ goto .L77;
 ._J3Foo_4testiiE_L73:
 	stmfd sp!, {a1}                         @ _t74 = _J3Foo_7effect1E(this);; caller-save
-	mov a1, a1
-	bl _J3Foo_7effect1E
+	mov a1, a1                              @ arg 4
+	bl _J3Foo_7effect1E                     @ _J3Foo_7effect1E(this)
 	mov v1, a1
 	ldmfd sp!, {a1}                         @ caller-restore
-	cmp v1, #0                              @ if (_t74) goto .L75;
-	bne ._J3Foo_4testiiE_L75
+	cmp v1, #0
+	bne ._J3Foo_4testiiE_L75                @ if (_t74) goto .L75;
 	b ._J3Foo_4testiiE_L76                  @ goto .L76;
 ._J3Foo_4testiiE_L76:
 	mov v1, #0                              @ _t77 = false;
@@ -502,20 +502,20 @@ _J3Foo_4testiiE:
 	mov v1, #1                              @ _t77 = true;
 	b ._J3Foo_4testiiE_L77                  @ goto .L77;
 ._J3Foo_4testiiE_L77:
-	cmp v1, #0                              @ if (_t77) goto .L78;
-	bne ._J3Foo_4testiiE_L78
+	cmp v1, #0
+	bne ._J3Foo_4testiiE_L78                @ if (_t77) goto .L78;
 	b ._J3Foo_4testiiE_L79                  @ goto .L79;
 ._J3Foo_4testiiE_L79:
 	mov v1, #0                              @ _t82 = false;
 	b ._J3Foo_4testiiE_L82                  @ goto .L82;
 ._J3Foo_4testiiE_L78:
 	sub sp, sp, #4                          @ _t79 = _J3Foo_7effect1E(this);; align adjustment (pre)
-	mov a1, a1
-	bl _J3Foo_7effect1E
+	mov a1, a1                              @ arg 4
+	bl _J3Foo_7effect1E                     @ _J3Foo_7effect1E(this)
 	mov v1, a1
 	add sp, sp, #4                          @ align adjustment (post)
-	cmp v1, #0                              @ if (_t79) goto .L80;
-	bne ._J3Foo_4testiiE_L80
+	cmp v1, #0
+	bne ._J3Foo_4testiiE_L80                @ if (_t79) goto .L80;
 	b ._J3Foo_4testiiE_L81                  @ goto .L81;
 ._J3Foo_4testiiE_L81:
 	mov v1, #0                              @ _t82 = false;
@@ -524,30 +524,30 @@ _J3Foo_4testiiE:
 	mov v1, #1                              @ _t82 = true;
 	b ._J3Foo_4testiiE_L82                  @ goto .L82;
 ._J3Foo_4testiiE_L82:
-	cmp v1, #0                              @ if (_t82) goto .L83;
-	bne ._J3Foo_4testiiE_L83
+	cmp v1, #0
+	bne ._J3Foo_4testiiE_L83                @ if (_t82) goto .L83;
 	b ._J3Foo_4testiiE_L84                  @ goto .L84;
 ._J3Foo_4testiiE_L84:
 	ldr a2, =.string5                       @ _c297 = "oh no";
-	sub sp, sp, #4                          @ println(_c297);; align adjustment (pre)
+	sub sp, sp, #4                          @ align adjustment (pre)
 	mov a2, a2
 	add a2, a2, #4
 	ldr a1, =.string0_raw
-	bl printf(PLT)
+	bl printf(PLT)                          @ println(_c297);
 	add sp, sp, #4                          @ align adjustment (post)
 	b ._J3Foo_4testiiE_L85                  @ goto .L85;
 ._J3Foo_4testiiE_L83:
 	ldr a2, =.string7                       @ _c300 = "ok";
-	sub sp, sp, #4                          @ println(_c300);; align adjustment (pre)
+	sub sp, sp, #4                          @ align adjustment (pre)
 	mov a2, a2
 	add a2, a2, #4
 	ldr a1, =.string0_raw
-	bl printf(PLT)
+	bl printf(PLT)                          @ println(_c300);
 	add sp, sp, #4                          @ align adjustment (post)
 	b ._J3Foo_4testiiE_L85                  @ goto .L85;
 ._J3Foo_4testiiE_L85:
 	ldr v1, =.string8                       @ _c303 = "kekw";
-	mov a1, v1                              @ return _c303;
+	mov a1, v1
 	b ._J3Foo_4testiiE_exit
 ._J3Foo_4testiiE_exit:
 	ldmfd sp!, {v1, v2, pc}
@@ -563,13 +563,13 @@ _J3Foo_7effect1E:
 	stmfd sp!, {lr}
 ._J3Foo_7effect1E_entry:
 	ldr a2, =.string9                       @ _c1 = "effect 1";
-	sub sp, sp, #4                          @ println(_c1);; align adjustment (pre)
+	sub sp, sp, #4                          @ align adjustment (pre)
 	mov a2, a2
 	add a2, a2, #4
 	ldr a1, =.string0_raw
-	bl printf(PLT)
+	bl printf(PLT)                          @ println(_c1);
 	add sp, sp, #4                          @ align adjustment (post)
-	mov a1, #1                              @ return true;
+	mov a1, #1
 	b ._J3Foo_7effect1E_exit
 ._J3Foo_7effect1E_exit:
 	ldmfd sp!, {pc}
@@ -585,13 +585,13 @@ _J3Foo_7effect2E:
 	stmfd sp!, {lr}
 ._J3Foo_7effect2E_entry:
 	ldr a2, =.string10                      @ _c1 = "effect 2";
-	sub sp, sp, #4                          @ println(_c1);; align adjustment (pre)
+	sub sp, sp, #4                          @ align adjustment (pre)
 	mov a2, a2
 	add a2, a2, #4
 	ldr a1, =.string0_raw
-	bl printf(PLT)
+	bl printf(PLT)                          @ println(_c1);
 	add sp, sp, #4                          @ align adjustment (post)
-	mov a1, #0                              @ return false;
+	mov a1, #0
 	b ._J3Foo_7effect2E_exit
 ._J3Foo_7effect2E_exit:
 	ldmfd sp!, {pc}
@@ -608,16 +608,16 @@ _J3Foo_7effect3iE:
 	mov a2, a2
 ._J3Foo_7effect3iE_entry:
 	ldr v1, =.string11                      @ _c1 = "effect 3";
-	stmfd sp!, {a2}                         @ println(_c1);; caller-save
+	stmfd sp!, {a2}                         @ caller-save
 	mov a2, v1
 	add a2, a2, #4
 	ldr a1, =.string0_raw
-	bl printf(PLT)
+	bl printf(PLT)                          @ println(_c1);
 	ldmfd sp!, {a2}                         @ caller-restore
 	cmp a2, #5                              @ _t0 = k > 5;
 	movgt v1, #1
 	movle v1, #0
-	mov a1, v1                              @ return _t0;
+	mov a1, v1
 	b ._J3Foo_7effect3iE_exit
 ._J3Foo_7effect3iE_exit:
 	ldmfd sp!, {v1, pc}

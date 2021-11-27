@@ -197,6 +197,7 @@ def codegen_assign(cs: CodegenState, fs: FuncState, assign: ir3.AssignOp):
 	if not (loc := fs.get_location(assign.lhs)).have_register():
 		return
 
+	fs.annotate_next(str(assign))
 	codegen_expr(cs, fs, assign.rhs, loc.register(), assign.id)
 
 
@@ -211,7 +212,7 @@ def codegen_return(cs: CodegenState, fs: FuncState, stmt: ir3.ReturnStmt):
 
 
 def codegen_uncond_branch(cs: CodegenState, fs: FuncState, ubr: ir3.Branch):
-	fs.emit(cgarm.branch(fs.mangle_label(ubr.label)))
+	fs.emit(cgarm.branch(fs.mangle_label(ubr.label)), annot=str(ubr))
 
 
 def codegen_cond_branch(cs: CodegenState, fs: FuncState, cbr: ir3.CondBranch):
@@ -223,14 +224,14 @@ def codegen_cond_branch(cs: CodegenState, fs: FuncState, cbr: ir3.CondBranch):
 
 	if isinstance(cbr.cond, ir3.ConstantBool):
 		if cbr.cond.value:
-			fs.emit(cgarm.branch(target))
+			fs.emit(cgarm.branch(target), annot=str(cbr))
 		else:
 			cs.comment("constant branch eliminated; fallthrough")
 			pass
 	else:
 		value = get_value(cs, fs, cbr.cond)
 		fs.emit(cgarm.cmp(value, cgarm.Constant(0)))
-		fs.emit(cgarm.branch_cond(target, cgarm.Cond.NE))
+		fs.emit(cgarm.branch_cond(target, cgarm.Cond.NE), annot=str(cbr))
 
 
 
@@ -243,15 +244,15 @@ def codegen_readln(cs: CodegenState, fs: FuncState, stmt: ir3.ReadLnCall):
 	saves, stack_adjust = pre_function_call(cs, fs, stmt.id, dest.register())
 
 	if ty == "String":
-		fs.emit(cgarm.call(cs.require_readln_string_function()))
+		fs.emit(cgarm.call(cs.require_readln_string_function()), annot=str(stmt))
 		fs.emit(cgarm.mov(dest.register(), cgarm.A1))
 
 	elif ty == "Bool":
-		fs.emit(cgarm.call(cs.require_readln_bool_function()))
+		fs.emit(cgarm.call(cs.require_readln_bool_function()), annot=str(stmt))
 		fs.emit(cgarm.mov(dest.register(), cgarm.A1))
 
 	elif ty == "Int":
-		fs.emit(cgarm.call(cs.require_readln_int_function()))
+		fs.emit(cgarm.call(cs.require_readln_int_function()), annot=str(stmt))
 		fs.emit(cgarm.mov(dest.register(), cgarm.A1))
 
 	else:
@@ -277,13 +278,13 @@ def codegen_println(cs: CodegenState, fs: FuncState, stmt: ir3.PrintLnCall):
 		# yes, we can use puts, but for consistency with always putting the argument
 		# in 'a2', we use printf.
 		fs.emit(cgarm.load_label(cgarm.A1, cs.add_string("%s\n") + "_raw"))
-		fs.emit(cgarm.call("printf(PLT)"))
+		fs.emit(cgarm.call("printf(PLT)"), annot=str(stmt))
 
 	elif ty == "Int":
 		# if value is in a1, we want to move it to a2 before we clobber it
 		fs.emit(cgarm.mov(cgarm.A2, value))
 		fs.emit(cgarm.load_label(cgarm.A1, cs.add_string("%d\n") + "_raw"))
-		fs.emit(cgarm.call("printf(PLT)"))
+		fs.emit(cgarm.call("printf(PLT)"), annot=str(stmt))
 
 	elif ty == "Bool":
 		# update the condition flags here, so that we can elide an additional 'cmp a1, #0'
@@ -293,13 +294,13 @@ def codegen_println(cs: CodegenState, fs: FuncState, stmt: ir3.PrintLnCall):
 		fs.emit(cgarm.load_label(cgarm.A2, cs.add_string("true") + "_raw").conditional(cgarm.Cond.NE))
 
 		fs.emit(cgarm.load_label(cgarm.A1, cs.add_string("%s\n") + "_raw"))
-		fs.emit(cgarm.call("printf(PLT)"))
+		fs.emit(cgarm.call("printf(PLT)"), annot=str(stmt))
 
 	elif ty == "$NullObject":
 		fs.emit(cgarm.load_label(cgarm.A2, cs.add_string("null") + "_raw"))
 		fs.emit(cgarm.load_label(cgarm.A1, cs.add_string("%s\n") + "_raw"))
 
-		fs.emit(cgarm.call("printf(PLT)"))
+		fs.emit(cgarm.call("printf(PLT)"), annot=str(stmt))
 
 	else:
 		raise CGException(f"argument to println has invalid type '{ty}'")
@@ -366,7 +367,7 @@ def codegen_storestackarg(cs: CodegenState, fs: FuncState, stmt: ir3.StoreFuncti
 
 	# very hacky. very very hacky.
 	stmt.gen_instr = cgarm.store(val, cgarm.Memory(cgarm.SP, -(offset + 1) * 4))
-	fs.emit(stmt.gen_instr)
+	fs.emit(stmt.gen_instr, annot=str(stmt))
 
 
 
@@ -408,11 +409,11 @@ def codegen_call(cs: CodegenState, fs: FuncState, call: ir3.FnCall, dest_reg: cg
 
 			if val.is_constant():
 				fs.emit(cgarm.mov(cgarm.A1, val))
-				fs.emit(cgarm.store(cgarm.A1, cgarm.Memory(cgarm.SP, ofs)))
+				fs.emit(cgarm.store(cgarm.A1, cgarm.Memory(cgarm.SP, ofs)), annot=f"arg {4 + i}")
 
 			else:
 				assert val.is_register()
-				fs.emit(cgarm.store(val, cgarm.Memory(cgarm.SP, ofs)))
+				fs.emit(cgarm.store(val, cgarm.Memory(cgarm.SP, ofs)), annot=f"arg {4 + i}")
 
 
 	# this is a little scuffed, but there can be instances where, eg. we need to
@@ -438,7 +439,7 @@ def codegen_call(cs: CodegenState, fs: FuncState, call: ir3.FnCall, dest_reg: cg
 			# see if anybody else sets our src
 			if src == dst or len(list(filter(lambda s: s == dst, map(lambda f: f[2], ordering)))) == 0:
 				# nobody does; we can generate now
-				fs.emit(cgarm.mov(cgarm.Register(f"a{i + 1}"), val))
+				fs.emit(cgarm.mov(cgarm.Register(f"a{i + 1}"), val), annot=f"arg {4 + i}")
 				ordering.pop(idx)
 				flag = True
 				break
@@ -446,7 +447,7 @@ def codegen_call(cs: CodegenState, fs: FuncState, call: ir3.FnCall, dest_reg: cg
 		if not flag:
 			raise CGException("failed to find a proper ordering to set arguments!")
 
-	fs.emit(cgarm.call(call.name))
+	fs.emit(cgarm.call(call.name), annot=str(call))
 
 	# after the call, we need to increment the stack pointer by however many
 	# extra arguments we passed.
@@ -469,16 +470,16 @@ def codegen_storefield(cs: CodegenState, fs: FuncState, store: cgpseudo.StoreFie
 	value = fs.get_location(store.rhs).register()
 
 	if store.type == "Bool":
-		fs.emit(cgarm.store_byte(value, cgarm.Memory(ptr, offset)))
+		fs.emit(cgarm.store_byte(value, cgarm.Memory(ptr, offset)), annot=str(store))
 	else:
-		fs.emit(cgarm.store(value, cgarm.Memory(ptr, offset)))
+		fs.emit(cgarm.store(value, cgarm.Memory(ptr, offset)), annot=str(store))
 
 
 
 
 def codegen_stmt(cs: CodegenState, fs: FuncState, stmt: ir3.Stmt):
 	# a little janky, but i think this should work.
-	fs.annotate_next(str(stmt))
+	# fs.annotate_next(str(stmt))
 
 	if isinstance(stmt, ir3.AssignOp):
 		codegen_assign(cs, fs, stmt)
@@ -506,9 +507,9 @@ def codegen_stmt(cs: CodegenState, fs: FuncState, stmt: ir3.Stmt):
 		dest_reg = fs.get_location(foo.lhs).register()
 
 		if isinstance(foo, cgpseudo.AssignConstInt):
-			fs.emit(cgarm.mov(dest_reg, cgarm.Constant(foo.rhs)))
+			fs.emit(cgarm.mov(dest_reg, cgarm.Constant(foo.rhs)), annot=str(stmt))
 		else:
-			fs.emit(cgarm.load_label(dest_reg, cs.add_string(foo.rhs)))
+			fs.emit(cgarm.load_label(dest_reg, cs.add_string(foo.rhs)), annot=str(stmt))
 
 	elif isinstance(stmt, cgpseudo.SpillVariable):
 		fs.spill_variable(stmt.var)

@@ -351,10 +351,13 @@ class FuncState:
 		self.emit(cgarm.label(self.mangle_label(name)))
 
 
-	def emit(self, instr: cgarm.Instruction) -> cgarm.Instruction:
+	def emit(self, instr: cgarm.Instruction, annot: str = "") -> cgarm.Instruction:
 		if self.next_annotation != "":
 			instr.annotate(self.next_annotation)
 			self.next_annotation = ""
+
+		elif annot != "":
+			instr.annotate(annot)
 
 		self.instructions.append(instr)
 		return instr

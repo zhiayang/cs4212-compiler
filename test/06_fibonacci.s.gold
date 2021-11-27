@@ -13,22 +13,22 @@ main_dummy:
 	cmp a2, v1                              @ _t2 = a != _c6;
 	movne v1, #1
 	moveq v1, #0
-	cmp v1, #0                              @ if (_t2) goto .L2;
-	bne .main_dummy_L2
+	cmp v1, #0
+	bne .main_dummy_L2                      @ if (_t2) goto .L2;
 	b .main_dummy_L3                        @ goto .L3;
 .main_dummy_L1:
 	ldr v1, =#1836311903                    @ _c11 = 1836311903;
 	cmp a2, v1                              @ _t0 = a != _c11;
 	movne v1, #1
 	moveq v1, #0
-	cmp v1, #0                              @ if (_t0) goto .L2;
-	bne .main_dummy_L2
+	cmp v1, #0
+	bne .main_dummy_L2                      @ if (_t0) goto .L2;
 	b .main_dummy_L3                        @ goto .L3;
 .main_dummy_L2:
-	stmfd sp!, {a2}                         @ println(a);; caller-save
+	stmfd sp!, {a2}                         @ caller-save
 	mov a2, a2
 	ldr a1, =.string0_raw
-	bl printf(PLT)
+	bl printf(PLT)                          @ println(a);
 	ldmfd sp!, {a2}                         @ caller-restore
 	add v1, a2, v2                          @ _t1 = a + b;
 	mov v1, v1                              @ c = _t1;
@@ -36,7 +36,7 @@ main_dummy:
 	mov v2, v1                              @ b = c;
 	b .main_dummy_L1                        @ goto .L1;
 .main_dummy_L3:
-	b .main_dummy_exit                      @ return;
+	b .main_dummy_exit
 .main_dummy_exit:
 	ldmfd sp!, {v1, v2, pc}
 

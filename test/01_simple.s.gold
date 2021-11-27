@@ -8,11 +8,11 @@ main_dummy:
 	stmfd sp!, {v1, lr}
 .main_dummy_entry:
 	ldr a2, =.string0                       @ _c1 = "hello, \"world\"!";
-	sub sp, sp, #4                          @ println(_c1);; align adjustment (pre)
+	sub sp, sp, #4                          @ align adjustment (pre)
 	mov a2, a2
 	add a2, a2, #4
 	ldr a1, =.string1_raw
-	bl printf(PLT)
+	bl printf(PLT)                          @ println(_c1);
 	add sp, sp, #4                          @ align adjustment (post)
 	sub sp, sp, #4                          @ _t0 = new Foo();; align adjustment (pre)
 	mov a1, #1
@@ -21,28 +21,28 @@ main_dummy:
 	mov a1, a1
 	add sp, sp, #4                          @ align adjustment (post)
 	sub sp, sp, #4                          @ _t1 = _J3Foo_3barE(_t0);; align adjustment (pre)
-	mov a1, a1
-	bl _J3Foo_3barE
+	mov a1, a1                              @ arg 4
+	bl _J3Foo_3barE                         @ _J3Foo_3barE(_t0)
 	mov a1, a1
 	add sp, sp, #4                          @ align adjustment (post)
 	sub sp, sp, #4                          @ _t2 = _J3Foo_3barE(_t1);; align adjustment (pre)
-	mov a1, a1
-	bl _J3Foo_3barE
+	mov a1, a1                              @ arg 4
+	bl _J3Foo_3barE                         @ _J3Foo_3barE(_t1)
 	mov a1, a1
 	add sp, sp, #4                          @ align adjustment (post)
 	sub sp, sp, #4                          @ _t3 = _J3Foo_3barE(_t2);; align adjustment (pre)
-	mov a1, a1
-	bl _J3Foo_3barE
+	mov a1, a1                              @ arg 4
+	bl _J3Foo_3barE                         @ _J3Foo_3barE(_t2)
 	mov v1, a1
 	add sp, sp, #4                          @ align adjustment (post)
 	mov v1, v1                              @ f = _t3;
 	ldr a2, [v1, #0]                        @ _t4 = f.f1;
-	sub sp, sp, #4                          @ println(_t4);; align adjustment (pre)
+	sub sp, sp, #4                          @ align adjustment (pre)
 	mov a2, a2
 	ldr a1, =.string2_raw
-	bl printf(PLT)
+	bl printf(PLT)                          @ println(_t4);
 	add sp, sp, #4                          @ align adjustment (post)
-	b .main_dummy_exit                      @ return;
+	b .main_dummy_exit
 .main_dummy_exit:
 	ldmfd sp!, {v1, pc}
 
@@ -62,8 +62,8 @@ _J3Foo_3barE:
 	cmp v1, #0                              @ _t1 = _t0 == 0;
 	moveq v1, #1
 	movne v1, #0
-	cmp v1, #0                              @ if (_t1) goto .L1;
-	bne ._J3Foo_3barE_L1
+	cmp v1, #0
+	bne ._J3Foo_3barE_L1                    @ if (_t1) goto .L1;
 	b ._J3Foo_3barE_L2                      @ goto .L2;
 ._J3Foo_3barE_L2:
 	ldr v1, [a1, #0]                        @ _t2 = this.f1;
@@ -78,13 +78,13 @@ _J3Foo_3barE:
 	b ._J3Foo_3barE_L3                      @ goto .L3;
 ._J3Foo_3barE_L3:
 	ldr a2, =.string3                       @ _c18 = "you should see this 3 times";
-	stmfd sp!, {a1}                         @ println(_c18);; caller-save
+	stmfd sp!, {a1}                         @ caller-save
 	mov a2, a2
 	add a2, a2, #4
 	ldr a1, =.string1_raw
-	bl printf(PLT)
+	bl printf(PLT)                          @ println(_c18);
 	ldmfd sp!, {a1}                         @ caller-restore
-	mov a1, a1                              @ return this;
+	mov a1, a1
 	b ._J3Foo_3barE_exit
 ._J3Foo_3barE_exit:
 	ldmfd sp!, {v1, v2, pc}

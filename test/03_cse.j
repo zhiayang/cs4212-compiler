@@ -43,18 +43,22 @@ class Main
 		println(ff);
 		println(gg);
 
+		// this loop should be eliminated due to constant prop.
+		while(g + 10000 < g) { println("this should not happen"); g = 100; }
+
 		// this should kill any propagation of 'h'
 		while(h > 100) { h = h - 50; }
 
-		// this also kills propagation of g; it kills itself in the loop (which is a predecessor of the condition)
-		while(g + 10000 < g) { println("this should not happen"); g = 100; }
-
+		// due to limitations in the dataflow algorithm, constants cannot be propagated
+		// across loop bodies.
+		zz = a + b + c + d + e + f;
 		yy = a + b + c + d + e + f + g;
 
 		println(h);
 		println(gg);
 		println(xx);
 		println(yy);
+		println(zz);
 
 
 		// test side-effect functions in a separate function

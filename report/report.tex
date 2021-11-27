@@ -6,6 +6,7 @@
 \usepackage{tikz}
 \usepackage{pgfplots}
 \usetikzlibrary{positioning}
+\usetikzlibrary{arrows.meta}
 \usetikzlibrary{shapes.misc}
 \usetikzlibrary{shapes.geometric}
 
@@ -116,6 +117,9 @@ achieved their goals. The other implementation choices were just what were natur
 This report turned out a lot longer than I expected, sorry about that; the old stuff from the previous submissions
 are at the very end, and the interesting new stuff up front.
 
+Since the deadline got extended, I fixed some of the things that were mentioned from the previous assignment
+submissions --- notably \eqtt{null} acting like \eqtt{String} (but not \ttt{null + null}), and double-quote escapes.
+
 
 \section{Code Generation}
 
@@ -135,7 +139,7 @@ through a \itl{lowering} step. This step is always performed regardless of optim
 the IR3 optimisation pass. The following lowering steps are performed:
 
 
-\paragraph{Multiplication by a Constant}
+\subsubsection{Multiplication by a Constant}
 
 For some reason, the inferior instruction encoding on ARM doesn't let \eqtt{mul} encode a constant operand. For this
 reason, IR3 multiplies with a constant operand will have the constant pulled out:
@@ -154,8 +158,11 @@ because I didn't want to.
 There is apparently an entire research field on the \itl{Single Constant Multiplication} problem, but my brain was not
 creased enough to understand the papers.
 
+% end subsubsection (Multiplication by a Constant)
 
-\paragraph{Strings \& Large Constants}
+
+
+\subsubsection{Strings \& Large Constants}
 
 Next, \enquote{large} constants are also extracted into a temporary, and the assembler is used to load a value from
 memory. The ARM instruction encoding only allows for 8-bit constants and a 4-bit shift. However, I decided
@@ -181,9 +188,12 @@ only be loaded in this form (they can't be an immediate).
 This is represented not as a normal IR3 statement, but by special \enquote{pseudo-statements}, which you can find in
 \ttt{cgpseudo.py}.
 
+% end subsubsection (Strings & Large Constants)
 
 
-\paragraph{Dot-op Assignments}
+
+
+\subsubsection{Dot-op Assignments}
 
 Assignments and dot-op (ie. field) assignments can contain an IR3 expression as their right-side operand. For regular
 assignments this isn't a problem, but for field assignments, I chose to (again) let the register allocator do its
@@ -192,8 +202,12 @@ job by pulling the right side out into a temporary variable so it can get its ow
 This is because, even though the right-side can (almost always) be encoded in one instruction, it cannot also have
 a memory operand, so we would need another register either way.
 
+% end subsubsection (Dot-op Assignments)
 
-\paragraph{Function Calls}
+
+
+
+\subsubsection{Function Calls}
 
 Surprisingly, function calls also have to be lowered. The problem is when there are too many arguments, exceeding
 the number of allocatable registers. The problem is that all those variables need to be available
@@ -240,8 +254,72 @@ allow the call to \itl{backpatch} the offsets correctly after it is known.
 If this was built-in from the beginning, a better implementation would probably have been found. That being said,
 this implementation has been \enquote{battle-tested} up to 27 arguments, so I am reasonably confident in it.
 
+% end subsubsection (Function Calls)
 
-\paragraph{Phi Nodes}
+
+
+\subsubsection{While Loops}
+
+This isn't actually performed as part of lowering (I didn't want to compute dominators to find loops), but is done
+at the IR3 generation phase. But it fits here, so whatever.
+
+For while-loops, there are instances where the first iteration will never occur at all, so it would be reasonable
+to elide the entire loop; for example:
+
+\begin{minted}{cpp}
+x = 10;
+while(x > 20) { x = x - 1; }
+\end{minted}
+
+Trivially, human inspection shows that the loop will never be entered. However, in IR3, the following code is generated:
+
+\begin{minted}{cpp}
+init:
+	x = 10;
+check:
+	_t1 = x > 20;
+	if(_t1) goto body;
+	goto end;
+body:
+	x = x - 1;
+	goto check;
+end:
+\end{minted}
+
+(I'll revisit this example later as well). The predecessors of \eqtt{check} are actually both \eqtt{body} and \eqtt{init},
+so \enquote{normal} dataflow analysis sees that \eqtt{x} is modified, and so it refuses to propagate the constant into the
+loop condition, so the loop cannot be eliminated.
+
+To counter this, the loop condition is actually duplicated, so we get something like this:
+
+\begin{minted}{cpp}
+init:
+	x = 10;
+check1:
+	_t1 = x > 20;
+	if(_t1) goto body;
+	goto end;
+check2:
+	_t1 = x > 20;
+	if(_t1) goto body;
+	goto end;
+body:
+	x = x - 1;
+	goto check2;
+end:
+\end{minted}
+
+Note that the code is still functionally equivalent --- control flow only enters one of the check blocks. I'll talk about
+this more in the optimisation section below, but suffice to say that this opens up a few more optimisation opportunities.
+
+
+% end subsubsection (While Loops)
+
+
+
+
+
+\subsubsection{Phi Nodes}
 
 Lastly, as mentioned above, the IR3 generator creates phi nodes for the merge block of branches; there is not really
 a machine-instruction for that, so it is lowered simply by rewriting the source assignments to set the merge value
@@ -275,6 +353,7 @@ merge:
 So this lowering step breaks the SSA form, but the optimisations that rely on SSA have already been performed, so it
 is not a problem.
 
+% end subsubsection (Phi Nodes)
 % end subsection (IR3 Lowering)
 
 
@@ -684,7 +763,82 @@ An additional note is that conditional branches are replaced with unconditional 
 combined with the block-based optimisations, dead-code elimination is essentially done, implicitly.
 
 % end subsubsection (Constant Evaluation)
+
+
+
+\subsubsection{Loop Elimination}
+
+As mentioned above, the IR3 for loop conditions is duplicated \enquote{outside} the loop control flow. This is because, given the
+\enquote{normal} code generation, the naive CFG means that a \enquote{forward-must} dataflow will not propagate a constant
+into the loop condition, if the variable is modified in the body.
+
+By generating the following code (duplicated from above):
+
+\begin{minted}{cpp}
+init:
+	x = 10;
+check1:
+	_t1 = x > 20;
+	if(_t1) goto body;
+	goto end;
+check2:
+	_t2 = x > 20;
+	if(_t2) goto body;
+	goto end;
+body:
+	x = x - 1;
+	goto check2;
+end:
+\end{minted}
+
+\eqtt{check1} has only 1 predecessor (the init), so the constant \ttt{x = 10} can definitely be propagated to the first loop
+condition. This allows the branch to be eliminated, thereby making \eqtt{check2} and \eqtt{body} unreachable. This way,
+the entire loop can be eliminated.
+
+\pagebreak
+However, there is a limitation which this method is still unable to solve; loop bodies block the propagation of all
+constants across them, even if the body doesn't modify any of those constants. This is because of the following CFG:
+
+\begin{center}
+\tikzstyle{block} = [rectangle, minimum width=3cm, minimum height=1cm, line width=0.1mm, text centered, draw=black]
+\tikzstyle{arrow} = [thick,-{Stealth[length=2.3mm,width=1.8mm]}]
+
+\begin{tikzpicture}[node distance=20mm]
+	\node (entry)  [block] {init};
+	\node (check1) [block,below of=entry] {check1};
+	\node (body)   [block,right of=check1,xshift=30mm] {body};
+	\node (check2) [block,below of=body]   {check2};
+	\node (end)    [block,below of=check1] {end};
+
+	\draw [arrow] (entry)  -- (check1);
+	\draw [arrow] (check1) -- (body);
+	\draw [arrow] (check1) -- (end);
+
+	\draw [arrow] (check2) -- (end);
+
+	\draw [arrow] (check2) to [out=120,in=-120] (body);
+	\draw [arrow] (body) to [out=-60,in=60] (check2);
+\end{tikzpicture}
+\end{center}
+
+The issue here is that \eqtt{body} and \eqtt{check2} are mutual predecessors; with the dataflow meet being an intersection,
+a constant will never propagate past that pair (unless it is already present in both of them, which isn't possible), so
+this construction breaks propagation of all constants from \eqtt{init} to \eqtt{end}.
+
+
+
+
+% end subsubsection (Loop Elimination)
+
+
+
 % end subsection (IR3 Optimisations)
+
+
+
+
+
+
 
 
 \subsection{Assembly Optimisations}

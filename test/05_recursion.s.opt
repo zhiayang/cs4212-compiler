@@ -10,13 +10,13 @@ main_dummy:
 	mov a1, #1
 	mov a2, #4
 	bl calloc(PLT)
-	mov a2, #100
-	bl _J3Foo_4sumsiE
+	mov a2, #100                            @ arg 5
+	bl _J3Foo_4sumsiE                       @ _J3Foo_4sumsiE(_t0, 100)
 	mov a2, a1
 	ldr a1, =.string0_raw
-	bl printf(PLT)
+	bl printf(PLT)                          @ println(_t1);
 	add sp, sp, #4                          @ align adjustment (post)
-	b .main_dummy_exit                      @ return;
+	b .main_dummy_exit
 .main_dummy_exit:
 	ldmfd sp!, {pc}
 
@@ -31,12 +31,12 @@ _J3Foo_4sumsiE:
 	stmfd sp!, {v1, lr}
 ._J3Foo_4sumsiE_entry:
 	sub sp, sp, #4                          @ _t0 = _J3Foo_4sumsiiE(this, 0, num);; align adjustment (pre)
-	mov a3, a2
-	mov a2, #0
-	bl _J3Foo_4sumsiiE
+	mov a3, a2                              @ arg 6
+	mov a2, #0                              @ arg 5
+	bl _J3Foo_4sumsiiE                      @ _J3Foo_4sumsiiE(this, 0, num)
 	mov v1, a1
 	add sp, sp, #4                          @ align adjustment (post)
-	mov a1, v1                              @ return _t0;
+	mov a1, v1
 	b ._J3Foo_4sumsiE_exit
 ._J3Foo_4sumsiE_exit:
 	ldmfd sp!, {v1, pc}
@@ -55,20 +55,20 @@ _J3Foo_4sumsiiE:
 	cmp a3, #0                              @ _t0 = num == 0;
 	beq ._J3Foo_4sumsiiE_L1
 ._J3Foo_4sumsiiE_L2:
-	stmfd sp!, {a1, a2, a3}                 @ println(acc);; caller-save
+	stmfd sp!, {a1, a2, a3}                 @ caller-save
 	ldr a1, =.string0_raw
-	bl printf(PLT)
+	bl printf(PLT)                          @ println(acc);
 	ldmfd sp!, {a1, a2, a3}                 @ caller-restore
 	add a2, a2, a3                          @ _t1 = acc + num;
 	sub a3, a3, #1                          @ _t2 = num - 1;
 	sub sp, sp, #4                          @ _t3 = _J3Foo_4sumsiiE(this, _t1, _t2);; align adjustment (pre)
-	bl _J3Foo_4sumsiiE
+	bl _J3Foo_4sumsiiE                      @ _J3Foo_4sumsiiE(this, _t1, _t2)
 	mov v1, a1
 	add sp, sp, #4                          @ align adjustment (post)
-	mov a1, v1                              @ return _t3;
+	mov a1, v1
 	b ._J3Foo_4sumsiiE_exit
 ._J3Foo_4sumsiiE_L1:
-	mov a1, a2                              @ return acc;
+	mov a1, a2
 	b ._J3Foo_4sumsiiE_exit
 ._J3Foo_4sumsiiE_exit:
 	ldmfd sp!, {v1, pc}

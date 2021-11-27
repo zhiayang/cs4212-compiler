@@ -15,16 +15,16 @@ main_dummy:
 	bne .main_dummy_L2
 	b .main_dummy_L3                        @ goto .L3;
 .main_dummy_L2:
-	stmfd sp!, {a2}                         @ println(a);; caller-save
+	stmfd sp!, {a2}                         @ caller-save
 	ldr a1, =.string0_raw
-	bl printf(PLT)
+	bl printf(PLT)                          @ println(a);
 	ldmfd sp!, {a2}                         @ caller-restore
 	add v1, a2, v2                          @ c = a + b;
 	mov a2, v2                              @ a = b;
 	mov v2, v1                              @ b = c;
 	b .main_dummy_L1                        @ goto .L1;
 .main_dummy_L3:
-	b .main_dummy_exit                      @ return;
+	b .main_dummy_exit
 .main_dummy_exit:
 	ldmfd sp!, {v1, v2, pc}
 
