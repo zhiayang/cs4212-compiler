@@ -59,6 +59,8 @@ main_dummy:
 	ldmfd sp!, {pc}
 
 
+.align 4
+.ltorg
 .global _J3Foo_3fooiiE
 .type _J3Foo_3fooiiE, %function
 _J3Foo_3fooiiE:
@@ -119,6 +121,8 @@ _J3Foo_3fooiiE:
 	ldmfd sp!, {v1, v2, v3, v4, v5, pc}
 
 
+.align 4
+.ltorg
 .global _J3Foo_3barssE
 .type _J3Foo_3barssE, %function
 _J3Foo_3barssE:
@@ -155,6 +159,8 @@ _J3Foo_3barssE:
 	ldmfd sp!, {v1, pc}
 
 
+.align 4
+.ltorg
 
 .global main
 .type main, %function

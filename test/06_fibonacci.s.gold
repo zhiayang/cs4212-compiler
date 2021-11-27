@@ -41,6 +41,8 @@ main_dummy:
 	ldmfd sp!, {v1, v2, pc}
 
 
+.align 4
+.ltorg
 
 .global main
 .type main, %function

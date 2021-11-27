@@ -67,6 +67,8 @@ main_dummy:
 	ldmfd sp!, {v1, v2, v3, pc}
 
 
+.align 4
+.ltorg
 .global _J3Foo_5guessiE
 .type _J3Foo_5guessiE, %function
 _J3Foo_5guessiE:
@@ -142,6 +144,8 @@ _J3Foo_5guessiE:
 	ldmfd sp!, {v1, v2, v3, pc}
 
 
+.align 4
+.ltorg
 
 .global main
 .type main, %function

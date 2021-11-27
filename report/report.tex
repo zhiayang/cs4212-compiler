@@ -237,9 +237,8 @@ discovered around 3 hours ago, as I write this report on \itl{Saturday morning}.
 function call itself is responsible for saving and restoring \ttt{a1-a4}. Some finesse and hackery was needed to
 allow the call to \itl{backpatch} the offsets correctly after it is known.
 
-If this was built-in from the beginning, a better implementation would probably have been found.
-
-
+If this was built-in from the beginning, a better implementation would probably have been found. That being said,
+this implementation has been \enquote{battle-tested} up to 27 arguments, so I am reasonably confident in it.
 
 
 \paragraph{Phi Nodes}
@@ -518,7 +517,7 @@ I am not keen to do.
 
 \subsubsection{Strings}
 
-Lastly, strings are implemented as a pointer + length, where the length is stored in the first 4 bytes on the heap,
+Strings are implemented as a pointer + length, where the length is stored in the first 4 bytes on the heap,
 before the string data itself. The string data \itl{is} null-terminated, so we can trivially pass it to C functions.
 
 However, having the length allows string concatenation to be performed in a single pass, which is good for efficiency.
@@ -538,6 +537,16 @@ Jlite specification. Memory is \itl{not} freed, since it is impossible to determ
 without implementing some sort of garbage collector.
 
 Memory is never explicitly freed, but the OS will handle that when the program terminates anyway.
+
+
+Somewhat related to memory, but not really --- as mentioned above, the compiler makes use of the \enquote{constant pool}
+to store large constants inline with the code, eg. \mintinline{asm}{ldr a1, =#12345}. The issue is that the assembler
+appears to \enquote{pool} (haha) these constants near the end of the generated executable (maybe in the data section?).
+
+Apparently, the maximum offset is at most \qty{4}{\kilo\byte}; if functions get too large, or there are too many of them,
+the assembler complains. The mitigation is to insert \mintinline{asm}{.ltorg} in between functions, so the assembler can
+choose to place constants there as well.
+
 
 % end subsubsection (Memory Management)
 % end subsection (Assembly Generation)
@@ -800,7 +809,7 @@ A brief description of the tests:
 	tests various basic functionalities; nothing too interesting
 
 & \bld{\ttt{calls}} \\
-	tests function calls up to 14 arguments
+	tests function calls up to 27 arguments
 
 & \bld{\ttt{cse}} \\
 	tests common subexpression elimination, as well as constant and copy propagation

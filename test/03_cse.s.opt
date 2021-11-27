@@ -107,6 +107,8 @@ main_dummy:
 	ldmfd sp!, {pc}
 
 
+.align 4
+.ltorg
 .global _J3Foo_7effect1E
 .type _J3Foo_7effect1E, %function
 _J3Foo_7effect1E:
@@ -127,6 +129,8 @@ _J3Foo_7effect1E:
 	ldmfd sp!, {v1, pc}
 
 
+.align 4
+.ltorg
 .global _J3Foo_7effect2E
 .type _J3Foo_7effect2E, %function
 _J3Foo_7effect2E:
@@ -146,6 +150,8 @@ _J3Foo_7effect2E:
 	ldmfd sp!, {pc}
 
 
+.align 4
+.ltorg
 .global _J3Foo_12test_effectsE
 .type _J3Foo_12test_effectsE, %function
 _J3Foo_12test_effectsE:
@@ -215,6 +221,8 @@ _J3Foo_12test_effectsE:
 	ldmfd sp!, {v1, v2, pc}
 
 
+.align 4
+.ltorg
 
 .global main
 .type main, %function

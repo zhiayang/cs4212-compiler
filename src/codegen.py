@@ -552,6 +552,8 @@ def codegen_method(cs: CodegenState, method: ir3.FuncDefn):
 
 	cs.emit_lines(fs.finalise())
 	cs.emit_raw(f"\n")
+	cs.emit_raw(f".align 4")
+	cs.emit_raw(f".ltorg")
 
 
 
